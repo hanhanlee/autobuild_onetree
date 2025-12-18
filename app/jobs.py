@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
 
-from . import auth
+from .auth import normalize_token_perms
 from .config import get_jobs_root
 from .db import get_connection, update_job_status
 
@@ -88,12 +88,16 @@ def start_job_runner(job_id: int, owner: str, repo_url: str, ref: str, machine: 
     token_path = Path(token_root) / f"{owner}.token"
     if token_path.exists():
         try:
-            auth.normalize_token_perms(Path(token_root), token_path)
+            normalize_token_perms(Path(token_root), token_path, create_root=False)
         except Exception:
             logger.warning("Failed to normalize token perms for %s", token_path)
     else:
         with log_path.open("a", encoding="utf-8") as fp:
             fp.write(f"GitLab token missing for user {owner} at {token_path}\n")
+        try:
+            os.chmod(log_path, 0o664)
+        except PermissionError:
+            pass
         update_job_status(job_id, STATUS_FAILED, finished_at=now_iso(), exit_code=2)
         return
     readable = True
@@ -109,6 +113,10 @@ def start_job_runner(job_id: int, owner: str, repo_url: str, ref: str, machine: 
     if not readable:
         with log_path.open("a", encoding="utf-8") as fp:
             fp.write(f"GitLab token not readable by user {owner} at {token_path} (check perms/group)\n")
+        try:
+            os.chmod(log_path, 0o664)
+        except PermissionError:
+            pass
         update_job_status(job_id, STATUS_FAILED, finished_at=now_iso(), exit_code=2)
         return
     log_fp = None

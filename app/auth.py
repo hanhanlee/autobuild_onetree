@@ -38,25 +38,26 @@ def token_path_for_user(username: str) -> Path:
     return get_token_root() / f"{username}.token"
 
 
-def normalize_token_perms(token_root: Path, token_path: Path) -> None:
+def normalize_token_perms(token_root: Path, token_path: Path, create_root: bool = False) -> None:
     group_name = os.environ.get("AUTOBUILD_ALLOWED_GROUP", "scm-bmc")
     try:
         gid = grp.getgrnam(group_name).gr_gid
     except KeyError:
         gid = None
-    try:
-        token_root.mkdir(parents=True, exist_ok=True)
-    except Exception as exc:
-        logger.warning("Failed to create token root %s: %s", token_root, exc)
-    try:
-        os.chmod(token_root, 0o2770)
-    except PermissionError:
-        pass
-    if gid is not None:
+    if create_root:
         try:
-            os.chown(token_root, -1, gid)
+            token_root.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:
+            logger.warning("Failed to create token root %s: %s", token_root, exc)
+        try:
+            os.chmod(token_root, 0o2770)
         except PermissionError:
             pass
+        if gid is not None:
+            try:
+                os.chown(token_root, -1, gid)
+            except PermissionError:
+                pass
     if token_path.exists():
         if gid is not None:
             try:
@@ -74,7 +75,7 @@ def has_gitlab_token(username: str) -> bool:
     if not path.exists() or not path.is_file():
         return False
     try:
-        normalize_token_perms(path.parent, path)
+        normalize_token_perms(path.parent, path, create_root=False)
         content = path.read_text(encoding="utf-8").strip()
     except Exception as exc:
         logger.warning("Failed to read token for user %s: %s", username, exc)
@@ -111,7 +112,7 @@ def write_gitlab_token(username: str, token: str) -> None:
                 os.chown(path, -1, gid)
             except PermissionError:
                 pass
-        normalize_token_perms(root, path)
+        normalize_token_perms(root, path, create_root=True)
     finally:
         if tmp_path.exists():
             try:
