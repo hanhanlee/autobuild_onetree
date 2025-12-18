@@ -13,13 +13,15 @@ MACHINE="$4"
 TARGET="$5"
 
 JOBS_ROOT="${AUTOBUILD_JOBS_ROOT:-${AUTO_BUILD_JOBS_ROOT:-/opt/autobuild/workspace/jobs}}"
-JOB_DIR="${JOB_DIR:-${JOBS_ROOT}/${JOB_ID}}"
+: "${JOB_DIR:=${JOBS_ROOT}/${JOB_ID}}"
 LOG_DIR="${JOB_DIR}/logs"
 LOG_FILE="${LOG_DIR}/build.log"
 ARTIFACT_DIR="${JOB_DIR}/artifacts"
 STATUS_FILE="${JOB_DIR}/status.json"
 EXIT_CODE_FILE="${JOB_DIR}/exit_code"
 WORK_DIR="${JOB_DIR}/work"
+OWNER="${AUTOBUILD_JOB_OWNER:-}"
+if [[ -z "${OWNER}" ]]; then
 OWNER="$(python3 - "${JOB_DIR}" <<'PY'
 import json, os, sys
 
@@ -38,6 +40,16 @@ if not owner:
 print(owner)
 PY
 )"
+fi
+if [[ -z "${OWNER}" ]]; then
+  OWNER="${SUDO_USER:-${USER:-}}"
+fi
+if [[ -z "${OWNER}" ]]; then
+  echo "Failed to determine job owner; JOB_DIR=${JOB_DIR}" >&2
+  exit 1
+fi
+echo "JOB_DIR=${JOB_DIR}"
+echo "OWNER=${OWNER}"
 TOKEN_ROOT="${AUTOBUILD_TOKEN_ROOT:-/opt/autobuild/workspace/secrets/gitlab}"
 TOKEN_FILE="${TOKEN_ROOT}/${OWNER}.token"
 

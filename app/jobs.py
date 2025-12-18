@@ -75,6 +75,7 @@ def _schedule_poll_job(job_id: int) -> None:
 def start_job_runner(job_id: int, owner: str, repo_url: str, ref: str, machine: str, target: str) -> None:
     started_at = now_iso()
     update_job_status(job_id, STATUS_RUNNING, started_at=started_at)
+    job_root = job_dir(job_id)
     prepare_job_dirs(job_id)
     log_path = log_file(job_id)
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -91,9 +92,10 @@ def start_job_runner(job_id: int, owner: str, repo_url: str, ref: str, machine: 
         target,
     ]
     env = os.environ.copy()
-    env["JOB_DIR"] = str(job_dir(job_id))
+    env["JOB_DIR"] = str(job_root)
     env["AUTOBUILD_JOBS_ROOT"] = str(get_jobs_root())
     env["AUTO_BUILD_JOB_ID"] = str(job_id)
+    env["AUTOBUILD_JOB_OWNER"] = owner
     logger.info("Starting runner for job %s (owner=%s) log=%s cmd=%s", job_id, owner, log_path, cmd)
     try:
         log_fp = log_path.open("ab", buffering=0)
