@@ -42,7 +42,7 @@ PY
 )"
 fi
 if [[ -z "${OWNER}" ]]; then
-  OWNER="${SUDO_USER:-${USER:-}}"
+  OWNER="${USER:-${SUDO_USER:-}}"
 fi
 if [[ -z "${OWNER}" ]]; then
   echo "Failed to determine job owner; JOB_DIR=${JOB_DIR}" >&2
