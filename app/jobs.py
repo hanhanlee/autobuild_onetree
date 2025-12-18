@@ -88,7 +88,7 @@ def start_job_runner(job_id: int, owner: str, repo_url: str, ref: str, machine: 
         f"JOB_DIR={job_root}",
         f"AUTOBUILD_JOBS_ROOT={get_jobs_root()}",
         f"AUTOBUILD_JOB_OWNER={owner}",
-        f"AUTOBUILD_TOKEN_ROOT={get_token_root()}",
+        f"AUTOBUILD_TOKEN_ROOT={os.environ.get('AUTOBUILD_TOKEN_ROOT') or os.environ.get('AUTO_BUILD_TOKEN_ROOT') or '/opt/autobuild/workspace/secrets/gitlab'}",
         "/opt/autobuild/runner/run_job.sh",
         str(job_id),
         repo_url,
