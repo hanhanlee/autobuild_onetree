@@ -1,7 +1,9 @@
 import asyncio
 import json
+import logging
 import os
 import subprocess
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,6 +11,8 @@ from typing import Dict, Optional
 
 from .config import get_jobs_root
 from .db import get_connection, update_job_status
+
+logger = logging.getLogger(__name__)
 
 
 STATUS_PENDING = "PENDING"
@@ -60,9 +64,21 @@ def log_file(job_id: int) -> Path:
     return job_dir(job_id) / "logs" / "build.log"
 
 
+def _schedule_poll_job(job_id: int) -> None:
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(poll_job(job_id))
+    except RuntimeError:
+        threading.Thread(target=lambda: asyncio.run(poll_job(job_id)), daemon=True).start()
+
+
 def start_job_runner(job_id: int, owner: str, repo_url: str, ref: str, machine: str, target: str) -> None:
     started_at = now_iso()
     update_job_status(job_id, STATUS_RUNNING, started_at=started_at)
+    prepare_job_dirs(job_id)
+    log_path = log_file(job_id)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_fp = None
     cmd = [
         "sudo",
         "-u",
@@ -78,8 +94,21 @@ def start_job_runner(job_id: int, owner: str, repo_url: str, ref: str, machine: 
     env["JOB_DIR"] = str(job_dir(job_id))
     env["AUTOBUILD_JOBS_ROOT"] = str(get_jobs_root())
     env["AUTO_BUILD_JOB_ID"] = str(job_id)
-    subprocess.Popen(cmd, env=env)
-    asyncio.create_task(poll_job(job_id))
+    logger.info("Starting runner for job %s (owner=%s) log=%s cmd=%s", job_id, owner, log_path, cmd)
+    try:
+        log_fp = log_path.open("ab", buffering=0)
+        subprocess.Popen(cmd, env=env, stdout=log_fp, stderr=subprocess.STDOUT, cwd="/opt/autobuild")
+    except Exception:
+        logger.exception("Failed to start runner for job %s", job_id)
+        update_job_status(job_id, STATUS_FAILED, finished_at=now_iso(), exit_code=-1)
+        return
+    finally:
+        if log_fp is not None:
+            try:
+                log_fp.close()
+            except Exception:
+                pass
+    _schedule_poll_job(job_id)
 
 
 async def poll_job(job_id: int, interval: float = 2.0) -> None:
@@ -94,7 +123,7 @@ async def poll_job(job_id: int, interval: float = 2.0) -> None:
                     update_job_status(job_id, status, finished_at=finished_at, exit_code=exit_code)
                     return
             except Exception:
-                pass
+                logger.debug("Failed to read status for job %s", job_id, exc_info=True)
         elif exit_code_file(job_id).exists():
             try:
                 exit_code = int(exit_code_file(job_id).read_text(encoding="utf-8").strip())
