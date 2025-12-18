@@ -1,7 +1,10 @@
 import os
 import grp
 import pwd
+from pathlib import Path
 from typing import Optional
+
+from .config import get_token_root
 
 
 def username_auth(username: str) -> bool:
@@ -28,23 +31,50 @@ def username_auth(username: str) -> bool:
     return False
 
 
-def save_gitlab_token(username: str, token: str) -> Optional[str]:
+def token_path_for_user(username: str) -> Path:
+    return get_token_root() / f"{username}.token"
+
+
+def has_gitlab_token(username: str) -> bool:
+    path = token_path_for_user(username)
+    if not path.exists() or not path.is_file():
+        return False
+    try:
+        content = path.read_text(encoding="utf-8").strip()
+    except Exception:
+        return False
+    return bool(content)
+
+
+def write_gitlab_token(username: str, token: str) -> None:
+    token = (token or "").strip()
     if not token:
-        return "Token is required"
-    home = os.path.expanduser(f"~{username}")
-    target_dir = os.path.join(home, ".autobuild")
-    token_path = os.path.join(target_dir, "gitlab_token")
-    os.makedirs(target_dir, exist_ok=True)
+        raise ValueError("Token is required")
+    root = get_token_root()
+    root.mkdir(parents=True, exist_ok=True)
+    path = token_path_for_user(username)
+    tmp_path = path.with_suffix(".tmp")
     try:
-        if os.name == "posix":
-            os.chmod(target_dir, 0o700)
+        tmp_path.write_text(token + "\n", encoding="utf-8")
+        os.replace(tmp_path, path)
+    finally:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
+    try:
+        os.chmod(path, 0o600)
     except PermissionError:
-        pass
+        try:
+            os.chmod(path, 0o640)
+        except PermissionError:
+            pass
+
+
+def save_gitlab_token(username: str, token: str) -> Optional[str]:
     try:
-        with open(token_path, "w", encoding="utf-8") as f:
-            f.write(token.strip())
-        if os.name == "posix":
-            os.chmod(token_path, 0o600)
+        write_gitlab_token(username, token)
     except Exception as exc:  # pragma: no cover - defensive
         return str(exc)
     return None

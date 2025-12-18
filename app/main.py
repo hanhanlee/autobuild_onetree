@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, db, jobs
-from .config import get_db_path, get_jobs_root, get_presets_root, get_secret_key
+from .config import get_db_path, get_jobs_root, get_presets_root, get_secret_key, get_token_root
 from .presets import load_presets_for_user
 from .routes import presets as presets_routes
 
@@ -50,13 +50,63 @@ async def login_page(request: Request):
 @app.post("/login")
 async def login_post(request: Request, username: str = Form(...)):
     if auth.username_auth(username):
-        request.session["user"] = username
-        return RedirectResponse(url="/", status_code=303)
+        if auth.has_gitlab_token(username):
+            request.session.pop("pending_user", None)
+            request.session["user"] = username
+            return RedirectResponse(url="/new", status_code=303)
+        request.session["pending_user"] = username
+        return RedirectResponse(url="/login/token", status_code=303)
     return templates.TemplateResponse(
         "login.html",
         {"request": request, "error": "Unauthorized user (check Linux account/group)"},
         status_code=401,
     )
+
+
+@app.get("/login/token", response_class=HTMLResponse)
+async def login_token_page(request: Request):
+    if get_current_user(request):
+        return RedirectResponse(url="/new", status_code=303)
+    pending = request.session.get("pending_user")
+    if not pending:
+        return RedirectResponse(url="/login", status_code=303)
+    return templates.TemplateResponse("login_token.html", {"request": request, "error": None, "username": pending})
+
+
+@app.post("/login/token")
+async def login_token_post(request: Request, token: str = Form(...), username: str = Form(...)):
+    pending = request.session.get("pending_user")
+    if not pending:
+        return RedirectResponse(url="/login", status_code=303)
+    if username != pending:
+        return templates.TemplateResponse(
+            "login_token.html",
+            {"request": request, "error": "Username mismatch", "username": pending},
+            status_code=400,
+        )
+    if not auth.username_auth(username):
+        return templates.TemplateResponse(
+            "login_token.html",
+            {"request": request, "error": "Unauthorized user (check Linux account/group)", "username": username},
+            status_code=401,
+        )
+    try:
+        auth.write_gitlab_token(username, token)
+    except ValueError as exc:
+        return templates.TemplateResponse(
+            "login_token.html",
+            {"request": request, "error": str(exc), "username": username},
+            status_code=400,
+        )
+    except Exception as exc:
+        return templates.TemplateResponse(
+            "login_token.html",
+            {"request": request, "error": "Failed to save token", "username": username},
+            status_code=500,
+        )
+    request.session.pop("pending_user", None)
+    request.session["user"] = username
+    return RedirectResponse(url="/new", status_code=303)
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -228,3 +278,9 @@ async def ensure_paths():
     get_jobs_root().mkdir(parents=True, exist_ok=True)
     get_presets_root().mkdir(parents=True, exist_ok=True)
     get_db_path().parent.mkdir(parents=True, exist_ok=True)
+    token_root = get_token_root()
+    token_root.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(token_root, 0o2770)
+    except PermissionError:
+        pass

@@ -20,7 +20,26 @@ ARTIFACT_DIR="${JOB_DIR}/artifacts"
 STATUS_FILE="${JOB_DIR}/status.json"
 EXIT_CODE_FILE="${JOB_DIR}/exit_code"
 WORK_DIR="${JOB_DIR}/work"
-TOKEN_FILE="${HOME}/.autobuild/gitlab_token"
+OWNER="$(python3 - "${JOB_DIR}" <<'PY'
+import json, os, sys
+
+job_dir = sys.argv[1]
+owner = None
+path = os.path.join(job_dir, "job.json")
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    owner = data.get("created_by") or data.get("owner")
+except Exception:
+    owner = None
+owner = owner or os.environ.get("SUDO_USER") or os.environ.get("USER")
+if not owner:
+    sys.exit(1)
+print(owner)
+PY
+)"
+TOKEN_ROOT="${AUTOBUILD_TOKEN_ROOT:-/opt/autobuild/workspace/secrets/gitlab}"
+TOKEN_FILE="${TOKEN_ROOT}/${OWNER}.token"
 
 mkdir -p "${LOG_DIR}" "${ARTIFACT_DIR}" "${WORK_DIR}"
 touch "${LOG_FILE}"
@@ -67,10 +86,14 @@ echo "Target: ${TARGET}"
 write_status "RUNNING" "null" ""
 
 if [[ ! -f "${TOKEN_FILE}" ]]; then
-  echo "GitLab token not found at ${TOKEN_FILE}" >&2
+  echo "GitLab token not found for user ${OWNER} at ${TOKEN_FILE}" >&2
   exit 2
 fi
-GITLAB_TOKEN="$(cat "${TOKEN_FILE}")"
+GITLAB_TOKEN="$(tr -d '\r\n' < "${TOKEN_FILE}")"
+if [[ -z "${GITLAB_TOKEN}" ]]; then
+  echo "GitLab token is empty for user ${OWNER} at ${TOKEN_FILE}" >&2
+  exit 2
+fi
 
 ASKPASS="${WORK_DIR}/git_askpass.sh"
 cat > "${ASKPASS}" <<'EOF'

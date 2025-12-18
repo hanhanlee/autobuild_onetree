@@ -57,3 +57,11 @@ def get_db_path() -> Path:
 
 def get_secret_key() -> str:
     return os.getenv("AUTOBUILD_SECRET_KEY", os.getenv("AUTO_BUILD_SECRET_KEY", "change-me-please"))
+
+
+def get_token_root() -> Path:
+    return _env_path(
+        "AUTOBUILD_TOKEN_ROOT",
+        str(get_workspace_root() / "secrets" / "gitlab"),
+        ["AUTO_BUILD_TOKEN_ROOT"],
+    )
