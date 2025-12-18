@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>New Job</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        form { display: grid; grid-template-columns: 1fr; gap: 0.75rem; max-width: 500px; }
+        label { display: flex; flex-direction: column; }
+    </style>
+</head>
+<body>
+    <h1>Create Job</h1>
+    <p><a href="/settings">GitLab token</a></p>
+    <form method="post" action="/new">
+        <label>Repository URL
+            <input type="text" name="repo_url" placeholder="https://gitlab.com/group/repo.git" required>
+        </label>
+        <label>Ref (branch/tag/commit)
+            <input type="text" name="ref" value="main" required>
+        </label>
+        <label>Machine
+            <input type="text" name="machine" value="qemuarm64" required>
+        </label>
+        <label>Target
+            <input type="text" name="target" value="core-image-minimal" required>
+        </label>
+        <button type="submit">Submit</button>
+    </form>
+</body>
+</html>

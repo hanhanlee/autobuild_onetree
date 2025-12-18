@@ -1,0 +1,122 @@
+import asyncio
+import json
+import os
+import subprocess
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Dict, Optional
+
+from .config import get_jobs_root
+from .db import get_connection, update_job_status
+
+
+STATUS_PENDING = "PENDING"
+STATUS_RUNNING = "RUNNING"
+STATUS_SUCCESS = "SUCCESS"
+STATUS_FAILED = "FAILED"
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def create_job(owner: str, repo_url: str, ref: str, machine: str, target: str) -> int:
+    created_at = now_iso()
+    with get_connection() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO jobs (owner, repo_url, ref, machine, target, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (owner, repo_url, ref, machine, target, STATUS_PENDING, created_at),
+        )
+        conn.commit()
+        job_id = cur.lastrowid
+    prepare_job_dirs(job_id)
+    return job_id
+
+
+def prepare_job_dirs(job_id: int) -> Path:
+    root = get_jobs_root() / str(job_id)
+    (root / "logs").mkdir(parents=True, exist_ok=True)
+    (root / "artifacts").mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def job_dir(job_id: int) -> Path:
+    return get_jobs_root() / str(job_id)
+
+
+def status_file(job_id: int) -> Path:
+    return job_dir(job_id) / "status.json"
+
+
+def exit_code_file(job_id: int) -> Path:
+    return job_dir(job_id) / "exit_code"
+
+
+def log_file(job_id: int) -> Path:
+    return job_dir(job_id) / "logs" / "build.log"
+
+
+def start_job_runner(job_id: int, owner: str, repo_url: str, ref: str, machine: str, target: str) -> None:
+    started_at = now_iso()
+    update_job_status(job_id, STATUS_RUNNING, started_at=started_at)
+    cmd = [
+        "sudo",
+        "-u",
+        owner,
+        "/opt/autobuild/runner/run_job.sh",
+        str(job_id),
+        repo_url,
+        ref,
+        machine,
+        target,
+    ]
+    env = os.environ.copy()
+    env["JOB_DIR"] = str(job_dir(job_id))
+    env["AUTO_BUILD_JOB_ID"] = str(job_id)
+    subprocess.Popen(cmd, env=env)
+    asyncio.create_task(poll_job(job_id))
+
+
+async def poll_job(job_id: int, interval: float = 2.0) -> None:
+    while True:
+        if status_file(job_id).exists():
+            try:
+                data = json.loads(status_file(job_id).read_text(encoding="utf-8"))
+                status = data.get("status")
+                exit_code = data.get("exit_code")
+                finished_at = data.get("finished_at")
+                if status in (STATUS_SUCCESS, STATUS_FAILED):
+                    update_job_status(job_id, status, finished_at=finished_at, exit_code=exit_code)
+                    return
+            except Exception:
+                pass
+        elif exit_code_file(job_id).exists():
+            try:
+                exit_code = int(exit_code_file(job_id).read_text(encoding="utf-8").strip())
+            except ValueError:
+                exit_code = -1
+            status = STATUS_SUCCESS if exit_code == 0 else STATUS_FAILED
+            update_job_status(job_id, status, finished_at=now_iso(), exit_code=exit_code)
+            return
+        await asyncio.sleep(interval)
+
+
+def list_artifacts(job_id: int) -> Dict[str, Dict[str, Optional[str]]]:
+    artifacts_dir = job_dir(job_id) / "artifacts"
+    artifacts: Dict[str, Dict[str, Optional[str]]] = {}
+    if not artifacts_dir.exists():
+        return artifacts
+    for item in artifacts_dir.iterdir():
+        if item.is_file():
+            stat = item.stat()
+            artifacts[item.name] = {
+                "name": item.name,
+                "size": stat.st_size,
+                "mtime": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+            }
+    return artifacts
+

@@ -1,0 +1,16 @@
+[Unit]
+Description=Autobuild Web Service
+After=network.target
+
+[Service]
+User=autobuild
+Group=autobuild
+WorkingDirectory=/opt/autobuild
+Environment=PYTHONUNBUFFERED=1
+Environment=AUTO_BUILD_DB=/srv/autobuild/data/jobs.db
+Environment=AUTO_BUILD_JOBS_ROOT=/srv/autobuild/jobs
+ExecStart=/opt/autobuild/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

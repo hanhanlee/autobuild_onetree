@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>GitLab Token</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; }
+        .status { color: green; }
+        .error { color: red; }
+        form { display: flex; flex-direction: column; max-width: 400px; gap: 0.5rem; }
+    </style>
+</head>
+<body>
+    <h1>GitLab Token</h1>
+    {% if saved %}<p class="status">Token saved.</p>{% endif %}
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <form method="post" action="/settings">
+        <label>Personal Access Token <input type="text" name="token" required></label>
+        <button type="submit">Save</button>
+    </form>
+    <p><a href="/new">Back to new job</a></p>
+</body>
+</html>
