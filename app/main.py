@@ -22,7 +22,7 @@ db.ensure_db()
 
 
 def get_current_user(request: Request) -> Optional[str]:
-    return request.session.get("username")
+    return request.session.get("user")
 
 
 def require_login(request: Request) -> Optional[RedirectResponse]:
@@ -45,11 +45,15 @@ async def login_page(request: Request):
 
 
 @app.post("/login")
-async def login_post(request: Request, username: str = Form(...), password: str = Form(...)):
-    if auth.pam_auth(username, password):
-        request.session["username"] = username
-        return RedirectResponse(url="/new", status_code=303)
-    return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid credentials"})
+async def login_post(request: Request, username: str = Form(...)):
+    if auth.username_auth(username):
+        request.session["user"] = username
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request, "error": "Unauthorized user (check Linux account/group)"},
+        status_code=401,
+    )
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -179,4 +183,3 @@ async def refresh_job(request: Request, job_id: int):
 @app.on_event("startup")
 async def ensure_paths():
     get_jobs_root().mkdir(parents=True, exist_ok=True)
-

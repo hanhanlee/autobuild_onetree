@@ -1,18 +1,30 @@
 import os
-import sys
+import grp
+import pwd
 from typing import Optional
 
-try:
-    import pam
-except ImportError:  # pragma: no cover - dependency should be installed in prod
-    pam = None
 
-
-def pam_auth(username: str, password: str) -> bool:
-    if sys.platform.startswith("linux") and pam is not None:
-        p = pam.pam()
-        return bool(p.authenticate(username, password))
-    # Only allow PAM-backed login on Linux; deny elsewhere.
+def username_auth(username: str) -> bool:
+    username = (username or "").strip()
+    if not username:
+        return False
+    try:
+        user_info = pwd.getpwnam(username)
+    except KeyError:
+        return False
+    allowed_group = os.environ.get("AUTOBUILD_ALLOWED_GROUP", "scm-bmc")
+    try:
+        target_group = grp.getgrnam(allowed_group)
+    except KeyError:
+        return False
+    target_gid = target_group.gr_gid
+    if user_info.pw_gid == target_gid:
+        return True
+    if username in target_group.gr_mem:
+        return True
+    for group in grp.getgrall():
+        if group.gr_gid == target_gid and username in group.gr_mem:
+            return True
     return False
 
 
@@ -36,4 +48,3 @@ def save_gitlab_token(username: str, token: str) -> Optional[str]:
     except Exception as exc:  # pragma: no cover - defensive
         return str(exc)
     return None
-
