@@ -1,0 +1,57 @@
+version: 1
+presets:
+  - name: AST2600EVB
+    description: "AST2600 EVB build per README_New"
+    repos:
+      - { name: openbmc, url: "https://git.ami.com/core/ami-bmc/base-tech/openbmc", dest: "onetree" }
+      - { name: meta-core, url: "https://git.ami.com/core/ami-bmc/one-tree/core/meta-core", dest: "meta-core" }
+      - { name: meta-ami, url: "https://git.ami.com/core/ami-bmc/one-tree/core/meta-ami", dest: "meta-ami" }
+    templateconf: "meta-ami/meta-evb/meta-evb-aspeed/meta-evb-ast2600/conf/templates/default"
+    default_bitbake_target: "obmc-phosphor-image"
+    default_machine: null
+    env_builddir: null
+    post_steps:
+      - "github-gitlab-url"
+
+  - name: AST2700EVB
+    description: "AST2700 EVB build per README_New"
+    repos:
+      - { name: openbmc, url: "https://git.ami.com/core/ami-bmc/base-tech/openbmc", dest: "onetree" }
+      - { name: meta-core, url: "https://git.ami.com/core/ami-bmc/one-tree/core/meta-core", dest: "meta-core" }
+      - { name: meta-ami, url: "https://git.ami.com/core/ami-bmc/one-tree/core/meta-ami", dest: "meta-ami" }
+    templateconf: "meta-ami/meta-evb/meta-evb-aspeed/meta-evb-ast2700/meta-ast2700/conf/templates/default"
+    default_bitbake_target: "obmc-phosphor-image"
+    default_machine: "ast2700-default"
+    env_builddir: null
+    post_steps:
+      - "github-gitlab-url"
+
+  - name: Intel_BHS
+    description: "Intel BHS build with meta-intel/meta-restricted layers"
+    repos:
+      - { name: openbmc, url: "https://git.ami.com/core/ami-bmc/base-tech/openbmc", dest: "onetree" }
+      - { name: meta-core, url: "https://git.ami.com/core/ami-bmc/one-tree/core/meta-core", dest: "meta-core" }
+      - { name: meta-ami, url: "https://git.ami.com/core/ami-bmc/one-tree/core/meta-ami", dest: "meta-ami" }
+      - { name: meta-bhs, url: "https://git.ami.com/core/ami-bmc/one-tree/intel/bhs", dest: "meta-core/meta-bhs" }
+      - { name: meta-intel, url: "https://git.ami.com/core/ami-bmc/one-tree/intel/meta-intel", dest: "meta-core/meta-intel" }
+      - { name: meta-restricted, url: "https://git.ami.com/core/ami-bmc/one-tree/intel/meta-restricted", dest: "meta-core/meta-restricted" }
+    templateconf: "meta-core/meta-bhs/conf/templates/default"
+    default_bitbake_target: "intel-platforms"
+    default_machine: null
+    env_builddir: null
+    post_steps:
+      - "github-gitlab-url"
+
+  - name: AMD_Venice
+    description: "AMD Venice CRB build per README_New"
+    repos:
+      - { name: openbmc, url: "https://git.ami.com/core/ami-bmc/base-tech/openbmc", dest: "onetree" }
+      - { name: meta-core, url: "https://git.ami.com/core/ami-bmc/one-tree/core/meta-core", dest: "meta-core" }
+      - { name: meta-ami, url: "https://git.ami.com/core/ami-bmc/one-tree/core/meta-ami", dest: "meta-ami" }
+      - { name: meta-venice, url: "https://git.ami.com/core/ami-bmc/one-tree/amd/crb/venice/", dest: "meta-amd/meta-venice" }
+    templateconf: "meta-amd/meta-venice/conf/templates/default"
+    default_bitbake_target: "obmc-phosphor-image"
+    default_machine: null
+    env_builddir: null
+    post_steps:
+      - "github-gitlab-url"

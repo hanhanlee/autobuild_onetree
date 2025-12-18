@@ -21,8 +21,8 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def create_job(owner: str, repo_url: str, ref: str, machine: str, target: str) -> int:
-    created_at = now_iso()
+def create_job(owner: str, repo_url: str, ref: str, machine: str, target: str, created_at: Optional[str] = None) -> int:
+    created_at = created_at or now_iso()
     with get_connection() as conn:
         cur = conn.execute(
             """
@@ -76,6 +76,7 @@ def start_job_runner(job_id: int, owner: str, repo_url: str, ref: str, machine: 
     ]
     env = os.environ.copy()
     env["JOB_DIR"] = str(job_dir(job_id))
+    env["AUTOBUILD_JOBS_ROOT"] = str(get_jobs_root())
     env["AUTO_BUILD_JOB_ID"] = str(job_id)
     subprocess.Popen(cmd, env=env)
     asyncio.create_task(poll_job(job_id))
@@ -120,3 +121,11 @@ def list_artifacts(job_id: int) -> Dict[str, Dict[str, Optional[str]]]:
             }
     return artifacts
 
+
+def write_job_spec(job_id: int, spec: Dict[str, object]) -> None:
+    path = job_dir(job_id) / "job.json"
+    tmp = path.with_suffix(".json.tmp")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tmp.open("w", encoding="utf-8") as f:
+        json.dump(spec, f, indent=2, sort_keys=True)
+    tmp.replace(path)

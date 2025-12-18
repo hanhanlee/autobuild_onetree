@@ -12,7 +12,7 @@ REF="$3"
 MACHINE="$4"
 TARGET="$5"
 
-JOBS_ROOT="${AUTO_BUILD_JOBS_ROOT:-/srv/autobuild/jobs}"
+JOBS_ROOT="${AUTOBUILD_JOBS_ROOT:-${AUTO_BUILD_JOBS_ROOT:-/opt/autobuild/workspace/jobs}}"
 JOB_DIR="${JOB_DIR:-${JOBS_ROOT}/${JOB_ID}}"
 LOG_DIR="${JOB_DIR}/logs"
 LOG_FILE="${LOG_DIR}/build.log"
@@ -90,6 +90,7 @@ git -c credential.helper= -c core.askPass="${ASKPASS}" clone --depth 1 --branch 
 cd "${WORK_DIR}/repo"
 echo "Repository cloned. Starting build placeholder..."
 echo "TODO: replace with real Yocto build. Running simple checks."
+# TODO(Stage 3): consume job.json/resolved presets and run README_New.md workflow (clone/env/bitbake).
 
 # Placeholder build step; replace with real build invocation.
 if [[ -x "./autobuild.sh" ]]; then

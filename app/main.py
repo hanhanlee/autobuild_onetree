@@ -3,20 +3,23 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Form, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, db, jobs
-from .config import get_jobs_root, get_secret_key
+from .config import get_db_path, get_jobs_root, get_presets_root, get_secret_key
+from .presets import load_presets_for_user
+from .routes import presets as presets_routes
 
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=get_secret_key(), session_cookie="autobuild_session")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+app.include_router(presets_routes.router)
 
 db.ensure_db()
 
@@ -90,15 +93,55 @@ async def create_job(
     background_tasks: BackgroundTasks,
     repo_url: str = Form(...),
     ref: str = Form(...),
-    machine: str = Form(...),
-    target: str = Form(...),
+    machine: str = Form(""),
+    target: str = Form(""),
+    preset: str = Form("__manual__"),
 ):
     redirect = require_login(request)
     if redirect:
         return redirect
     username = get_current_user(request)
-    job_id = jobs.create_job(username, repo_url, ref, machine, target)
-    background_tasks.add_task(jobs.start_job_runner, job_id, username, repo_url, ref, machine, target)
+    preset_name = preset or "__manual__"
+    resolved_preset = None
+    effective_machine = machine
+    effective_target = target
+    if preset_name != "__manual__":
+        preset_map = load_presets_for_user(username)
+        if preset_name not in preset_map:
+            raise HTTPException(status_code=400, detail=f"Preset '{preset_name}' not found")
+        resolved_preset = preset_map[preset_name]
+        if not effective_machine and resolved_preset.default_machine:
+            effective_machine = resolved_preset.default_machine
+        if not effective_target:
+            effective_target = resolved_preset.default_bitbake_target
+    if not effective_machine:
+        raise HTTPException(status_code=400, detail="machine is required (either fill it or use a preset with default_machine)")
+    if not effective_target:
+        raise HTTPException(status_code=400, detail="target is required (either fill it or use a preset with default_bitbake_target)")
+    created_at = jobs.now_iso()
+    job_id = jobs.create_job(username, repo_url, ref, effective_machine, effective_target, created_at=created_at)
+    spec = {
+        "schema_version": 1,
+        "job_id": job_id,
+        "created_by": username,
+        "created_at": created_at,
+        "preset_name": preset_name,
+        "overrides": {
+            "repo_url": repo_url,
+            "ref": ref,
+            "machine": machine,
+            "target": target,
+        },
+        "effective": {
+            "repo_url": repo_url,
+            "ref": ref,
+            "machine": effective_machine,
+            "target": effective_target,
+        },
+        "resolved_preset": resolved_preset.dict() if resolved_preset else None,
+    }
+    jobs.write_job_spec(job_id, spec)
+    background_tasks.add_task(jobs.start_job_runner, job_id, username, repo_url, ref, effective_machine, effective_target)
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
 
 
@@ -183,3 +226,5 @@ async def refresh_job(request: Request, job_id: int):
 @app.on_event("startup")
 async def ensure_paths():
     get_jobs_root().mkdir(parents=True, exist_ok=True)
+    get_presets_root().mkdir(parents=True, exist_ok=True)
+    get_db_path().parent.mkdir(parents=True, exist_ok=True)
