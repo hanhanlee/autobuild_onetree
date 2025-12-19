@@ -18,6 +18,16 @@
                 <option value="__manual__">Manual (no preset)</option>
             </select>
         </label>
+        <label>Project Template
+            <select id="project-select" name="project_template_id">
+                <option value="">(Optional) Select template</option>
+            </select>
+        </label>
+        <label>Template Version
+            <select id="project-version-select" name="project_template_version">
+                <option value="">Select template first</option>
+            </select>
+        </label>
         <div id="preset-summary" style="border: 1px solid #ccc; padding: 0.75rem; border-radius: 4px;">
             <div><strong>Description:</strong> <span id="summary-description">Select a preset</span></div>
             <div><strong>Templateconf:</strong> <span id="summary-templateconf">-</span></div>
@@ -116,6 +126,86 @@
             }
 
             loadPresets().then(handlePrefillOnFirstLoad);
+
+            // Project templates
+            const projectSelect = document.getElementById("project-select");
+            const versionSelect = document.getElementById("project-version-select");
+            let projectState = [];
+
+            async function loadProjects() {
+                try {
+                    const res = await fetch("/api/projects?visibility=all");
+                    if (!res.ok) {
+                        return;
+                    }
+                    projectState = await res.json();
+                } catch (e) {
+                    projectState = [];
+                }
+                projectSelect.innerHTML = '<option value="">(Optional) Select template</option>';
+                projectState.forEach(t => {
+                    const opt = document.createElement("option");
+                    opt.value = t.id;
+                    opt.textContent = `${t.name} (${t.visibility})`;
+                    projectSelect.appendChild(opt);
+                });
+                versionSelect.innerHTML = '<option value="">Select template first</option>';
+            }
+
+            async function loadVersions(templateId) {
+                versionSelect.innerHTML = '<option value="">Loading...</option>';
+                versionSelect.disabled = true;
+                if (!templateId) {
+                    versionSelect.innerHTML = '<option value="">Select template first</option>';
+                    return;
+                }
+                try {
+                    const res = await fetch(`/api/projects/${templateId}`);
+                    if (!res.ok) {
+                        versionSelect.innerHTML = '<option value="">Failed to load</option>';
+                        versionSelect.disabled = true;
+                        return;
+                    }
+                    const data = await res.json();
+                    versionSelect.innerHTML = '';
+                    const versions = Array.isArray(data.versions) ? data.versions.slice() : [];
+                    versions.sort((a, b) => (b.version || 0) - (a.version || 0));
+                    if (versions.length === 0) {
+                        versionSelect.innerHTML = '<option value="">No versions</option>';
+                        versionSelect.disabled = true;
+                        return;
+                    }
+                    versions.forEach(v => {
+                        const opt = document.createElement("option");
+                        opt.value = v.version;
+                        opt.textContent = `v${v.version}${v.notes ? ' - ' + v.notes : ''}`;
+                        versionSelect.appendChild(opt);
+                    });
+                    versionSelect.selectedIndex = 0;
+                    versionSelect.disabled = false;
+                } catch (e) {
+                    versionSelect.innerHTML = '<option value="">Failed to load</option>';
+                    versionSelect.disabled = true;
+                }
+            }
+
+            projectSelect.addEventListener("change", () => {
+                loadVersions(projectSelect.value);
+            });
+
+            loadProjects();
+
+            const form = document.querySelector("form[action='/new']");
+            form.addEventListener("submit", function(e) {
+                if (projectSelect.value) {
+                    if (versionSelect.disabled || !versionSelect.value) {
+                        e.preventDefault();
+                        alert("Please select a valid project template version before submitting.");
+                        return false;
+                    }
+                }
+                return true;
+            });
         })();
     </script>
 </body>

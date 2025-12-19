@@ -5,10 +5,18 @@ from typing import Any, Dict, Optional
 from .config import get_db_path
 
 
+def _enable_foreign_keys(conn: sqlite3.Connection) -> None:
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+    except Exception:
+        pass
+
+
 def ensure_db() -> None:
     db_path = get_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as conn:
+        _enable_foreign_keys(conn)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS jobs (
@@ -31,6 +39,7 @@ def ensure_db() -> None:
 
 def get_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(get_db_path())
+    _enable_foreign_keys(conn)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -67,4 +76,3 @@ def update_job_status(job_id: int, status: str, started_at: Optional[str] = None
             (status, started_at, finished_at, exit_code, job_id),
         )
         conn.commit()
-

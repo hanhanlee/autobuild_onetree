@@ -97,6 +97,46 @@ echo "Target: ${TARGET}"
 
 write_status "RUNNING" "null" ""
 
+PROJECT_CLONE_SCRIPT=""
+PROJECT_BUILD_SCRIPT=""
+python3 - "$JOB_DIR" "$WORK_DIR" <<'PY'
+import json, os, sys
+job_dir, work_dir = sys.argv[1], sys.argv[2]
+path = os.path.join(job_dir, "job.json")
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    proj = (data.get("effective") or {}).get("project") or data.get("project") or {}
+    clone_script = proj.get("clone_script") or ""
+    build_script = proj.get("build_script") or ""
+    if clone_script:
+        try:
+            with open(os.path.join(work_dir, "project_clone.sh"), "w", encoding="utf-8") as f:
+                f.write(clone_script.rstrip("\n") + "\n")
+        except Exception:
+            sys.exit(2)
+    if build_script:
+        try:
+            with open(os.path.join(work_dir, "project_build.sh"), "w", encoding="utf-8") as f:
+                f.write(build_script.rstrip("\n") + "\n")
+        except Exception:
+            sys.exit(2)
+except json.JSONDecodeError:
+    sys.exit(3)
+except Exception:
+    sys.exit(4)
+PY
+status=$?
+if [[ ${status} -ne 0 ]]; then
+  if [[ ${status} -eq 3 ]]; then
+    echo "WARN: failed to parse job.json for project scripts; falling back to default flow" >> "${LOG_FILE}"
+  elif [[ ${status} -eq 2 ]]; then
+    echo "WARN: failed to write project scripts from job.json; falling back to default flow" >> "${LOG_FILE}"
+  else
+    echo "WARN: failed to load project scripts from job.json; falling back to default flow" >> "${LOG_FILE}"
+  fi
+fi
+
 if [[ ! -f "${TOKEN_FILE}" ]]; then
   echo "GitLab token not found for user ${OWNER} at ${TOKEN_FILE}" >&2
   exit 2
@@ -118,20 +158,36 @@ export GIT_ASKPASS="${ASKPASS}"
 export GIT_TERMINAL_PROMPT=0
 export GIT_CURL_VERBOSE=0
 
-rm -rf "${WORK_DIR}/repo"
-echo "Cloning repository..."
-git -c credential.helper= -c core.askPass="${ASKPASS}" clone --depth 1 --branch "${REF}" "${REPO_URL}" "${WORK_DIR}/repo"
-
-cd "${WORK_DIR}/repo"
-echo "Repository cloned. Starting build placeholder..."
-echo "TODO: replace with real Yocto build. Running simple checks."
-# TODO(Stage 3): consume job.json/resolved presets and run README_New.md workflow (clone/env/bitbake).
-
-# Placeholder build step; replace with real build invocation.
-if [[ -x "./autobuild.sh" ]]; then
-  ./autobuild.sh "${MACHINE}" "${TARGET}"
+CLONE_SCRIPT_FILE="${WORK_DIR}/project_clone.sh"
+BUILD_SCRIPT_FILE="${WORK_DIR}/project_build.sh"
+if [[ -f "${CLONE_SCRIPT_FILE}" ]]; then
+  echo "Running project clone script..."
+  chmod 700 "${CLONE_SCRIPT_FILE}"
+  (cd "${WORK_DIR}" && bash -e -u -o pipefail "${CLONE_SCRIPT_FILE}")
 else
-  echo "No autobuild.sh found; skipping real build."
+  echo "No project template clone script found; using default clone flow."
+  rm -rf "${WORK_DIR}/repo"
+  echo "Cloning repository..."
+  git -c core.askPass="${ASKPASS}" clone --depth 1 --branch "${REF}" "${REPO_URL}" "${WORK_DIR}/repo"
+  cd "${WORK_DIR}/repo"
+fi
+
+if [[ -f "${BUILD_SCRIPT_FILE}" ]]; then
+  echo "Running project build script..."
+  chmod 700 "${BUILD_SCRIPT_FILE}"
+  (cd "${WORK_DIR}" && bash -e -u -o pipefail "${BUILD_SCRIPT_FILE}")
+else
+  if [[ -d "${WORK_DIR}/repo" ]]; then
+    cd "${WORK_DIR}/repo"
+  fi
+  echo "No project template build script found; using default build flow."
+  echo "Repository cloned. Starting build placeholder..."
+  echo "TODO: replace with real Yocto build. Running simple checks."
+  if [[ -x "./autobuild.sh" ]]; then
+    ./autobuild.sh "${MACHINE}" "${TARGET}"
+  else
+    echo "No autobuild.sh found; skipping real build."
+  fi
 fi
 
 echo "Collecting artifacts..."

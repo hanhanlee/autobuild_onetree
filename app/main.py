@@ -9,10 +9,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from . import auth, db, jobs
+from . import auth, db, jobs, projects
 from .config import get_db_path, get_git_host, get_jobs_root, get_presets_root, get_secret_key, get_token_root
 from .presets import load_presets_for_user
 from .routes import presets as presets_routes
+from .routes import projects as projects_routes
 
 
 app = FastAPI()
@@ -20,8 +21,10 @@ app.add_middleware(SessionMiddleware, secret_key=get_secret_key(), session_cooki
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 app.include_router(presets_routes.router)
+app.include_router(projects_routes.router)
 
 db.ensure_db()
+projects.ensure_migrations()
 
 
 def get_current_user(request: Request) -> Optional[str]:
@@ -213,6 +216,8 @@ async def create_job(
     machine: str = Form(""),
     target: str = Form(""),
     preset: str = Form("__manual__"),
+    project_template_id: str = Form(""),
+    project_template_version: str = Form(""),
 ):
     redirect = require_login(request)
     if redirect:
@@ -235,6 +240,28 @@ async def create_job(
         raise HTTPException(status_code=400, detail="machine is required (either fill it or use a preset with default_machine)")
     if not effective_target:
         raise HTTPException(status_code=400, detail="target is required (either fill it or use a preset with default_bitbake_target)")
+    project_snapshot = None
+    template_id_val = int(project_template_id) if str(project_template_id).strip().isdigit() else None
+    template_version_val = int(project_template_version) if str(project_template_version).strip().isdigit() else None
+    if template_id_val:
+        tmpl = projects.get_template(template_id_val)
+        if not tmpl:
+            raise HTTPException(status_code=404, detail="project template not found")
+        if not projects.can_read_template(username, tmpl):
+            raise HTTPException(status_code=403, detail="forbidden for this template")
+        if not template_version_val:
+            raise HTTPException(status_code=400, detail="template version is required")
+        ver = projects.get_version(template_id_val, template_version_val)
+        if not ver:
+            raise HTTPException(status_code=404, detail="template version not found")
+        project_snapshot = {
+            "template_id": tmpl["id"],
+            "template_name": tmpl["name"],
+            "version": ver["version"],
+            "clone_script": ver["clone_script"],
+            "build_script": ver["build_script"],
+            "notes": ver.get("notes"),
+        }
     created_at = jobs.now_iso()
     job_id = jobs.create_job(username, repo_url, ref, effective_machine, effective_target, created_at=created_at)
     spec = {
@@ -257,6 +284,11 @@ async def create_job(
         },
         "resolved_preset": resolved_preset.dict() if resolved_preset else None,
     }
+    if project_snapshot:
+        spec["effective"]["project"] = project_snapshot
+        spec["project"] = project_snapshot  # backward compatibility
+        spec["overrides"]["project_template_id"] = template_id_val
+        spec["overrides"]["project_template_version"] = template_version_val
     jobs.write_job_spec(job_id, spec)
     background_tasks.add_task(jobs.start_job_runner, job_id, username, repo_url, ref, effective_machine, effective_target)
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
