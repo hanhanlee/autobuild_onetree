@@ -2,12 +2,11 @@ from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from .. import projects
+from ..web import render_page
 
 router = APIRouter()
-templates = Jinja2Templates(directory="templates")
 
 
 def _current_user(request: Request) -> Optional[str]:
@@ -165,17 +164,15 @@ async def projects_page(request: Request, visibility: str = "all", query: Option
         else:
             selected_template = None
             versions = []
-    return templates.TemplateResponse(
+    return render_page(
+        request,
         "projects.html",
-        {
-            "request": request,
-            "templates": items,
-            "selected_template": selected_template,
-            "versions": versions,
-            "visibility": visibility,
-            "query": query or "",
-            "user": user,
-        },
+        current_page="projects",
+        templates=items,
+        selected_template=selected_template,
+        versions=versions,
+        visibility=visibility,
+        query=query or "",
     )
 
 

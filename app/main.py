@@ -6,7 +6,6 @@ from typing import Dict, Optional
 from fastapi import BackgroundTasks, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, db, jobs, projects
@@ -14,12 +13,12 @@ from .config import get_db_path, get_git_host, get_jobs_root, get_presets_root, 
 from .presets import load_presets_for_user
 from .routes import presets as presets_routes
 from .routes import projects as projects_routes
+from .web import render_page
 
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=get_secret_key(), session_cookie="autobuild_session")
 app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
 app.include_router(presets_routes.router)
 app.include_router(projects_routes.router)
 
@@ -47,7 +46,7 @@ async def index(request: Request):
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return render_page(request, "login.html", current_page="", error=None)
 
 
 @app.post("/login")
@@ -59,11 +58,7 @@ async def login_post(request: Request, username: str = Form(...)):
             return RedirectResponse(url="/new", status_code=303)
         request.session["pending_user"] = username
         return RedirectResponse(url="/login/token", status_code=303)
-    return templates.TemplateResponse(
-        "login.html",
-        {"request": request, "error": "Unauthorized user (check Linux account/group)"},
-        status_code=401,
-    )
+    return render_page(request, "login.html", current_page="", error="Unauthorized user (check Linux account/group)", status_code=401)
 
 
 @app.get("/login/token", response_class=HTMLResponse)
@@ -73,16 +68,15 @@ async def login_token_page(request: Request):
     pending = request.session.get("pending_user")
     if not pending:
         return RedirectResponse(url="/login", status_code=303)
-    return templates.TemplateResponse(
+    return render_page(
+        request,
         "login_token.html",
-        {
-            "request": request,
-            "error": None,
-            "username": pending,
-            "token_saved": False,
-            "git_error": None,
-            "git_credentials_configured": None,
-        },
+        current_page="token",
+        error=None,
+        username=pending,
+        token_saved=False,
+        git_error=None,
+        git_credentials_configured=None,
     )
 
 
@@ -92,29 +86,27 @@ async def login_token_post(request: Request, token: str = Form(...), username: s
     if not pending:
         return RedirectResponse(url="/login", status_code=303)
     if username != pending:
-        return templates.TemplateResponse(
+        return render_page(
+            request,
             "login_token.html",
-            {
-                "request": request,
-                "error": "Username mismatch",
-                "username": pending,
-                "token_saved": False,
-                "git_error": None,
-                "git_credentials_configured": None,
-            },
+            current_page="token",
+            error="Username mismatch",
+            username=pending,
+            token_saved=False,
+            git_error=None,
+            git_credentials_configured=None,
             status_code=400,
         )
     if not auth.username_auth(username):
-        return templates.TemplateResponse(
+        return render_page(
+            request,
             "login_token.html",
-            {
-                "request": request,
-                "error": "Unauthorized user (check Linux account/group)",
-                "username": username,
-                "token_saved": False,
-                "git_error": None,
-                "git_credentials_configured": None,
-            },
+            current_page="token",
+            error="Unauthorized user (check Linux account/group)",
+            username=username,
+            token_saved=False,
+            git_error=None,
+            git_credentials_configured=None,
             status_code=401,
         )
     git_credentials_ok = False
@@ -122,44 +114,41 @@ async def login_token_post(request: Request, token: str = Form(...), username: s
     try:
         auth.write_gitlab_token(username, token)
     except ValueError as exc:
-        return templates.TemplateResponse(
+        return render_page(
+            request,
             "login_token.html",
-            {
-                "request": request,
-                "error": str(exc),
-                "username": username,
-                "token_saved": False,
-                "git_error": None,
-                "git_credentials_configured": None,
-            },
+            current_page="token",
+            error=str(exc),
+            username=username,
+            token_saved=False,
+            git_error=None,
+            git_credentials_configured=None,
             status_code=400,
         )
     except Exception as exc:
-        return templates.TemplateResponse(
+        return render_page(
+            request,
             "login_token.html",
-            {
-                "request": request,
-                "error": "Failed to save token",
-                "username": username,
-                "token_saved": False,
-                "git_error": None,
-                "git_credentials_configured": None,
-            },
+            current_page="token",
+            error="Failed to save token",
+            username=username,
+            token_saved=False,
+            git_error=None,
+            git_credentials_configured=None,
             status_code=500,
         )
     git_credentials_ok, git_error = auth.try_setup_user_git_credentials(username, token, git_host=get_git_host())
     error_msg = git_error or "unknown error"
     if not git_credentials_ok:
-        return templates.TemplateResponse(
+        return render_page(
+            request,
             "login_token.html",
-            {
-                "request": request,
-                "error": None,
-                "username": username,
-                "token_saved": True,
-                "git_error": f"Token saved but failed to configure git credentials: {error_msg}",
-                "git_credentials_configured": False,
-            },
+            current_page="token",
+            error=None,
+            username=username,
+            token_saved=True,
+            git_error=f"Token saved but failed to configure git credentials: {error_msg}",
+            git_credentials_configured=False,
             status_code=200,
         )
     request.session.pop("pending_user", None)
@@ -172,9 +161,14 @@ async def settings_page(request: Request):
     redirect = require_login(request)
     if redirect:
         return redirect
-    return templates.TemplateResponse(
+    return render_page(
+        request,
         "settings.html",
-        {"request": request, "saved": False, "error": None, "git_credentials_configured": None, "git_credentials_error": None},
+        current_page="settings",
+        saved=False,
+        error=None,
+        git_credentials_configured=None,
+        git_credentials_error=None,
     )
 
 
@@ -190,13 +184,12 @@ async def settings_post(request: Request, token: str = Form(...)):
     git_credentials_ok, git_error = auth.try_setup_user_git_credentials(username, token, git_host=get_git_host())
     error_msg = git_error or "unknown error"
     context = {
-        "request": request,
         "saved": True,
         "error": None if git_credentials_ok else f"Token saved but failed to configure git credentials: {error_msg}",
         "git_credentials_configured": git_credentials_ok,
         "git_credentials_error": git_error,
     }
-    return templates.TemplateResponse("settings.html", context, status_code=200)
+    return render_page(request, "settings.html", current_page="settings", status_code=200, **context)
 
 
 @app.get("/new", response_class=HTMLResponse)
@@ -204,7 +197,7 @@ async def new_job_page(request: Request):
     redirect = require_login(request)
     if redirect:
         return redirect
-    return templates.TemplateResponse("new_job.html", {"request": request})
+    return render_page(request, "new_job.html", current_page="new")
 
 
 @app.post("/new")
@@ -303,10 +296,7 @@ async def job_detail(request: Request, job_id: int):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     artifact_list = jobs.list_artifacts(job_id)
-    return templates.TemplateResponse(
-        "job.html",
-        {"request": request, "job": job, "artifacts": artifact_list},
-    )
+    return render_page(request, "job.html", current_page="jobs", job=job, artifacts=artifact_list)
 
 
 @app.get("/api/jobs/{job_id}/artifacts")
