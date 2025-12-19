@@ -36,8 +36,8 @@
     </style>
 </head>
 <body>
-    {% if user %}
     <div class="shell">
+        {% if user %}
         <aside class="sidebar">
             <div class="brand">Autobuild</div>
             <nav>
@@ -53,14 +53,10 @@
                 {% if git_host %}<div>Git host: {{ git_host }}</div>{% endif %}
             </div>
         </aside>
+        {% endif %}
         <main class="content">
             {% block content %}{% endblock %}
         </main>
     </div>
-    {% else %}
-    <main class="content">
-        {% block content %}{% endblock %}
-    </main>
-    {% endif %}
 </body>
 </html>
