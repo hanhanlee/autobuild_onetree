@@ -200,6 +200,15 @@ async def new_job_page(request: Request):
     return render_page(request, "new_job.html", current_page="new")
 
 
+@app.get("/jobs", response_class=HTMLResponse)
+async def jobs_page(request: Request):
+    redirect = require_login(request)
+    if redirect:
+        return redirect
+    recent = db.list_recent_jobs(limit=50)
+    return render_page(request, "jobs.html", current_page="jobs", jobs=recent)
+
+
 @app.post("/new")
 async def create_job(
     request: Request,

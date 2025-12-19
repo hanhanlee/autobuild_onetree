@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from .config import get_db_path
 
@@ -60,6 +60,16 @@ def list_jobs(limit: int = 100) -> Dict[int, Dict[str, Any]]:
         cur = conn.execute("SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,))
         rows = cur.fetchall()
         return {row["id"]: row_to_dict(row) for row in rows}
+
+
+def list_recent_jobs(limit: int = 50) -> List[Dict[str, Any]]:
+    with get_connection() as conn:
+        cur = conn.execute(
+            "SELECT id, owner, status, created_at, exit_code FROM jobs ORDER BY COALESCE(created_at, '') DESC, id DESC LIMIT ?",
+            (limit,),
+        )
+        rows = cur.fetchall()
+        return [row_to_dict(row) for row in rows]
 
 
 def update_job_status(job_id: int, status: str, started_at: Optional[str] = None, finished_at: Optional[str] = None, exit_code: Optional[int] = None) -> None:

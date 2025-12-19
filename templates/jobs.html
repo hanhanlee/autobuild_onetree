@@ -1,0 +1,31 @@
+{% extends "_layout.html" %}
+{% block title %}Jobs{% endblock %}
+{% block content %}
+<h1>Jobs</h1>
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Status</th>
+                <th>Owner</th>
+                <th>Created</th>
+                <th>Exit Code</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for j in jobs %}
+            <tr>
+                <td><a href="/jobs/{{ j.id }}">{{ j.id }}</a></td>
+                <td>{{ j.status }}</td>
+                <td>{{ j.owner }}</td>
+                <td>{{ j.created_at }}</td>
+                <td>{% if j.exit_code is not none %}{{ j.exit_code }}{% else %}-{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">No jobs yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
