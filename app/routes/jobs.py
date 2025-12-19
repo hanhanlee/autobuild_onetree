@@ -6,7 +6,6 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from .. import jobs, db
 from ..auth import username_auth
 from ..config import get_presets_root
-from ..presets import load_presets_for_user
 from ..recipes_catalog import list_recipes, load_recipe_yaml, recipe_path_from_id
 from ..web import render_page
 
@@ -47,12 +46,8 @@ async def jobs_page(request: Request):
 async def create_job(
     request: Request,
     background_tasks: BackgroundTasks,
-    repo_url: str = Form(...),
-    ref: str = Form(...),
-    machine: str = Form(""),
-    target: str = Form(""),
-    preset: str = Form("__manual__"),
-    recipe_id: str = Form(""),
+    recipe_id: str = Form(...),
+    note: str = Form(""),
 ):
     redirect = _require_login(request)
     if redirect:
@@ -62,71 +57,20 @@ async def create_job(
         return render_page(request, "new_job.html", current_page="new", status_code=403, error="Unauthorized user", recipes=list_recipes(get_presets_root()), user=user, token_ok=None)
     presets_root = get_presets_root()
     recipes = list_recipes(presets_root)
-    preset_name = preset or "__manual__"
-    resolved_preset = None
     recipe_id_val = str(recipe_id).strip()
-    effective_machine = machine.strip()
-    effective_target = target.strip()
-    if preset_name != "__manual__":
-        preset_map = load_presets_for_user(user)
-        if preset_name not in preset_map:
-            return render_page(
-                request,
-                "new_job.html",
-                current_page="new",
-                status_code=400,
-                error=f"Preset '{preset_name}' not found",
-                recipes=recipes,
-                user=user,
-                token_ok=None,
-                repo_url=repo_url,
-                ref=ref,
-                machine=machine,
-                target=target,
-                preset=preset_name,
-                recipe_id=recipe_id,
-            )
-        resolved_preset = preset_map[preset_name]
-        if not effective_machine and resolved_preset.default_machine:
-            effective_machine = resolved_preset.default_machine
-        if not effective_target:
-            effective_target = resolved_preset.default_bitbake_target
-    # machine/target required only when no recipe provided
     if not recipe_id_val:
-        if not effective_machine:
-            return render_page(
-                request,
-                "new_job.html",
-                current_page="new",
-                status_code=400,
-                error="machine is required (either fill it or use a preset with default_machine)",
-                recipes=recipes,
-                user=user,
-                token_ok=None,
-                repo_url=repo_url,
-                ref=ref,
-                machine=machine,
-                target=target,
-                preset=preset_name,
-                recipe_id=recipe_id,
-            )
-        if not effective_target:
-            return render_page(
-                request,
-                "new_job.html",
-                current_page="new",
-                status_code=400,
-                error="target is required (either fill it or use a preset with default_bitbake_target)",
-                recipes=recipes,
-                user=user,
-                token_ok=None,
-                repo_url=repo_url,
-                ref=ref,
-                machine=machine,
-                target=target,
-                preset=preset_name,
-                recipe_id=recipe_id,
-            )
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=400,
+            error="recipe_id is required",
+            recipes=recipes,
+            user=user,
+            token_ok=None,
+            recipe_id=recipe_id_val,
+            note=note,
+        )
     recipe_snapshot = None
     if recipe_id_val:
         try:
@@ -141,12 +85,8 @@ async def create_job(
                 recipes=recipes,
                 user=user,
                 token_ok=None,
-                repo_url=repo_url,
-                ref=ref,
-                machine=machine,
-                target=target,
-                preset=preset_name,
                 recipe_id=recipe_id_val,
+                note=note,
             )
         if not path.exists():
             return render_page(
@@ -158,12 +98,8 @@ async def create_job(
                 recipes=recipes,
                 user=user,
                 token_ok=None,
-                repo_url=repo_url,
-                ref=ref,
-                machine=machine,
-                target=target,
-                preset=preset_name,
                 recipe_id=recipe_id_val,
+                note=note,
             )
         try:
             recipe_yaml = load_recipe_yaml(presets_root, recipe_id_val)
@@ -177,25 +113,16 @@ async def create_job(
                 recipes=recipes,
                 user=user,
                 token_ok=None,
-                repo_url=repo_url,
-                ref=ref,
-                machine=machine,
-                target=target,
-                preset=preset_name,
                 recipe_id=recipe_id_val,
+                note=note,
             )
         recipe_snapshot = {
             "id": recipe_id_val,
             "yaml": recipe_yaml,
         }
     created_at = jobs.now_iso()
-    job_id = jobs.create_job(user, repo_url, ref, effective_machine, effective_target, created_at=created_at)
-    effective_block = {
-        "repo_url": repo_url,
-        "ref": ref,
-        "machine": effective_machine,
-        "target": effective_target,
-    }
+    job_id = jobs.create_job(user, "", "", "", "", created_at=created_at)
+    effective_block = {}
     if recipe_snapshot:
         effective_block["recipe"] = recipe_snapshot
 
@@ -204,19 +131,18 @@ async def create_job(
         "job_id": job_id,
         "created_by": user,
         "created_at": created_at,
-        "preset_name": preset_name,
+        "preset_name": "__manual__",
         "overrides": {
-            "repo_url": repo_url,
-            "ref": ref,
-            "machine": machine,
-            "target": target,
             "recipe_id": recipe_id_val,
+            "note": note,
         },
         "effective": effective_block,
-        "resolved_preset": resolved_preset.dict() if resolved_preset else None,
+        "resolved_preset": None,
     }
     if recipe_snapshot:
         spec["recipe"] = recipe_snapshot
+    if note:
+        spec["note"] = note
     jobs.write_job_spec(job_id, spec)
-    background_tasks.add_task(jobs.start_job_runner, job_id, user, repo_url, ref, effective_machine, effective_target)
+    background_tasks.add_task(jobs.start_job_runner, job_id)
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)

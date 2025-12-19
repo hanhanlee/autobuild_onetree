@@ -73,7 +73,17 @@ def _schedule_poll_job(job_id: int) -> None:
         threading.Thread(target=lambda: asyncio.run(poll_job(job_id)), daemon=True).start()
 
 
-def start_job_runner(job_id: int, owner: str, repo_url: str, ref: str, machine: str, target: str) -> None:
+def load_job_spec(job_id: int) -> Optional[Dict[str, object]]:
+    path = job_dir(job_id) / "job.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def start_job_runner(job_id: int, owner: Optional[str] = None, repo_url: str = "", ref: str = "", machine: str = "", target: str = "") -> None:
     started_at = now_iso()
     update_job_status(job_id, STATUS_RUNNING, started_at=started_at)
     job_root = job_dir(job_id)
@@ -84,6 +94,9 @@ def start_job_runner(job_id: int, owner: str, repo_url: str, ref: str, machine: 
         os.chmod(log_path.parent, 0o2775)
     except PermissionError:
         pass
+    spec = load_job_spec(job_id) or {}
+    spec_owner = spec.get("created_by") if isinstance(spec, dict) else None
+    owner = owner or spec_owner or os.environ.get("USER") or "autobuild"
     token_root = os.environ.get("AUTOBUILD_TOKEN_ROOT") or os.environ.get("AUTO_BUILD_TOKEN_ROOT") or "/opt/autobuild/workspace/secrets/gitlab"
     token_path = Path(token_root) / f"{owner}.token"
     if token_path.exists():

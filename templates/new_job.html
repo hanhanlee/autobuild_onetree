@@ -1,138 +1,26 @@
 {% extends "_layout.html" %}
-{% block title %}New Job{% endblock %}
+{% block title %}Create Job{% endblock %}
 {% block content %}
 <h1>Create Job</h1>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 <p><a href="/settings">GitLab token</a></p>
 <div class="card">
     <form method="post" action="/new" style="display:grid;grid-template-columns:1fr;gap:0.75rem;max-width:560px;">
-        <label>Preset
-            <select id="preset-select" name="preset" required>
-                <option value="__manual__">Manual (no preset)</option>
-            </select>
-        </label>
         <label>Recipe Template
-            <input list="recipe-options" id="recipe-select" name="recipe_id" value="{{ recipe_id or '' }}" placeholder="Type to search (e.g. 2600)">
+            <input list="recipe-options" id="recipe-select" name="recipe_id" value="{{ recipe_id or '' }}" placeholder="Type to search (e.g. 2600)" required>
             <datalist id="recipe-options">
                 {% for r in recipes or [] %}
                     <option value="{{ r.id }}" label="{{ r.display_name }}"></option>
                 {% endfor %}
             </datalist>
         </label>
-        <div id="preset-summary" style="border: 1px solid #ccc; padding: 0.75rem; border-radius: 4px;">
-            <div><strong>Description:</strong> <span id="summary-description">Select a preset</span></div>
-            <div><strong>Templateconf:</strong> <span id="summary-templateconf">-</span></div>
-            <div><strong>Default Machine:</strong> <span id="summary-machine">-</span></div>
-            <div><strong>Default Target:</strong> <span id="summary-target">-</span></div>
-        </div>
-        <label>Repository URL
-            <input type="text" name="repo_url" placeholder="https://gitlab.com/group/repo.git" required>
-        </label>
-        <label>Ref (branch/tag/commit)
-            <input type="text" name="ref" value="main" required>
-        </label>
-        <label>Machine
-            <input type="text" name="machine" value="qemuarm64">
-        </label>
-        <label>Target
-            <input type="text" name="target" value="core-image-minimal">
+        <label>Note (optional)
+            <textarea name="note" rows="3">{{ note or '' }}</textarea>
         </label>
         <button type="submit">Submit</button>
     </form>
 </div>
 <script>
-        (function() {
-            const presetSelect = document.getElementById("preset-select");
-            const summaryDescription = document.getElementById("summary-description");
-            const summaryTemplateconf = document.getElementById("summary-templateconf");
-            const summaryMachine = document.getElementById("summary-machine");
-            const summaryTarget = document.getElementById("summary-target");
-            const machineInput = document.querySelector('input[name="machine"]');
-            const targetInput = document.querySelector('input[name="target"]');
-            const presetsState = { items: [] };
-            let userEditedMachine = false;
-            let userEditedTarget = false;
-
-            machineInput.addEventListener("input", () => { userEditedMachine = true; });
-            targetInput.addEventListener("input", () => { userEditedTarget = true; });
-
-            function renderSummary(preset) {
-                if (!preset || preset.name === "__manual__") {
-                    summaryDescription.textContent = "Manual entry";
-                    summaryTemplateconf.textContent = "-";
-                    summaryMachine.textContent = "-";
-                    summaryTarget.textContent = "-";
-                    return;
-                }
-                summaryDescription.textContent = preset.description || "";
-                summaryTemplateconf.textContent = preset.templateconf || "-";
-                summaryMachine.textContent = preset.default_machine || "-";
-                summaryTarget.textContent = preset.default_bitbake_target || "-";
-                if (preset.default_machine && (!machineInput.value || !userEditedMachine)) {
-                    machineInput.value = preset.default_machine;
-                }
-                if (preset.default_bitbake_target && (!targetInput.value || !userEditedTarget)) {
-                    targetInput.value = preset.default_bitbake_target;
-                }
-            }
-
-            function handlePresetChange() {
-                const selected = presetsState.items.find(p => p.name === presetSelect.value);
-                renderSummary(selected);
-            }
-
-            async function loadPresets() {
-                try {
-                    const res = await fetch("/api/presets");
-                    if (!res.ok) {
-                        summaryDescription.textContent = "Failed to load presets; manual entry only.";
-                        return;
-                    }
-                    const data = await res.json();
-                    presetsState.items = [{ name: "__manual__", description: "Manual entry" }, ...(Array.isArray(data) ? data : [])];
-                } catch (err) {
-                    summaryDescription.textContent = "Failed to load presets; manual entry only.";
-                    presetsState.items = [{ name: "__manual__", description: "Manual entry" }];
-                }
-
-                presetSelect.innerHTML = "";
-                presetsState.items.forEach(p => {
-                    const opt = document.createElement("option");
-                    opt.value = p.name;
-                    opt.textContent = p.name === "__manual__" ? "Manual (no preset)" : p.name;
-                    presetSelect.appendChild(opt);
-                });
-                presetSelect.value = "__manual__";
-                presetSelect.addEventListener("change", handlePresetChange);
-                renderSummary(presetsState.items[0]);
-            }
-
-            if (presetSelect.value === "__manual__") {
-                renderSummary({ name: "__manual__" });
-            }
-
-            function handlePrefillOnFirstLoad() {
-                if (presetSelect.value !== "__manual__") {
-                    handlePresetChange();
-                }
-            }
-
-            loadPresets().then(handlePrefillOnFirstLoad);
-
-            // Project templates
-            // recipes are rendered server-side in datalist; no extra JS needed
-
-            const form = document.querySelector("form[action='/new']");
-            form.addEventListener("submit", function(e) {
-                if (projectSelect.value) {
-                    if (versionSelect.disabled || !versionSelect.value) {
-                        e.preventDefault();
-                        alert("Please select a valid project template version before submitting.");
-                        return false;
-                    }
-                }
-                return true;
-            });
-        })();
+    // recipes are rendered server-side in datalist; no extra JS needed
 </script>
 {% endblock %}

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 5 ]]; then
-  echo "Usage: $0 <job_id> <repo_url> <ref> <machine> <target>" >&2
+if [[ $# -lt 1 ]]; then
+  echo "Usage: $0 <job_id> [repo_url] [ref] [machine] [target]" >&2
   exit 1
 fi
 
 JOB_ID="$1"
-REPO_URL="$2"
-REF="$3"
-MACHINE="$4"
-TARGET="$5"
+REPO_URL="${2:-}"
+REF="${3:-}"
+MACHINE="${4:-}"
+TARGET="${5:-}"
 
 JOBS_ROOT="${AUTOBUILD_JOBS_ROOT:-${AUTO_BUILD_JOBS_ROOT:-/opt/autobuild/workspace/jobs}}"
 : "${JOB_DIR:=${JOBS_ROOT}/${JOB_ID}}"
@@ -90,10 +90,10 @@ trap cleanup EXIT
 exec > >(tee -a "${LOG_FILE}") 2>&1
 
 echo "Starting job ${JOB_ID} at $(timestamp)"
-echo "Repository: ${REPO_URL}"
-echo "Ref: ${REF}"
-echo "Machine: ${MACHINE}"
-echo "Target: ${TARGET}"
+echo "Repository: ${REPO_URL:-<none>}"
+echo "Ref: ${REF:-<none>}"
+echo "Machine: ${MACHINE:-<none>}"
+echo "Target: ${TARGET:-<none>}"
 
 write_status "RUNNING" "null" ""
 
@@ -160,16 +160,23 @@ export GIT_CURL_VERBOSE=0
 
 CLONE_SCRIPT_FILE="${WORK_DIR}/project_clone.sh"
 BUILD_SCRIPT_FILE="${WORK_DIR}/project_build.sh"
+RECIPE_FILE="${WORK_DIR}/recipe.yaml"
+
+if [[ -f "${RECIPE_FILE}" ]]; then
+  echo "Recipe mode detected; recipe saved at ${RECIPE_FILE}"
+fi
+
 if [[ -f "${CLONE_SCRIPT_FILE}" ]]; then
   echo "Running project clone script..."
   chmod 700 "${CLONE_SCRIPT_FILE}"
   (cd "${WORK_DIR}" && bash -e -u -o pipefail "${CLONE_SCRIPT_FILE}")
-else
-  echo "No project template clone script found; using default clone flow."
+elif [[ -n "${REPO_URL}" ]]; then
+  echo "Using legacy repo clone flow..."
   rm -rf "${WORK_DIR}/repo"
-  echo "Cloning repository..."
-  git -c core.askPass="${ASKPASS}" clone --depth 1 --branch "${REF}" "${REPO_URL}" "${WORK_DIR}/repo"
-  cd "${WORK_DIR}/repo"
+  git -c core.askPass="${ASKPASS}" clone --depth 1 --branch "${REF:-main}" "${REPO_URL}" "${WORK_DIR}/repo"
+  cd "${WORK_DIR}/repo" || true
+else
+  echo "No clone instructions provided (recipe-only mode). Skipping clone."
 fi
 
 if [[ -f "${BUILD_SCRIPT_FILE}" ]]; then
@@ -177,17 +184,7 @@ if [[ -f "${BUILD_SCRIPT_FILE}" ]]; then
   chmod 700 "${BUILD_SCRIPT_FILE}"
   (cd "${WORK_DIR}" && bash -e -u -o pipefail "${BUILD_SCRIPT_FILE}")
 else
-  if [[ -d "${WORK_DIR}/repo" ]]; then
-    cd "${WORK_DIR}/repo"
-  fi
-  echo "No project template build script found; using default build flow."
-  echo "Repository cloned. Starting build placeholder..."
-  echo "TODO: replace with real Yocto build. Running simple checks."
-  if [[ -x "./autobuild.sh" ]]; then
-    ./autobuild.sh "${MACHINE}" "${TARGET}"
-  else
-    echo "No autobuild.sh found; skipping real build."
-  fi
+  echo "No build script provided; placeholder complete."
 fi
 
 echo "Collecting artifacts..."
