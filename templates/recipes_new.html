@@ -1,0 +1,32 @@
+{% extends "_layout.html" %}
+{% block title %}Recipe Builder{% endblock %}
+{% block content %}
+<h1>Recipe Builder v0</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<div class="card">
+    <form method="post" action="/recipes/new" class="flex" style="flex-direction:column;gap:0.75rem;max-width:760px;">
+        <label>Platform <input type="text" name="platform" value="{{ platform or '' }}" required></label>
+        <label>Project <input type="text" name="project" value="{{ project or '' }}" required></label>
+        <label>Display Name <input type="text" name="display_name" value="{{ display_name or '' }}" placeholder="Optional friendly name"></label>
+        <label>Clone Lines (each must start with 'git clone'; optional '; cd <DEST>' after clone)
+            <textarea name="clone_lines" required rows="4" placeholder="git clone https://example/repo.git&#10;git clone https://example/repo.git dest&#10;git clone https://example/repo.git dest; cd dest">{{ clone_lines or '' }}</textarea>
+        </label>
+        <label>Workdir (relative)
+            <input type="text" name="workdir" value="{{ workdir or '' }}" placeholder="e.g. repo/build">
+        </label>
+        <label>Init Lines (optional)
+            <textarea name="init_lines" rows="3" placeholder="export VAR=1">{{ init_lines or '' }}</textarea>
+        </label>
+        <label>Append Path
+            <input type="text" name="append_path" value="{{ append_path or 'build/conf/local.conf' }}" required>
+        </label>
+        <label>Append Block
+            <textarea name="append_block" rows="4" placeholder="EXTRA += 'foo'">{{ append_block or '' }}</textarea>
+        </label>
+        <label>Build Lines
+            <textarea name="build_lines" rows="4" placeholder="bitbake core-image-minimal">{{ build_lines or '' }}</textarea>
+        </label>
+        <button type="submit">Generate Recipe</button>
+    </form>
+</div>
+{% endblock %}
