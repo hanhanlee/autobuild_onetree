@@ -4,6 +4,7 @@
 <div class="flex">
     <div class="card" style="flex: 2;min-width:380px;">
         <h2>Templates</h2>
+        {% if error %}<p class="error">{{ error }}</p>{% endif %}
         <form method="get" action="/projects" class="flex" style="align-items: flex-end;">
             <label>Visibility
                 <select name="visibility">

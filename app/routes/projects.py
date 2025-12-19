@@ -1,3 +1,4 @@
+import sqlite3
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -191,20 +192,49 @@ async def create_project_form(
         return RedirectResponse(url="/login", status_code=303)
     try:
         template_id = projects.create_template(user, name, visibility, description, clone_script, build_script, notes or None)
-    except Exception:
-        return templates.TemplateResponse(
+    except sqlite3.IntegrityError as exc:
+        msg = str(exc)
+        err_text = "Template name already exists" if "project_templates.name" in msg else "Failed to create template"
+        return render_page(
+            request,
             "projects.html",
-            {
-                "request": request,
-                "error": "Failed to create template (check name uniqueness/inputs)",
-                "templates": projects.list_templates_for_user(user),
-                "selected_template": None,
-                "versions": [],
-                "visibility": "all",
-                "query": "",
-                "user": user,
-            },
+            user=user,
+            token_ok=None,
+            current_page="projects",
             status_code=400,
+            error=err_text,
+            templates=projects.list_templates_for_user(user),
+            selected_template=None,
+            versions=[],
+            visibility="all",
+            query="",
+            name=name,
+            visibility_input=visibility,
+            description=description,
+            clone_script=clone_script,
+            build_script=build_script,
+            notes=notes,
+        )
+    except Exception:
+        return render_page(
+            request,
+            "projects.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error="Failed to create template (check name uniqueness/inputs)",
+            templates=projects.list_templates_for_user(user),
+            selected_template=None,
+            versions=[],
+            visibility="all",
+            query="",
+            name=name,
+            visibility_input=visibility,
+            description=description,
+            clone_script=clone_script,
+            build_script=build_script,
+            notes=notes,
         )
     return RedirectResponse(url=f"/projects?selected={template_id}", status_code=303)
 
