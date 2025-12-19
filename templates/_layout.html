@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{% block title %}Autobuild{% endblock %}</title>
+    <style>
+        :root { color-scheme: light; }
+        body { margin: 0; font-family: sans-serif; background: #f5f7fb; color: #111; }
+        .shell { display: flex; min-height: 100vh; }
+        .sidebar {
+            width: 240px; background: #12263a; color: #e7eef5; padding: 1.25rem 1rem;
+            display: flex; flex-direction: column; gap: 1rem;
+        }
+        .brand { font-weight: 700; font-size: 1.1rem; letter-spacing: 0.3px; }
+        .nav { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+        .nav a {
+            display: block; padding: 0.55rem 0.75rem; border-radius: 6px; color: #e7eef5; text-decoration: none;
+            transition: background 0.2s, color 0.2s;
+        }
+        .nav a:hover { background: rgba(255,255,255,0.08); }
+        .nav a.active { background: #2d4f73; font-weight: 700; }
+        .nav a.token-alert { color: #ffb3b3; }
+        .footer { margin-top: auto; font-size: 0.9rem; color: #c7d4e3; }
+        .content { flex: 1; padding: 1.5rem 2rem; }
+        .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1rem 1.25rem; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+        h1, h2, h3 { margin-top: 0; }
+        .flex { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .list { border: 1px solid #ddd; border-radius: 8px; padding: 0.5rem; }
+        form { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
+        label { display: flex; flex-direction: column; gap: 0.25rem; }
+        textarea { min-height: 120px; }
+        .error { color: red; }
+        .status { color: green; }
+        #log-output { background: #111; color: #eee; padding: 1rem; min-height: 300px; white-space: pre-wrap; }
+        #artifact-list { list-style: none; padding: 0; }
+    </style>
+</head>
+<body>
+    {% if user %}
+    <div class="shell">
+        <aside class="sidebar">
+            <div class="brand">Autobuild</div>
+            <nav>
+                <ul class="nav">
+                    <li><a href="/new" class="{% if current_page=='new' %}active{% endif %}">Create Job</a></li>
+                    <li><a href="/jobs" class="{% if current_page=='jobs' %}active{% endif %}">Jobs</a></li>
+                    <li><a href="/projects" class="{% if current_page=='projects' %}active{% endif %}">Project Templates</a></li>
+                    <li><a href="/settings" class="{% if current_page in ('token','settings') %}active{% endif %}{% if token_ok is defined and not token_ok %} token-alert{% endif %}">GitLab Token{% if token_ok is defined and not token_ok %} (!) {% endif %}</a></li>
+                </ul>
+            </nav>
+            <div class="footer">
+                <div>Logged in as: {{ user or '-' }}</div>
+                {% if git_host %}<div>Git host: {{ git_host }}</div>{% endif %}
+            </div>
+        </aside>
+        <main class="content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% else %}
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+    {% endif %}
+</body>
+</html>

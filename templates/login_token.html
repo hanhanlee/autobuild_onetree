@@ -1,17 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Provide GitLab Token</title>
-    <style>
-        body { font-family: sans-serif; margin: 2rem; }
-        .status { color: green; }
-        .error { color: red; }
-        form { display: flex; flex-direction: column; gap: 0.75rem; max-width: 320px; }
-        label { display: flex; flex-direction: column; }
-    </style>
-</head>
-<body>
+{% extends "_layout.html" %}
+{% block title %}GitLab Token{% endblock %}
+{% block content %}
     <h1>GitLab Access Token</h1>
     {% if token_saved %}<p class="status">Token saved.</p>{% endif %}
     {% if git_credentials_configured is not none %}
@@ -32,5 +21,4 @@
         </label>
         <button type="submit">Save token and continue</button>
     </form>
-</body>
-</html>
+{% endblock %}

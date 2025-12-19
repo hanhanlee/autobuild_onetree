@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Job {{ job.id }}</title>
-    <style>
-        body { font-family: sans-serif; margin: 2rem; }
-        #log-output { background: #111; color: #eee; padding: 1rem; min-height: 300px; white-space: pre-wrap; }
-        #artifact-list { list-style: none; padding: 0; }
-        #artifact-list li { margin: 0.25rem 0; }
-    </style>
-</head>
-<body>
+{% extends "_layout.html" %}
+{% block title %}Job {{ job.id }}{% endblock %}
+{% block content %}
     <h1>Job {{ job.id }}</h1>
     <p><a href="/new">New job</a></p>
     <div id="job" data-job-id="{{ job.id }}">
@@ -34,5 +24,4 @@
     </ul>
 
     <script src="/static/app.js"></script>
-</body>
-</html>
+{% endblock %}
