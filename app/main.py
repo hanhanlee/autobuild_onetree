@@ -15,6 +15,7 @@ from .routes import presets as presets_routes
 from .routes import projects as projects_routes
 from .routes import token as token_routes
 from .routes import recipes as recipes_routes
+from .routes import jobs as jobs_routes
 from .web import render_page
 
 
@@ -25,6 +26,7 @@ app.include_router(presets_routes.router)
 app.include_router(projects_routes.router)
 app.include_router(token_routes.router)
 app.include_router(recipes_routes.router)
+app.include_router(jobs_routes.router)
 
 db.ensure_db()
 projects.ensure_migrations()
@@ -194,110 +196,6 @@ async def settings_post(request: Request, token: str = Form(...)):
         "git_credentials_error": git_error,
     }
     return render_page(request, "settings.html", current_page="settings", status_code=200, **context)
-
-
-@app.get("/new", response_class=HTMLResponse)
-async def new_job_page(request: Request):
-    redirect = require_login(request)
-    if redirect:
-        return redirect
-    return render_page(request, "new_job.html", current_page="new")
-
-
-@app.get("/jobs", response_class=HTMLResponse)
-async def jobs_page(request: Request):
-    redirect = require_login(request)
-    if redirect:
-        return redirect
-    recent = db.list_recent_jobs(limit=50)
-    return render_page(request, "jobs.html", current_page="jobs", jobs=recent)
-
-
-@app.post("/new")
-async def create_job(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    repo_url: str = Form(...),
-    ref: str = Form(...),
-    machine: str = Form(""),
-    target: str = Form(""),
-    preset: str = Form("__manual__"),
-    project_template_id: str = Form(""),
-    project_template_version: str = Form(""),
-):
-    redirect = require_login(request)
-    if redirect:
-        return redirect
-    username = get_current_user(request)
-    preset_name = preset or "__manual__"
-    resolved_preset = None
-    effective_machine = machine
-    effective_target = target
-    if preset_name != "__manual__":
-        preset_map = load_presets_for_user(username)
-        if preset_name not in preset_map:
-            raise HTTPException(status_code=400, detail=f"Preset '{preset_name}' not found")
-        resolved_preset = preset_map[preset_name]
-        if not effective_machine and resolved_preset.default_machine:
-            effective_machine = resolved_preset.default_machine
-        if not effective_target:
-            effective_target = resolved_preset.default_bitbake_target
-    if not effective_machine:
-        raise HTTPException(status_code=400, detail="machine is required (either fill it or use a preset with default_machine)")
-    if not effective_target:
-        raise HTTPException(status_code=400, detail="target is required (either fill it or use a preset with default_bitbake_target)")
-    project_snapshot = None
-    template_id_val = int(project_template_id) if str(project_template_id).strip().isdigit() else None
-    template_version_val = int(project_template_version) if str(project_template_version).strip().isdigit() else None
-    if template_id_val:
-        tmpl = projects.get_template(template_id_val)
-        if not tmpl:
-            raise HTTPException(status_code=404, detail="project template not found")
-        if not projects.can_read_template(username, tmpl):
-            raise HTTPException(status_code=403, detail="forbidden for this template")
-        if not template_version_val:
-            raise HTTPException(status_code=400, detail="template version is required")
-        ver = projects.get_version(template_id_val, template_version_val)
-        if not ver:
-            raise HTTPException(status_code=404, detail="template version not found")
-        project_snapshot = {
-            "template_id": tmpl["id"],
-            "template_name": tmpl["name"],
-            "version": ver["version"],
-            "clone_script": ver["clone_script"],
-            "build_script": ver["build_script"],
-            "notes": ver.get("notes"),
-        }
-    created_at = jobs.now_iso()
-    job_id = jobs.create_job(username, repo_url, ref, effective_machine, effective_target, created_at=created_at)
-    spec = {
-        "schema_version": 1,
-        "job_id": job_id,
-        "created_by": username,
-        "created_at": created_at,
-        "preset_name": preset_name,
-        "overrides": {
-            "repo_url": repo_url,
-            "ref": ref,
-            "machine": machine,
-            "target": target,
-        },
-        "effective": {
-            "repo_url": repo_url,
-            "ref": ref,
-            "machine": effective_machine,
-            "target": effective_target,
-        },
-        "resolved_preset": resolved_preset.dict() if resolved_preset else None,
-    }
-    if project_snapshot:
-        spec["effective"]["project"] = project_snapshot
-        spec["project"] = project_snapshot  # backward compatibility
-        spec["overrides"]["project_template_id"] = template_id_val
-        spec["overrides"]["project_template_version"] = template_version_val
-    jobs.write_job_spec(job_id, spec)
-    background_tasks.add_task(jobs.start_job_runner, job_id, username, repo_url, ref, effective_machine, effective_target)
-    return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
 
 
 @app.get("/jobs/{job_id}", response_class=HTMLResponse)

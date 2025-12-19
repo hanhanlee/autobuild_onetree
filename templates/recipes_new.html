@@ -26,6 +26,7 @@
         <label>Build Lines
             <textarea name="build_lines" rows="4" placeholder="bitbake core-image-minimal">{{ build_lines or '' }}</textarea>
         </label>
+        <p class="status">Note: Existing recipe with same platform/project will be overwritten.</p>
         <button type="submit">Generate Recipe</button>
     </form>
 </div>
