@@ -13,6 +13,7 @@ from .config import get_db_path, get_git_host, get_jobs_root, get_presets_root, 
 from .presets import load_presets_for_user
 from .routes import presets as presets_routes
 from .routes import projects as projects_routes
+from .routes import token as token_routes
 from .web import render_page
 
 
@@ -21,6 +22,7 @@ app.add_middleware(SessionMiddleware, secret_key=get_secret_key(), session_cooki
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(presets_routes.router)
 app.include_router(projects_routes.router)
+app.include_router(token_routes.router)
 
 db.ensure_db()
 projects.ensure_migrations()

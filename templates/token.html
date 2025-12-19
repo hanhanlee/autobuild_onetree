@@ -1,0 +1,20 @@
+{% extends "_layout.html" %}
+{% block title %}Token Status{% endblock %}
+{% block content %}
+<h1>Token Status</h1>
+<div class="card">
+    <p>Status:
+        {% if token_ok %}
+            <span class="status">OK</span>
+        {% else %}
+            <span class="error">NOT OK</span>
+        {% endif %}
+    </p>
+    <p>Token store path: /opt/autobuild/workspace/secrets/gitlab/</p>
+    {% if not token_ok %}
+    <p class="error">Token 不可用：請檢查 token store 的 owner/group/mode，並確認啟動前已完成 normalize_token_perms() 與權限 fail-fast 檢查。</p>
+    {% else %}
+    <p class="status">Token 狀態正常。</p>
+    {% endif %}
+</div>
+{% endblock %}
