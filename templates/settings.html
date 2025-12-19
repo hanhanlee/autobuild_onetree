@@ -14,6 +14,13 @@
     <h1>GitLab Token</h1>
     {% if saved %}<p class="status">Token saved.</p>{% endif %}
     {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    {% if git_credentials_configured is not none %}
+        {% if git_credentials_configured %}
+            <p class="status">Git credential store configured.</p>
+        {% else %}
+            <p class="error">Git credential store is not configured. {{ git_credentials_error }}</p>
+        {% endif %}
+    {% endif %}
     <form method="post" action="/settings">
         <label>Personal Access Token <input type="text" name="token" required></label>
         <button type="submit">Save</button>

@@ -2,10 +2,12 @@ import logging
 import os
 import grp
 import pwd
+import subprocess
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote, urlparse
 
-from .config import get_token_root
+from .config import get_git_host, get_token_root
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +72,78 @@ def normalize_token_perms(token_root: Path, token_path: Path, create_root: bool 
             pass
 
 
+def _percent_encode(value: str) -> str:
+    return quote(value, safe="")
+
+
+def _normalize_git_host(raw: Optional[str]) -> str:
+    value = (raw or "").strip()
+    if "://" in value:
+        parsed = urlparse(value)
+        value = parsed.netloc
+    value = value.rstrip("/")
+    if not value or "/" in value:
+        raise ValueError("Invalid git host")
+    return value
+
+
+def _run_git_config(owner: str, home_dir: Path, key: str, value: str) -> None:
+    preferred_git = Path("/usr/bin/git")
+    git_bin = str(preferred_git) if preferred_git.exists() else "git"
+    cmd = [
+        "sudo",
+        "-n",
+        "-u",
+        owner,
+        "env",
+        f"HOME={home_dir}",
+        f"USER={owner}",
+        "PATH=/usr/bin:/bin",
+        git_bin,
+        "config",
+        "--global",
+        key,
+        value,
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        raise RuntimeError(f"git config failed for {key}: {stderr or 'exit code ' + str(result.returncode)}")
+
+
+def _write_user_git_credentials_file_via_sudo(owner: str, home_dir: Path, content: str) -> None:
+    """
+    Write credentials file as the target user using sudo, with stdin carrying the secret.
+    """
+    cmd = [
+        "sudo",
+        "-n",
+        "-u",
+        owner,
+        "env",
+        f"HOME={home_dir}",
+        f"USER={owner}",
+        "PATH=/usr/bin:/bin",
+        "bash",
+        "-lc",
+        r'''
+set -euo pipefail
+CONF_DIR="${HOME}/.config/autobuild"
+mkdir -p "${CONF_DIR}"
+chmod 700 "${CONF_DIR}"
+umask 077
+tmp="$(mktemp "${CONF_DIR}/git-credentials.tmpXXXXXX")"
+cat > "${tmp}"
+chmod 600 "${tmp}"
+mv -f "${tmp}" "${CONF_DIR}/git-credentials"
+''',
+    ]
+    result = subprocess.run(cmd, input=content, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        raise RuntimeError(f"failed to write git credentials: {stderr or 'exit code ' + str(result.returncode)}")
+
+
 def has_gitlab_token(username: str) -> bool:
     path = token_path_for_user(username)
     if not path.exists() or not path.is_file():
@@ -119,6 +193,39 @@ def write_gitlab_token(username: str, token: str) -> None:
                 tmp_path.unlink()
             except Exception:
                 pass
+
+
+def setup_user_git_credentials(owner: str, token_value: str, git_host: Optional[str] = None, git_username: Optional[str] = None) -> None:
+    token_value = (token_value or "").strip()
+    if not token_value:
+        raise ValueError("Token is required for git credentials")
+    git_host = _normalize_git_host(git_host or get_git_host() or "gitlab.example.com")
+    user_info = pwd.getpwnam(owner)
+    home_dir = Path(user_info.pw_dir)
+    effective_username = git_username or owner
+
+    encoded_username = _percent_encode(effective_username)
+    encoded_token = _percent_encode(token_value)
+    credentials_path = home_dir / ".config" / "autobuild" / "git-credentials"
+    content = f"https://{encoded_username}:{encoded_token}@{git_host}\n"
+
+    _write_user_git_credentials_file_via_sudo(owner, home_dir, content)
+
+    helper_value = f"store --file {credentials_path}"
+    _run_git_config(owner, home_dir, "credential.helper", helper_value)
+
+
+def try_setup_user_git_credentials(
+    owner: str, token_value: str, git_host: Optional[str] = None, git_username: Optional[str] = None
+) -> tuple[bool, Optional[str]]:
+    try:
+        setup_user_git_credentials(owner, token_value, git_host=git_host, git_username=git_username)
+        return True, None
+    except Exception as exc:  # pragma: no cover - defensive
+        msg = str(exc)
+        truncated = msg[:300] if len(msg) > 300 else msg
+        logger.warning("Failed to configure git credentials for user %s: %s", owner, truncated)
+        return False, truncated
 
 
 def save_gitlab_token(username: str, token: str) -> Optional[str]:

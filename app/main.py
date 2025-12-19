@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import auth, db, jobs
-from .config import get_db_path, get_jobs_root, get_presets_root, get_secret_key, get_token_root
+from .config import get_db_path, get_git_host, get_jobs_root, get_presets_root, get_secret_key, get_token_root
 from .presets import load_presets_for_user
 from .routes import presets as presets_routes
 
@@ -70,7 +70,17 @@ async def login_token_page(request: Request):
     pending = request.session.get("pending_user")
     if not pending:
         return RedirectResponse(url="/login", status_code=303)
-    return templates.TemplateResponse("login_token.html", {"request": request, "error": None, "username": pending})
+    return templates.TemplateResponse(
+        "login_token.html",
+        {
+            "request": request,
+            "error": None,
+            "username": pending,
+            "token_saved": False,
+            "git_error": None,
+            "git_credentials_configured": None,
+        },
+    )
 
 
 @app.post("/login/token")
@@ -81,28 +91,73 @@ async def login_token_post(request: Request, token: str = Form(...), username: s
     if username != pending:
         return templates.TemplateResponse(
             "login_token.html",
-            {"request": request, "error": "Username mismatch", "username": pending},
+            {
+                "request": request,
+                "error": "Username mismatch",
+                "username": pending,
+                "token_saved": False,
+                "git_error": None,
+                "git_credentials_configured": None,
+            },
             status_code=400,
         )
     if not auth.username_auth(username):
         return templates.TemplateResponse(
             "login_token.html",
-            {"request": request, "error": "Unauthorized user (check Linux account/group)", "username": username},
+            {
+                "request": request,
+                "error": "Unauthorized user (check Linux account/group)",
+                "username": username,
+                "token_saved": False,
+                "git_error": None,
+                "git_credentials_configured": None,
+            },
             status_code=401,
         )
+    git_credentials_ok = False
+    git_error = None
     try:
         auth.write_gitlab_token(username, token)
     except ValueError as exc:
         return templates.TemplateResponse(
             "login_token.html",
-            {"request": request, "error": str(exc), "username": username},
+            {
+                "request": request,
+                "error": str(exc),
+                "username": username,
+                "token_saved": False,
+                "git_error": None,
+                "git_credentials_configured": None,
+            },
             status_code=400,
         )
     except Exception as exc:
         return templates.TemplateResponse(
             "login_token.html",
-            {"request": request, "error": "Failed to save token", "username": username},
+            {
+                "request": request,
+                "error": "Failed to save token",
+                "username": username,
+                "token_saved": False,
+                "git_error": None,
+                "git_credentials_configured": None,
+            },
             status_code=500,
+        )
+    git_credentials_ok, git_error = auth.try_setup_user_git_credentials(username, token, git_host=get_git_host())
+    error_msg = git_error or "unknown error"
+    if not git_credentials_ok:
+        return templates.TemplateResponse(
+            "login_token.html",
+            {
+                "request": request,
+                "error": None,
+                "username": username,
+                "token_saved": True,
+                "git_error": f"Token saved but failed to configure git credentials: {error_msg}",
+                "git_credentials_configured": False,
+            },
+            status_code=200,
         )
     request.session.pop("pending_user", None)
     request.session["user"] = username
@@ -114,7 +169,10 @@ async def settings_page(request: Request):
     redirect = require_login(request)
     if redirect:
         return redirect
-    return templates.TemplateResponse("settings.html", {"request": request, "saved": False, "error": None})
+    return templates.TemplateResponse(
+        "settings.html",
+        {"request": request, "saved": False, "error": None, "git_credentials_configured": None, "git_credentials_error": None},
+    )
 
 
 @app.post("/settings", response_class=HTMLResponse)
@@ -126,7 +184,16 @@ async def settings_post(request: Request, token: str = Form(...)):
     err = auth.save_gitlab_token(username, token)
     if err:
         return templates.TemplateResponse("settings.html", {"request": request, "saved": False, "error": err})
-    return templates.TemplateResponse("settings.html", {"request": request, "saved": True, "error": None})
+    git_credentials_ok, git_error = auth.try_setup_user_git_credentials(username, token, git_host=get_git_host())
+    error_msg = git_error or "unknown error"
+    context = {
+        "request": request,
+        "saved": True,
+        "error": None if git_credentials_ok else f"Token saved but failed to configure git credentials: {error_msg}",
+        "git_credentials_configured": git_credentials_ok,
+        "git_credentials_error": git_error,
+    }
+    return templates.TemplateResponse("settings.html", context, status_code=200)
 
 
 @app.get("/new", response_class=HTMLResponse)

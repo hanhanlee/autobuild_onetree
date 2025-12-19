@@ -65,3 +65,7 @@ def get_token_root() -> Path:
         str(get_workspace_root() / "secrets" / "gitlab"),
         ["AUTO_BUILD_TOKEN_ROOT"],
     )
+
+
+def get_git_host() -> str:
+    return os.getenv("AUTOBUILD_GIT_HOST", "gitlab.example.com")
