@@ -8,12 +8,18 @@
     <form method="post" action="/new" style="display:grid;grid-template-columns:1fr;gap:0.85rem;max-width:720px;">
         <div style="display:flex;flex-direction:column;gap:0.35rem;">
             <label for="recipe-select" style="font-weight:600;">Recipe Template</label>
+            {% if recipes_count is defined %}
+            <div class="status" style="color:#666;font-size:0.9rem;">presets_root: {{ presets_root }}, recipes_count: {{ recipes_count }}</div>
+            {% endif %}
             <select id="recipe-select" name="recipe_id" required>
                 <option value="" disabled {% if not recipe_id %}selected{% endif %}>Select a recipe...</option>
                 {% for r in recipes or [] %}
                     <option value="{{ r.id }}" {% if recipe_id==r.id %}selected{% endif %}>{{ r.id }} — {{ r.display_name }}</option>
                 {% endfor %}
             </select>
+            {% if (recipes or [])|length == 0 %}
+            <div class="status" style="color:#a15c00;font-size:0.95rem;">No recipes found. Create one via /recipes/new and ensure it is saved under presets_root/&lt;platform&gt;/&lt;project&gt;.yaml</div>
+            {% endif %}
             <input id="recipe-filter" value="" placeholder="Filter recipes (e.g. 2600)" autocomplete="off">
             <div style="color:#555;font-size:0.9rem;">Type part of a platform or project name to filter the dropdown; selection comes from the dropdown.</div>
         </div>

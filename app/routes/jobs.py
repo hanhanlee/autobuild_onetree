@@ -30,8 +30,19 @@ async def new_job_page(request: Request):
     if redirect:
         return redirect
     user = _current_user(request)
-    recipes = list_recipes(get_presets_root())
-    return render_page(request, "new_job.html", current_page="new", recipes=recipes, status_code=200, user=user, token_ok=None)
+    presets_root = get_presets_root()
+    recipes = list_recipes(presets_root)
+    return render_page(
+        request,
+        "new_job.html",
+        current_page="new",
+        recipes=recipes,
+        presets_root=str(presets_root),
+        recipes_count=len(recipes),
+        status_code=200,
+        user=user,
+        token_ok=None,
+    )
 
 
 @router.get("/jobs", response_class=HTMLResponse)
