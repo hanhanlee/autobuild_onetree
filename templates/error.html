@@ -1,0 +1,7 @@
+{% extends "_layout.html" %}
+{% block title %}Error{% endblock %}
+{% block content %}
+<h1>{{ title or "Error" }}</h1>
+<p class="error">{{ message or error or "Something went wrong." }}</p>
+<p><a href="/new">Back to Create Job</a></p>
+{% endblock %}

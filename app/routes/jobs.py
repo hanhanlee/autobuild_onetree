@@ -1,6 +1,7 @@
+import logging
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Form, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from .. import jobs, db
@@ -10,6 +11,7 @@ from ..recipes_catalog import list_recipes, load_recipe_yaml, recipe_path_from_i
 from ..web import render_page
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _current_user(request: Request) -> Optional[str]:
@@ -46,8 +48,6 @@ async def jobs_page(request: Request):
 async def create_job(
     request: Request,
     background_tasks: BackgroundTasks,
-    recipe_id: str = Form(...),
-    note: str = Form(""),
 ):
     redirect = _require_login(request)
     if redirect:
@@ -57,7 +57,37 @@ async def create_job(
         return render_page(request, "new_job.html", current_page="new", status_code=403, error="Unauthorized user", recipes=list_recipes(get_presets_root()), user=user, token_ok=None)
     presets_root = get_presets_root()
     recipes = list_recipes(presets_root)
-    recipe_id_val = str(recipe_id).strip()
+    try:
+        form = await request.form()
+    except Exception:
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=400,
+            error="Invalid form submission",
+            recipes=recipes,
+            user=user,
+            token_ok=None,
+        )
+    recipe_id_val = str(form.get("recipe_id") or "").strip()
+    note = str(form.get("note") or "").strip()
+    allowed_fields = {"recipe_id", "note"}
+    extras = [k for k in form.keys() if k not in allowed_fields]
+    if extras:
+        extras_sorted = ", ".join(sorted(extras))
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=400,
+            error=f"Unexpected fields: {extras_sorted}",
+            recipes=recipes,
+            user=user,
+            token_ok=None,
+            recipe_id=recipe_id_val,
+            note=note,
+        )
     if not recipe_id_val:
         return render_page(
             request,
@@ -71,78 +101,120 @@ async def create_job(
             recipe_id=recipe_id_val,
             note=note,
         )
-    recipe_snapshot = None
-    if recipe_id_val:
-        try:
-            path = recipe_path_from_id(presets_root, recipe_id_val)
-        except ValueError:
-            return render_page(
-                request,
-                "new_job.html",
-                current_page="new",
-                status_code=400,
-                error="Invalid recipe id",
-                recipes=recipes,
-                user=user,
-                token_ok=None,
-                recipe_id=recipe_id_val,
-                note=note,
-            )
-        if not path.exists():
-            return render_page(
-                request,
-                "new_job.html",
-                current_page="new",
-                status_code=400,
-                error="Recipe not found",
-                recipes=recipes,
-                user=user,
-                token_ok=None,
-                recipe_id=recipe_id_val,
-                note=note,
-            )
-        try:
-            recipe_yaml = load_recipe_yaml(presets_root, recipe_id_val)
-        except Exception:
-            return render_page(
-                request,
-                "new_job.html",
-                current_page="new",
-                status_code=400,
-                error="Failed to load recipe",
-                recipes=recipes,
-                user=user,
-                token_ok=None,
-                recipe_id=recipe_id_val,
-                note=note,
-            )
-        recipe_snapshot = {
-            "id": recipe_id_val,
-            "yaml": recipe_yaml,
-        }
+    try:
+        path = recipe_path_from_id(presets_root, recipe_id_val)
+    except ValueError:
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=400,
+            error="Invalid recipe id",
+            recipes=recipes,
+            user=user,
+            token_ok=None,
+            recipe_id=recipe_id_val,
+            note=note,
+        )
+    if not path.exists():
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=404,
+            error="Recipe not found",
+            recipes=recipes,
+            user=user,
+            token_ok=None,
+            recipe_id=recipe_id_val,
+            note=note,
+        )
+    try:
+        recipe_yaml = load_recipe_yaml(presets_root, recipe_id_val)
+    except Exception as exc:
+        logger.warning("Failed to load recipe %s: %s", recipe_id_val, exc)
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=500,
+            error="Failed to load recipe contents",
+            recipes=recipes,
+            user=user,
+            token_ok=None,
+            recipe_id=recipe_id_val,
+            note=note,
+        )
+    if not isinstance(recipe_yaml, str):
+        logger.error("Recipe YAML for %s is not a string (type=%s)", recipe_id_val, type(recipe_yaml))
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=500,
+            error="Recipe content invalid",
+            recipes=recipes,
+            user=user,
+            token_ok=None,
+            recipe_id=recipe_id_val,
+            note=note,
+        )
     created_at = jobs.now_iso()
-    job_id = jobs.create_job(user, "", "", "", "", created_at=created_at)
-    effective_block = {}
-    if recipe_snapshot:
-        effective_block["recipe"] = recipe_snapshot
+    try:
+        job_id = jobs.create_job(user, recipe_id_val, recipe_yaml, note, created_at=created_at)
+    except Exception as exc:
+        logger.error("Failed to create job for user %s recipe %s: %s", user, recipe_id_val, exc)
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=500,
+            error="Failed to create job",
+            recipes=recipes,
+            user=user,
+            token_ok=None,
+            recipe_id=recipe_id_val,
+            note=note,
+        )
 
+    snapshot = {
+        "recipe_id": recipe_id_val,
+        "raw_recipe_yaml": recipe_yaml,
+        "note": note,
+        "created_by": user,
+        "created_at": created_at,
+        "status": jobs.STATUS_PENDING,
+    }
     spec = {
-        "schema_version": 1,
+        "schema_version": 2,
         "job_id": job_id,
         "created_by": user,
         "created_at": created_at,
-        "preset_name": "__manual__",
-        "overrides": {
-            "recipe_id": recipe_id_val,
-            "note": note,
-        },
-        "effective": effective_block,
-        "resolved_preset": None,
+        "status": jobs.STATUS_PENDING,
+        "recipe_id": recipe_id_val,
+        "raw_recipe_yaml": recipe_yaml,
+        "note": note,
+        "snapshot": snapshot,
     }
-    if recipe_snapshot:
-        spec["recipe"] = recipe_snapshot
-    if note:
-        spec["note"] = note
-    jobs.write_job_spec(job_id, spec)
+    try:
+        jobs.write_job_spec(job_id, spec)
+    except Exception as exc:
+        logger.error("Failed to write job spec for %s: %s", job_id, exc)
+        try:
+            db.update_job_status(job_id, jobs.STATUS_FAILED, finished_at=jobs.now_iso(), exit_code=-1)
+        except Exception:
+            logger.warning("Failed to mark job %s as failed after spec write error", job_id)
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=500,
+            error="Failed to persist job snapshot",
+            recipes=recipes,
+            user=user,
+            token_ok=None,
+            recipe_id=recipe_id_val,
+            note=note,
+        )
     background_tasks.add_task(jobs.start_job_runner, job_id)
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)

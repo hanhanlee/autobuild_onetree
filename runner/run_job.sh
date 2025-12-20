@@ -2,15 +2,12 @@
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <job_id> [repo_url] [ref] [machine] [target]" >&2
+  echo "Usage: $0 <job_id>" >&2
   exit 1
 fi
 
 JOB_ID="$1"
-REPO_URL="${2:-}"
-REF="${3:-}"
-MACHINE="${4:-}"
-TARGET="${5:-}"
+MACHINE="${AUTOBUILD_MACHINE:-}"
 
 JOBS_ROOT="${AUTOBUILD_JOBS_ROOT:-${AUTO_BUILD_JOBS_ROOT:-/opt/autobuild/workspace/jobs}}"
 : "${JOB_DIR:=${JOBS_ROOT}/${JOB_ID}}"
@@ -90,52 +87,121 @@ trap cleanup EXIT
 exec > >(tee -a "${LOG_FILE}") 2>&1
 
 echo "Starting job ${JOB_ID} at $(timestamp)"
-echo "Repository: ${REPO_URL:-<none>}"
-echo "Ref: ${REF:-<none>}"
-echo "Machine: ${MACHINE:-<none>}"
-echo "Target: ${TARGET:-<none>}"
+echo "Loading recipe snapshot from ${JOB_DIR}/job.json"
 
 write_status "RUNNING" "null" ""
 
-PROJECT_CLONE_SCRIPT=""
-PROJECT_BUILD_SCRIPT=""
-python3 - "$JOB_DIR" "$WORK_DIR" <<'PY'
+CLONE_SCRIPT_FILE="${WORK_DIR}/project_clone.sh"
+BUILD_SCRIPT_FILE="${WORK_DIR}/project_build.sh"
+RECIPE_FILE="${WORK_DIR}/recipe.yaml"
+
+python3 - "$JOB_DIR" "$WORK_DIR" "$RECIPE_FILE" "$CLONE_SCRIPT_FILE" "$BUILD_SCRIPT_FILE" <<'PY'
 import json, os, sys
-job_dir, work_dir = sys.argv[1], sys.argv[2]
+from pathlib import Path
+
+try:
+    import yaml  # type: ignore
+except Exception as exc:  # pragma: no cover - runner runtime guard
+    print(f"FATAL: PyYAML required to parse raw_recipe_yaml: {exc}", file=sys.stderr)
+    sys.exit(12)
+
+job_dir, work_dir, recipe_file, clone_path, build_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
 path = os.path.join(job_dir, "job.json")
 try:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    proj = (data.get("effective") or {}).get("project") or data.get("project") or {}
-    clone_script = proj.get("clone_script") or ""
-    build_script = proj.get("build_script") or ""
-    if clone_script:
-        try:
-            with open(os.path.join(work_dir, "project_clone.sh"), "w", encoding="utf-8") as f:
-                f.write(clone_script.rstrip("\n") + "\n")
-        except Exception:
-            sys.exit(2)
-    if build_script:
-        try:
-            with open(os.path.join(work_dir, "project_build.sh"), "w", encoding="utf-8") as f:
-                f.write(build_script.rstrip("\n") + "\n")
-        except Exception:
-            sys.exit(2)
-except json.JSONDecodeError:
-    sys.exit(3)
+except json.JSONDecodeError as exc:
+    print(f"FATAL: job.json is invalid JSON: {exc}", file=sys.stderr)
+    sys.exit(10)
+except Exception as exc:
+    print(f"FATAL: failed to read job.json: {exc}", file=sys.stderr)
+    sys.exit(11)
+
+snapshot = data.get("snapshot") or {}
+raw_yaml = snapshot.get("raw_recipe_yaml") or data.get("raw_recipe_yaml")
+recipe_id = snapshot.get("recipe_id") or data.get("recipe_id") or ""
+note = snapshot.get("note") or data.get("note") or ""
+if not raw_yaml:
+    print("FATAL: raw_recipe_yaml missing from job snapshot", file=sys.stderr)
+    sys.exit(13)
+try:
+    parsed = yaml.safe_load(raw_yaml)
+    if parsed is None:
+        parsed = {}
+except Exception as exc:
+    print(f"FATAL: unable to parse raw_recipe_yaml: {exc}", file=sys.stderr)
+    sys.exit(14)
+
+recipe_path = Path(recipe_file)
+recipe_path.parent.mkdir(parents=True, exist_ok=True)
+try:
+    recipe_path.write_text(raw_yaml, encoding="utf-8")
+except Exception as exc:
+    print(f"FATAL: failed to write recipe file: {exc}", file=sys.stderr)
+    sys.exit(15)
+
+def _ensure_list(obj, field):
+    if obj is None:
+        return []
+    if not isinstance(obj, (list, tuple)):
+        print(f"FATAL: recipe field {field} must be a list", file=sys.stderr)
+        sys.exit(16)
+    items = []
+    for idx, val in enumerate(obj):
+        if not isinstance(val, str):
+            print(f"FATAL: recipe field {field}[{idx}] must be a string", file=sys.stderr)
+            sys.exit(17)
+        cleaned = val.strip()
+        if cleaned:
+            items.append(cleaned)
+    return items
+
+clone_lines = _ensure_list((parsed.get("clone_block") or {}).get("lines"), "clone_block.lines")
+init_lines = _ensure_list((parsed.get("init_block") or {}).get("lines"), "init_block.lines")
+build_lines = _ensure_list((parsed.get("build_block") or {}).get("lines"), "build_block.lines")
+workdir = parsed.get("workdir") or ""
+
+recipe_run = Path(work_dir) / "recipe_run.sh"
+script_lines = ["#!/usr/bin/env bash", "set -euo pipefail", 'echo "[recipe] start"']
+if workdir:
+    script_lines.append(f'cd "{workdir}"')
+if clone_lines:
+    script_lines.append('echo "[recipe] clone_block"')
+    script_lines.extend(clone_lines)
+else:
+    script_lines.append('echo "[recipe] no clone_block provided; skipping clone"')
+if init_lines:
+    script_lines.append('echo "[recipe] init_block"')
+    script_lines.extend(init_lines)
+if build_lines:
+    script_lines.append('echo "[recipe] build_block"')
+    script_lines.extend(build_lines)
+else:
+    script_lines.append('echo "[recipe] no build_block provided; nothing to build"')
+
+try:
+    recipe_run.write_text("\n".join(script_lines) + "\n", encoding="utf-8")
+    recipe_run.chmod(0o700)
+except Exception as exc:
+    print(f"FATAL: failed to write recipe_run.sh: {exc}", file=sys.stderr)
+    sys.exit(18)
+
+meta_path = Path(work_dir) / "snapshot_meta.json"
+meta = {
+    "recipe_id": recipe_id,
+    "note": note,
+    "created_by": snapshot.get("created_by") or data.get("created_by") or data.get("owner") or "",
+    "created_at": snapshot.get("created_at") or data.get("created_at") or "",
+}
+try:
+    meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
 except Exception:
-    sys.exit(4)
+    pass
+
+print(f"Snapshot recipe_id={recipe_id or '<unknown>'}")
+if note:
+    print(f"Snapshot note={note}")
 PY
-status=$?
-if [[ ${status} -ne 0 ]]; then
-  if [[ ${status} -eq 3 ]]; then
-    echo "WARN: failed to parse job.json for project scripts; falling back to default flow" >> "${LOG_FILE}"
-  elif [[ ${status} -eq 2 ]]; then
-    echo "WARN: failed to write project scripts from job.json; falling back to default flow" >> "${LOG_FILE}"
-  else
-    echo "WARN: failed to load project scripts from job.json; falling back to default flow" >> "${LOG_FILE}"
-  fi
-fi
 
 if [[ ! -f "${TOKEN_FILE}" ]]; then
   echo "GitLab token not found for user ${OWNER} at ${TOKEN_FILE}" >&2
@@ -158,37 +224,23 @@ export GIT_ASKPASS="${ASKPASS}"
 export GIT_TERMINAL_PROMPT=0
 export GIT_CURL_VERBOSE=0
 
-CLONE_SCRIPT_FILE="${WORK_DIR}/project_clone.sh"
-BUILD_SCRIPT_FILE="${WORK_DIR}/project_build.sh"
-RECIPE_FILE="${WORK_DIR}/recipe.yaml"
-
 if [[ -f "${RECIPE_FILE}" ]]; then
-  echo "Recipe mode detected; recipe saved at ${RECIPE_FILE}"
+  echo "Recipe snapshot saved at ${RECIPE_FILE}"
 fi
 
-if [[ -f "${CLONE_SCRIPT_FILE}" ]]; then
-  echo "Running project clone script..."
-  chmod 700 "${CLONE_SCRIPT_FILE}"
-  (cd "${WORK_DIR}" && bash -e -u -o pipefail "${CLONE_SCRIPT_FILE}")
-elif [[ -n "${REPO_URL}" ]]; then
-  echo "Using legacy repo clone flow..."
-  rm -rf "${WORK_DIR}/repo"
-  git -c core.askPass="${ASKPASS}" clone --depth 1 --branch "${REF:-main}" "${REPO_URL}" "${WORK_DIR}/repo"
-  cd "${WORK_DIR}/repo" || true
-else
-  echo "No clone instructions provided (recipe-only mode). Skipping clone."
+RECIPE_RUN="${WORK_DIR}/recipe_run.sh"
+if [[ ! -f "${RECIPE_RUN}" ]]; then
+  echo "Recipe script missing; cannot continue" >&2
+  exit 19
 fi
-
-if [[ -f "${BUILD_SCRIPT_FILE}" ]]; then
-  echo "Running project build script..."
-  chmod 700 "${BUILD_SCRIPT_FILE}"
-  (cd "${WORK_DIR}" && bash -e -u -o pipefail "${BUILD_SCRIPT_FILE}")
-else
-  echo "No build script provided; placeholder complete."
-fi
+echo "Executing recipe_run.sh ..."
+(cd "${WORK_DIR}" && bash -e -u -o pipefail "${RECIPE_RUN}")
 
 echo "Collecting artifacts..."
-IMAGE_DIR="${WORK_DIR}/repo/build/tmp/deploy/images/${MACHINE}"
+IMAGE_DIR="${WORK_DIR}/repo/build/tmp/deploy/images"
+if [[ -n "${MACHINE}" ]]; then
+  IMAGE_DIR="${IMAGE_DIR}/${MACHINE}"
+fi
 if [[ -d "${IMAGE_DIR}" ]]; then
   find "${IMAGE_DIR}" -maxdepth 1 -type f \( -name "*.bin" -o -name "*.mtd" \) -print0 | while IFS= read -r -d '' file; do
     cp "${file}" "${ARTIFACT_DIR}/"

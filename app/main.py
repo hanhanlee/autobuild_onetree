@@ -186,7 +186,18 @@ async def settings_post(request: Request, token: str = Form(...)):
     username = get_current_user(request)
     err = auth.save_gitlab_token(username, token)
     if err:
-        return templates.TemplateResponse("settings.html", {"request": request, "saved": False, "error": err})
+        return render_page(
+            request,
+            "settings.html",
+            current_page="settings",
+            status_code=400,
+            saved=False,
+            error=err,
+            user=username,
+            token_ok=False,
+            git_credentials_configured=None,
+            git_credentials_error=err,
+        )
     git_credentials_ok, git_error = auth.try_setup_user_git_credentials(username, token, git_host=get_git_host())
     error_msg = git_error or "unknown error"
     context = {
@@ -205,7 +216,16 @@ async def job_detail(request: Request, job_id: int):
         return redirect
     job = db.get_job(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        return render_page(
+            request,
+            "error.html",
+            current_page="jobs",
+            status_code=404,
+            title="Job not found",
+            message="Job not found",
+            user=get_current_user(request),
+            token_ok=None,
+        )
     artifact_list = jobs.list_artifacts(job_id)
     return render_page(request, "job.html", current_page="jobs", job=job, artifacts=artifact_list)
 

@@ -1,5 +1,4 @@
 import sqlite3
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .config import get_db_path
@@ -10,6 +9,38 @@ def _enable_foreign_keys(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys = ON")
     except Exception:
         pass
+
+
+def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    cur = conn.execute(f"PRAGMA table_info({table})")
+    for row in cur.fetchall():
+        # PRAGMA table_info returns: cid, name, type, notnull, dflt_value, pk
+        if len(row) >= 2 and row[1] == column:
+            return True
+    return False
+
+
+def _add_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    if not _has_column(conn, table, column):
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
+
+def _migrate_jobs_table(conn: sqlite3.Connection) -> None:
+    _add_column(conn, "jobs", "recipe_id", "TEXT DEFAULT ''")
+    _add_column(conn, "jobs", "raw_recipe_yaml", "TEXT DEFAULT ''")
+    _add_column(conn, "jobs", "note", "TEXT DEFAULT ''")
+    _add_column(conn, "jobs", "created_by", "TEXT DEFAULT ''")
+    conn.commit()
+    # Backfill created_by from owner when possible for legacy rows.
+    if _has_column(conn, "jobs", "created_by") and _has_column(conn, "jobs", "owner"):
+        conn.execute(
+            """
+            UPDATE jobs
+               SET created_by = COALESCE(NULLIF(created_by, ''), owner)
+             WHERE created_by IS NULL OR created_by = ''
+            """
+        )
+        conn.commit()
 
 
 def ensure_db() -> None:
@@ -30,10 +61,15 @@ def ensure_db() -> None:
                 created_at TEXT NOT NULL,
                 started_at TEXT,
                 finished_at TEXT,
-                exit_code INTEGER
+                exit_code INTEGER,
+                recipe_id TEXT DEFAULT '',
+                raw_recipe_yaml TEXT DEFAULT '',
+                note TEXT DEFAULT '',
+                created_by TEXT DEFAULT ''
             )
             """
         )
+        _migrate_jobs_table(conn)
         conn.commit()
 
 
@@ -65,7 +101,12 @@ def list_jobs(limit: int = 100) -> Dict[int, Dict[str, Any]]:
 def list_recent_jobs(limit: int = 50) -> List[Dict[str, Any]]:
     with get_connection() as conn:
         cur = conn.execute(
-            "SELECT id, owner, status, created_at, exit_code FROM jobs ORDER BY COALESCE(created_at, '') DESC, id DESC LIMIT ?",
+            """
+            SELECT id, owner, created_by, recipe_id, note, status, created_at, exit_code
+              FROM jobs
+             ORDER BY COALESCE(created_at, '') DESC, id DESC
+             LIMIT ?
+            """,
             (limit,),
         )
         rows = cur.fetchall()

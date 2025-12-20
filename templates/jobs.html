@@ -7,8 +7,10 @@
         <thead>
             <tr>
                 <th>ID</th>
+                <th>Recipe</th>
                 <th>Status</th>
-                <th>Owner</th>
+                <th>Created By</th>
+                <th>Note</th>
                 <th>Created</th>
                 <th>Exit Code</th>
             </tr>
@@ -17,13 +19,15 @@
             {% for j in jobs %}
             <tr>
                 <td><a href="/jobs/{{ j.id }}">{{ j.id }}</a></td>
+                <td>{{ j.recipe_id or '-' }}</td>
                 <td>{{ j.status }}</td>
-                <td>{{ j.owner }}</td>
-                <td>{{ j.created_at }}</td>
+                <td>{{ j.created_by or j.owner }}</td>
+                <td>{% if j.note %}{{ j.note }}{% else %}-{% endif %}</td>
+                <td>{{ j.created_at or '-' }}</td>
                 <td>{% if j.exit_code is not none %}{{ j.exit_code }}{% else %}-{% endif %}</td>
             </tr>
             {% else %}
-            <tr><td colspan="5">No jobs yet.</td></tr>
+            <tr><td colspan="7">No jobs yet.</td></tr>
             {% endfor %}
         </tbody>
     </table>

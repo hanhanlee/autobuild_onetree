@@ -26,15 +26,15 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def create_job(owner: str, repo_url: str, ref: str, machine: str, target: str, created_at: Optional[str] = None) -> int:
+def create_job(created_by: str, recipe_id: str, raw_recipe_yaml: str, note: str, created_at: Optional[str] = None) -> int:
     created_at = created_at or now_iso()
     with get_connection() as conn:
         cur = conn.execute(
             """
-            INSERT INTO jobs (owner, repo_url, ref, machine, target, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO jobs (owner, repo_url, ref, machine, target, status, created_at, recipe_id, raw_recipe_yaml, note, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (owner, repo_url, ref, machine, target, STATUS_PENDING, created_at),
+            (created_by, "", "", "", "", STATUS_PENDING, created_at, recipe_id, raw_recipe_yaml, note or "", created_by),
         )
         conn.commit()
         job_id = cur.lastrowid
@@ -83,7 +83,7 @@ def load_job_spec(job_id: int) -> Optional[Dict[str, object]]:
         return None
 
 
-def start_job_runner(job_id: int, owner: Optional[str] = None, repo_url: str = "", ref: str = "", machine: str = "", target: str = "") -> None:
+def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
     started_at = now_iso()
     update_job_status(job_id, STATUS_RUNNING, started_at=started_at)
     job_root = job_dir(job_id)
@@ -96,7 +96,18 @@ def start_job_runner(job_id: int, owner: Optional[str] = None, repo_url: str = "
         pass
     spec = load_job_spec(job_id) or {}
     spec_owner = spec.get("created_by") if isinstance(spec, dict) else None
-    owner = owner or spec_owner or os.environ.get("USER") or "autobuild"
+    if owner is None:
+        owner = spec_owner
+        if owner is None:
+            try:
+                with get_connection() as conn:
+                    cur = conn.execute("SELECT created_by, owner FROM jobs WHERE id = ?", (job_id,))
+                    row = cur.fetchone()
+                    if row:
+                        owner = row[0] or row[1]
+            except Exception:
+                owner = None
+    owner = owner or os.environ.get("USER") or "autobuild"
     token_root = os.environ.get("AUTOBUILD_TOKEN_ROOT") or os.environ.get("AUTO_BUILD_TOKEN_ROOT") or "/opt/autobuild/workspace/secrets/gitlab"
     token_path = Path(token_root) / f"{owner}.token"
     if token_path.exists():
@@ -144,10 +155,6 @@ def start_job_runner(job_id: int, owner: Optional[str] = None, repo_url: str = "
         f"AUTOBUILD_TOKEN_ROOT={token_root}",
         "/opt/autobuild/runner/run_job.sh",
         str(job_id),
-        repo_url,
-        ref,
-        machine,
-        target,
     ]
     env = os.environ.copy()
     env["JOB_DIR"] = str(job_root)

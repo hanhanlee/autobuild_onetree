@@ -5,22 +5,106 @@
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 <p><a href="/settings">GitLab token</a></p>
 <div class="card">
-    <form method="post" action="/new" style="display:grid;grid-template-columns:1fr;gap:0.75rem;max-width:560px;">
-        <label>Recipe Template
-            <input list="recipe-options" id="recipe-select" name="recipe_id" value="{{ recipe_id or '' }}" placeholder="Type to search (e.g. 2600)" required>
-            <datalist id="recipe-options">
-                {% for r in recipes or [] %}
-                    <option value="{{ r.id }}" label="{{ r.display_name }}"></option>
-                {% endfor %}
-            </datalist>
-        </label>
+    <form method="post" action="/new" style="display:grid;grid-template-columns:1fr;gap:0.85rem;max-width:720px;">
+        <div style="display:flex;flex-direction:column;gap:0.35rem;">
+            <label for="recipe-input" style="font-weight:600;">Recipe Template</label>
+            <input id="recipe-input" name="recipe_id" value="{{ recipe_id or '' }}" placeholder="Search recipes (e.g. 2600)" autocomplete="off" required>
+            <div style="color:#555;font-size:0.9rem;">Type part of a platform or project name; fuzzy matches will appear below.</div>
+            <div id="recipe-suggestions" class="recipe-suggestions" role="listbox" aria-label="Recipe suggestions"></div>
+        </div>
         <label>Note (optional)
-            <textarea name="note" rows="3">{{ note or '' }}</textarea>
+            <textarea name="note" rows="3" placeholder="Optional note for this job">{{ note or '' }}</textarea>
         </label>
         <button type="submit">Submit</button>
     </form>
 </div>
+<style>
+.recipe-suggestions {
+    border: 1px solid #d7dce2;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    max-height: 240px;
+    overflow-y: auto;
+    display: none;
+}
+.recipe-suggestion {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    border-bottom: 1px solid #eef1f4;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+.recipe-suggestion:last-child { border-bottom: none; }
+.recipe-suggestion:hover { background: #f3f6fb; }
+.recipe-suggestion .id { font-weight: 700; color: #0f3057; }
+.recipe-suggestion .name { color: #3a4a5a; font-size: 0.92rem; }
+.recipe-empty { padding: 0.5rem 0.75rem; color: #777; }
+</style>
+<script type="application/json" id="recipe-data">{{ recipes or [] | tojson }}</script>
 <script>
-    // recipes are rendered server-side in datalist; no extra JS needed
+(() => {
+    const input = document.getElementById("recipe-input");
+    const suggestions = document.getElementById("recipe-suggestions");
+    const dataEl = document.getElementById("recipe-data");
+    if (!input || !suggestions || !dataEl) return;
+    let recipes = [];
+    try {
+        recipes = JSON.parse(dataEl.textContent || "[]");
+    } catch (e) {
+        recipes = [];
+    }
+    const fuzzyMatch = (query, text) => {
+        const q = (query || "").toLowerCase().replace(/\s+/g, "");
+        const t = (text || "").toLowerCase().replace(/\s+/g, "");
+        if (!q) return false;
+        return t.includes(q);
+    };
+    const render = (query) => {
+        suggestions.innerHTML = "";
+        const q = (query || "").trim();
+        if (!q) {
+            suggestions.style.display = "none";
+            return;
+        }
+        const matched = recipes.filter((r) => fuzzyMatch(q, `${r.id} ${r.display_name || ""}`)).slice(0, 12);
+        if (!matched.length) {
+            const empty = document.createElement("div");
+            empty.className = "recipe-empty";
+            empty.textContent = "No matches";
+            suggestions.appendChild(empty);
+            suggestions.style.display = "block";
+            return;
+        }
+        matched.forEach((r) => {
+            const item = document.createElement("div");
+            item.className = "recipe-suggestion";
+            item.role = "option";
+            const id = document.createElement("div");
+            id.className = "id";
+            id.textContent = r.id;
+            const name = document.createElement("div");
+            name.className = "name";
+            name.textContent = r.display_name || r.id;
+            item.appendChild(id);
+            item.appendChild(name);
+            item.addEventListener("click", () => {
+                input.value = r.id;
+                suggestions.style.display = "none";
+                suggestions.innerHTML = "";
+                input.focus();
+            });
+            suggestions.appendChild(item);
+        });
+        suggestions.style.display = "block";
+    };
+    input.addEventListener("input", () => render(input.value));
+    input.addEventListener("focus", () => render(input.value));
+    document.addEventListener("click", (ev) => {
+        if (ev.target === input || suggestions.contains(ev.target)) return;
+        suggestions.style.display = "none";
+    });
+})();
 </script>
 {% endblock %}
