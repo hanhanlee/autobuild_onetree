@@ -1,33 +1,24 @@
 {% extends "_layout.html" %}
-{% block title %}Recipe Builder{% endblock %}
+{% block title %}Recipe Template{% endblock %}
 {% block content %}
-<h1>Recipe Builder v0</h1>
+<h1>Recipe Template</h1>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 <div class="card">
-    <form method="post" action="/recipes/new" class="flex" style="flex-direction:column;gap:0.75rem;max-width:760px;">
-        <label>Platform <input type="text" name="platform" value="{{ platform or '' }}" required></label>
-        <label>Project <input type="text" name="project" value="{{ project or '' }}" required></label>
-        <label>Display Name <input type="text" name="display_name" value="{{ display_name or '' }}" placeholder="Optional friendly name"></label>
-        <label>Clone Lines (each must start with 'git clone'; optional '; cd <DEST>' after clone)
-            <textarea name="clone_lines" required rows="4" placeholder="git clone https://example/repo.git&#10;git clone https://example/repo.git dest&#10;git clone https://example/repo.git dest; cd dest">{{ clone_lines or '' }}</textarea>
+    <form method="post" action="/recipes/new" class="flex" style="flex-direction:column;gap:0.75rem;max-width:860px;">
+        <div class="flex" style="gap:1rem;flex-wrap:wrap;">
+            <label style="flex:1;min-width:220px;">Platform
+                <input type="text" name="platform" value="{{ platform or '' }}" required placeholder="e.g. ast2600evb">
+            </label>
+            <label style="flex:1;min-width:220px;">Project
+                <input type="text" name="project" value="{{ project or '' }}" required placeholder="e.g. base">
+            </label>
+        </div>
+        <label>Recipe YAML (raw text; saved exactly as authored)
+            <textarea name="recipe_yaml" rows="22" style="font-family:monospace;" required>{{ recipe_yaml or '' }}</textarea>
         </label>
-        <label>Workdir (relative)
-            <input type="text" name="workdir" value="{{ workdir or '' }}" placeholder="e.g. repo/build">
-        </label>
-        <label>Init Lines (optional)
-            <textarea name="init_lines" rows="3" placeholder="export VAR=1">{{ init_lines or '' }}</textarea>
-        </label>
-        <label>Append Path
-            <input type="text" name="append_path" value="{{ append_path or 'build/conf/local.conf' }}" required>
-        </label>
-        <label>Append Block
-            <textarea name="append_block" rows="4" placeholder="EXTRA += 'foo'">{{ append_block or '' }}</textarea>
-        </label>
-        <label>Build Lines
-            <textarea name="build_lines" rows="4" placeholder="bitbake core-image-minimal">{{ build_lines or '' }}</textarea>
-        </label>
+        <p class="status" style="color:#444;">Tips: runner supports clone_block/init_block/build_block/workdir; include meta-ami/github-gitlab-url.sh, set TEMPLATECONF, and edit conf/local.conf inside init_block while it runs.</p>
         <p class="status">Note: Existing recipe with same platform/project will be overwritten.</p>
-        <button type="submit">Generate Recipe</button>
+        <button type="submit">Save Template</button>
     </form>
 </div>
 {% endblock %}

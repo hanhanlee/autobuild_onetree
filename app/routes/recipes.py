@@ -106,7 +106,36 @@ async def recipes_new(request: Request):
         return RedirectResponse(url="/login", status_code=303)
     if not auth.username_auth(user):
         return render_page(request, "recipes_new.html", user=user, token_ok=None, current_page="projects", status_code=403, error="Forbidden")
-    return render_page(request, "recipes_new.html", user=user, token_ok=None, current_page="projects", status_code=200)
+    sample_yaml = "\n".join(
+        [
+            "schema_version: 1",
+            'id: "platform/project"',
+            'display_name: "Platform Project"',
+            "clone_block:",
+            '  lines:',
+            '    - "git clone https://git.ami.com/core/ami-bmc/base-tech/openbmc onetree"',
+            '    - "cd onetree"',
+            '    - "git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-core meta-core"',
+            "init_block:",
+            '  lines:',
+            '    - "./meta-ami/github-gitlab-url.sh"',
+            '    - "TEMPLATECONF=meta-ami/meta-evb/meta-evb-aspeed/meta-evb-ast2600/conf/templates/default . openbmc-env"',
+            '    - "# Edit conf/local.conf here while init_block runs (runner does not yet support file_appends)"',
+            "build_block:",
+            '  lines:',
+            '    - "bitbake obmc-phosphor-image"',
+            "# runner supports clone_block/init_block/build_block/workdir; artifacts/file_appends not yet supported",
+        ]
+    )
+    return render_page(
+        request,
+        "recipes_new.html",
+        user=user,
+        token_ok=None,
+        current_page="projects",
+        status_code=200,
+        recipe_yaml=sample_yaml,
+    )
 
 
 @router.post("/recipes/new")
@@ -114,13 +143,7 @@ async def recipes_new_post(
     request: Request,
     platform: str = Form(...),
     project: str = Form(...),
-    display_name: str = Form(""),
-    clone_lines: str = Form(""),
-    workdir: str = Form(""),
-    init_lines: str = Form(""),
-    append_path: str = Form("build/conf/local.conf"),
-    append_block: str = Form(""),
-    build_lines: str = Form(""),
+    recipe_yaml: str = Form(...),
 ):
     user = _current_user(request)
     if not user:
@@ -128,56 +151,118 @@ async def recipes_new_post(
     if not auth.username_auth(user):
         return render_page(request, "recipes_new.html", user=user, token_ok=None, current_page="projects", status_code=403, error="Forbidden")
 
-    try:
-        platform_val = _validate_identifier(platform, "platform")
-        project_val = _validate_identifier(project, "project")
-        display_name_val = (display_name or "").strip() or f"{platform_val}/{project_val}"
-        workdir_val = _validate_relpath(workdir, "workdir")
-        append_path_val = _validate_relpath(append_path, "append_path") or "build/conf/local.conf"
-        clone_list = _parse_clone_lines(clone_lines.splitlines())
-        init_list = [l.strip() for l in init_lines.splitlines() if l.strip()]
-        build_list = [l.strip() for l in build_lines.splitlines() if l.strip()]
-    except HTTPException as exc:
-        status = exc.status_code if exc.status_code else 400
-        detail = exc.detail if isinstance(exc.detail, str) else "Invalid input"
+    recipe_yaml_text = (recipe_yaml or "").strip()
+    platform_val = (platform or "").strip()
+    if not platform_val or not re.match(r"^[A-Za-z0-9._-]+$", platform_val):
         return render_page(
             request,
             "recipes_new.html",
             user=user,
             token_ok=None,
             current_page="projects",
-            status_code=status,
-            error=detail,
+            status_code=400,
+            error="platform is required and must match [A-Za-z0-9._-]+",
             platform=platform,
             project=project,
-            display_name=display_name,
-            clone_lines=clone_lines,
-            workdir=workdir,
-            init_lines=init_lines,
-            append_path=append_path,
-            append_block=append_block,
-            build_lines=build_lines,
+            recipe_yaml=recipe_yaml_text,
         )
 
-    data = {
-        "schema_version": 1,
-        "id": f"{platform_val}/{project_val}",
-        "platform": platform_val,
-        "project": project_val,
-        "display_name": display_name_val,
-        "clone_block": {"lines": clone_list},
-        "workdir": workdir_val,
-        "init_block": {"lines": init_list},
-        "file_appends": [{"path": append_path_val, "append": append_block}],
-        "build_block": {"lines": build_list},
-        "artifacts": ["build/tmp/deploy/images/**"],
-    }
+    project_val = (project or "").strip()
+    if not project_val or not re.match(r"^[A-Za-z0-9._-]+$", project_val):
+        return render_page(
+            request,
+            "recipes_new.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error="project is required and must match [A-Za-z0-9._-]+",
+            platform=platform,
+            project=project,
+            recipe_yaml=recipe_yaml_text,
+        )
+
+    if not recipe_yaml_text:
+        return render_page(
+            request,
+            "recipes_new.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error="recipe_yaml is required",
+            platform=platform,
+            project=project,
+            recipe_yaml=recipe_yaml_text,
+        )
+
+    try:
+        import yaml  # type: ignore
+    except Exception:  # pragma: no cover - runtime guard
+        return render_page(
+            request,
+            "recipes_new.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=500,
+            error="PyYAML missing",
+            platform=platform,
+            project=project,
+            recipe_yaml=recipe_yaml_text,
+        )
+
+    try:
+        parsed = yaml.safe_load(recipe_yaml_text) or {}
+    except Exception:
+        return render_page(
+            request,
+            "recipes_new.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error="Invalid YAML; please fix and retry",
+            platform=platform,
+            project=project,
+            recipe_yaml=recipe_yaml_text,
+        )
+
+    if not isinstance(parsed, dict):
+        return render_page(
+            request,
+            "recipes_new.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error="Recipe YAML must be a mapping",
+            platform=platform,
+            project=project,
+            recipe_yaml=recipe_yaml_text,
+        )
+
+    # Filesystem path (<platform>/<project>.yaml) is the recipe ID source of truth; YAML id is optional.
+    recipe_id = parsed.get("id")
+    expected_id = f"{platform_val}/{project_val}"
+    if recipe_id and recipe_id != expected_id:
+        return render_page(
+            request,
+            "recipes_new.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error=f"Recipe id must be {expected_id} to match path",
+            platform=platform,
+            project=project,
+            recipe_yaml=recipe_yaml_text,
+        )
 
     presets_root = get_presets_root()
     target_dir = presets_root / platform_val
     target_dir.mkdir(parents=True, exist_ok=True)
     target_path = target_dir / f"{project_val}.yaml"
-    yaml_content = _build_recipe_yaml(data)
-    target_path.write_text(yaml_content, encoding="utf-8")
+    target_path.write_text(recipe_yaml_text + ("\n" if not recipe_yaml_text.endswith("\n") else ""), encoding="utf-8")
 
     return RedirectResponse(url="/projects", status_code=303)

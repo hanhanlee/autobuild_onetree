@@ -22,16 +22,23 @@ def _guess_display_name(path: Path) -> Optional[str]:
     return None
 
 
+def _iter_recipe_files(presets_root: Path):
+    exts = {".yaml", ".yml"}
+    for path in presets_root.rglob("*"):
+        if path.is_file() and path.suffix.lower() in exts:
+            yield path
+
+
 def list_recipes(presets_root: Path) -> List[Dict[str, str]]:
     recipes: List[Dict[str, str]] = []
     if not presets_root.exists():
         return recipes
-    for path in presets_root.rglob("*.yaml"):
+    for path in _iter_recipe_files(presets_root):
         rel = path.relative_to(presets_root)
         if len(rel.parts) != 2:
             continue
         platform = rel.parts[0]
-        project = rel.stem
+        project = path.stem
         recipe_id = f"{platform}/{project}"
         display = _guess_display_name(path) or recipe_id
         recipes.append({"id": recipe_id, "display_name": display})

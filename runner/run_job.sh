@@ -156,15 +156,39 @@ def _ensure_list(obj, field):
             items.append(cleaned)
     return items
 
+def _ensure_file_appends(obj):
+    if obj is None:
+        return []
+    if not isinstance(obj, (list, tuple)):
+        print("FATAL: recipe field file_appends must be a list", file=sys.stderr)
+        sys.exit(19)
+    items = []
+    for idx, val in enumerate(obj):
+        if not isinstance(val, dict):
+            print(f"FATAL: recipe field file_appends[{idx}] must be a mapping", file=sys.stderr)
+            sys.exit(19)
+        path = val.get("path") or ""
+        append = val.get("append", "")
+        if not isinstance(path, str) or not path.strip():
+            print(f"FATAL: recipe field file_appends[{idx}].path must be a non-empty string", file=sys.stderr)
+            sys.exit(19)
+        if not isinstance(append, str):
+            print(f"FATAL: recipe field file_appends[{idx}].append must be a string", file=sys.stderr)
+            sys.exit(19)
+        items.append({"path": path.strip(), "append": append})
+    return items
+
 clone_lines = _ensure_list((parsed.get("clone_block") or {}).get("lines"), "clone_block.lines")
 init_lines = _ensure_list((parsed.get("init_block") or {}).get("lines"), "init_block.lines")
 build_lines = _ensure_list((parsed.get("build_block") or {}).get("lines"), "build_block.lines")
 workdir = parsed.get("workdir") or ""
+file_appends = _ensure_file_appends(parsed.get("file_appends"))
 
 recipe_run = Path(work_dir) / "recipe_run.sh"
 script_lines = ["#!/usr/bin/env bash", "set -euo pipefail", 'echo "[recipe] start"']
 if workdir:
     script_lines.append(f'cd "{workdir}"')
+script_lines.append('base_dir="$(pwd)"')
 if clone_lines:
     script_lines.append('echo "[recipe] clone_block"')
     script_lines.extend(clone_lines)
@@ -173,6 +197,21 @@ else:
 if init_lines:
     script_lines.append('echo "[recipe] init_block"')
     script_lines.extend(init_lines)
+if file_appends:
+    script_lines.append('echo "[recipe] file_appends"')
+    script_lines.append('if [[ -z "${base_dir}" || ! -d "${base_dir}" ]]; then echo "FATAL: base_dir not set for file_appends" >&2; exit 20; fi')
+    for idx, item in enumerate(file_appends):
+        script_lines.append(f'file_append_path_{idx}="{item["path"]}"')
+        script_lines.append(f'if [[ -z "${{file_append_path_{idx}}}" ]]; then echo "FATAL: file_appends path missing" >&2; exit 21; fi')
+        script_lines.append(f'abs_path_{idx}="$(realpath -m "${{file_append_path_{idx}}}")" || exit 21')
+        script_lines.append(f'case "${{abs_path_{idx}}}" in')
+        script_lines.append('  "${base_dir}"|"${base_dir}"/*) ;;')
+        script_lines.append(f'  *) echo "FATAL: file_appends path outside workdir: ${{file_append_path_{idx}}}" >&2; exit 21 ;;')
+        script_lines.append('esac')
+        script_lines.append(f'mkdir -p "$(dirname "${{abs_path_{idx}}}")"')
+        script_lines.append(f'cat <<\'FILEAPPEND_{idx}\' >> "${{abs_path_{idx}}}"')
+        script_lines.append(item["append"])
+        script_lines.append(f'FILEAPPEND_{idx}')
 if build_lines:
     script_lines.append('echo "[recipe] build_block"')
     script_lines.extend(build_lines)

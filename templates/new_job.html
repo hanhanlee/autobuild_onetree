@@ -3,11 +3,17 @@
 {% block content %}
 <h1>Create Job</h1>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
-<p><a href="/settings">GitLab token</a></p>
+<p><a href="/recipes/new" style="margin-right:1rem;">New Template</a> | <a href="/settings">GitLab token</a></p>
 <div class="card">
     <form method="post" action="/new" style="display:grid;grid-template-columns:1fr;gap:0.85rem;max-width:720px;">
         <div style="display:flex;flex-direction:column;gap:0.35rem;">
-            <label for="recipe-input" style="font-weight:600;">Recipe Template</label>
+            <label for="recipe-select" style="font-weight:600;">Recipe Template</label>
+            <select id="recipe-select" required>
+                <option value="" disabled {% if not recipe_id %}selected{% endif %}>Select a recipe...</option>
+                {% for r in recipes or [] %}
+                    <option value="{{ r.id }}" {% if recipe_id==r.id %}selected{% endif %}>{{ r.id }} — {{ r.display_name }}</option>
+                {% endfor %}
+            </select>
             <input id="recipe-input" name="recipe_id" value="{{ recipe_id or '' }}" placeholder="Search recipes (e.g. 2600)" autocomplete="off" required>
             <div style="color:#555;font-size:0.9rem;">Type part of a platform or project name; fuzzy matches will appear below.</div>
             <div id="recipe-suggestions" class="recipe-suggestions" role="listbox" aria-label="Recipe suggestions"></div>
@@ -38,6 +44,7 @@
 }
 .recipe-suggestion:last-child { border-bottom: none; }
 .recipe-suggestion:hover { background: #f3f6fb; }
+.recipe-suggestion.active { background: #e8f0fe; }
 .recipe-suggestion .id { font-weight: 700; color: #0f3057; }
 .recipe-suggestion .name { color: #3a4a5a; font-size: 0.92rem; }
 .recipe-empty { padding: 0.5rem 0.75rem; color: #777; }
@@ -46,30 +53,44 @@
 <script>
 (() => {
     const input = document.getElementById("recipe-input");
+    const select = document.getElementById("recipe-select");
     const suggestions = document.getElementById("recipe-suggestions");
     const dataEl = document.getElementById("recipe-data");
-    if (!input || !suggestions || !dataEl) return;
+    if (!input || !suggestions || !dataEl || !select) return;
     let recipes = [];
     try {
         recipes = JSON.parse(dataEl.textContent || "[]");
     } catch (e) {
         recipes = [];
     }
+    let matchedCache = [];
+    let activeIndex = -1;
     const fuzzyMatch = (query, text) => {
         const q = (query || "").toLowerCase().replace(/\s+/g, "");
         const t = (text || "").toLowerCase().replace(/\s+/g, "");
         if (!q) return false;
         return t.includes(q);
     };
+    const syncSelect = (val) => {
+        const match = Array.from(select.options || []).find((o) => o.value === val);
+        if (match) {
+            select.value = val;
+        } else {
+            select.value = "";
+        }
+    };
     const render = (query) => {
         suggestions.innerHTML = "";
         const q = (query || "").trim();
         if (!q) {
             suggestions.style.display = "none";
+            matchedCache = [];
+            activeIndex = -1;
             return;
         }
-        const matched = recipes.filter((r) => fuzzyMatch(q, `${r.id} ${r.display_name || ""}`)).slice(0, 12);
-        if (!matched.length) {
+        matchedCache = recipes.filter((r) => fuzzyMatch(q, `${r.id} ${r.display_name || ""}`)).slice(0, 12);
+        activeIndex = -1;
+        if (!matchedCache.length) {
             const empty = document.createElement("div");
             empty.className = "recipe-empty";
             empty.textContent = "No matches";
@@ -77,7 +98,7 @@
             suggestions.style.display = "block";
             return;
         }
-        matched.forEach((r) => {
+        matchedCache.forEach((r, idx) => {
             const item = document.createElement("div");
             item.className = "recipe-suggestion";
             item.role = "option";
@@ -91,16 +112,61 @@
             item.appendChild(name);
             item.addEventListener("click", () => {
                 input.value = r.id;
+                syncSelect(r.id);
                 suggestions.style.display = "none";
                 suggestions.innerHTML = "";
                 input.focus();
             });
+            item.dataset.index = String(idx);
             suggestions.appendChild(item);
         });
         suggestions.style.display = "block";
     };
-    input.addEventListener("input", () => render(input.value));
+    input.addEventListener("input", () => {
+        syncSelect(input.value);
+        render(input.value);
+    });
     input.addEventListener("focus", () => render(input.value));
+    const setActive = (idx) => {
+        const items = suggestions.querySelectorAll(".recipe-suggestion");
+        items.forEach((el) => el.classList.remove("active"));
+        if (idx >= 0 && idx < items.length) {
+            items[idx].classList.add("active");
+            activeIndex = idx;
+        } else {
+            activeIndex = -1;
+        }
+    };
+    const chooseActive = () => {
+        if (activeIndex < 0 || activeIndex >= matchedCache.length) return;
+        const choice = matchedCache[activeIndex];
+        input.value = choice.id;
+        syncSelect(choice.id);
+        suggestions.style.display = "none";
+        suggestions.innerHTML = "";
+    };
+    input.addEventListener("keydown", (ev) => {
+        const items = suggestions.querySelectorAll(".recipe-suggestion");
+        if (!items.length) return;
+        if (ev.key === "ArrowDown") {
+            ev.preventDefault();
+            setActive((activeIndex + 1) % items.length);
+        } else if (ev.key === "ArrowUp") {
+            ev.preventDefault();
+            setActive((activeIndex - 1 + items.length) % items.length);
+        } else if (ev.key === "Enter") {
+            if (activeIndex >= 0) {
+                ev.preventDefault();
+                chooseActive();
+            }
+        } else if (ev.key === "Escape") {
+            suggestions.style.display = "none";
+        }
+    });
+    select.addEventListener("change", () => {
+        input.value = select.value;
+        render(input.value);
+    });
     document.addEventListener("click", (ev) => {
         if (ev.target === input || suggestions.contains(ev.target)) return;
         suggestions.style.display = "none";
