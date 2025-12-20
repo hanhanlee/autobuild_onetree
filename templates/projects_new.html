@@ -29,7 +29,10 @@
             <label>Build Commands (one per line)
                 <textarea name="build_lines" rows="5" placeholder="bitbake ...">{{ build_lines or '' }}</textarea>
             </label>
-            <button type="submit">Generate YAML</button>
+            <div class="flex" style="gap:0.5rem;flex-wrap:wrap;">
+                <button type="submit">Preview YAML</button>
+                <button type="submit" name="save" value="1">Save Template</button>
+            </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:0.5rem;">
             <label>Generated Recipe YAML (preview)

@@ -1,10 +1,11 @@
 import sqlite3
-from typing import Any, Dict, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from .. import projects
+from ..config import get_presets_root
 from ..recipes.generator import generate_recipe_yaml
 from ..web import render_page
 
@@ -15,138 +16,109 @@ def _current_user(request: Request) -> Optional[str]:
     return request.session.get("user")
 
 
-def _ensure_user(request: Request) -> str:
-    user = _current_user(request)
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return user
-
-
-def _check_accessible(tmpl: Dict[str, Any], user: str) -> None:
-    if projects.can_read_template(user, tmpl):
-        return
-    raise HTTPException(status_code=403, detail="Forbidden")
-
-
 @router.get("/api/projects")
 async def api_list_projects(request: Request, visibility: str = "all", query: Optional[str] = None):
     user = _current_user(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-    items = projects.list_templates_for_user(user, visibility_filter=visibility, query=query)
-    return items
+    message = "Legacy Project Template API is deprecated. Use /projects/new to create recipe templates."
+    return render_page(
+        request,
+        "projects_new.html",
+        user=user,
+        token_ok=None,
+        current_page="projects",
+        status_code=410,
+        error=message,
+    )
 
 
 @router.get("/api/projects/{template_id}")
 async def api_get_project(request: Request, template_id: int):
     user = _current_user(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-    tmpl = projects.get_template(template_id)
-    if not tmpl:
-        raise HTTPException(status_code=404, detail="Not found")
-    _check_accessible(tmpl, user)
-    versions = projects.list_versions(template_id)
-    tmpl["versions"] = versions
-    return tmpl
+    message = "Legacy Project Template API is deprecated. Use /projects/new to create recipe templates."
+    return render_page(
+        request,
+        "projects_new.html",
+        user=user,
+        token_ok=None,
+        current_page="projects",
+        status_code=410,
+        error=message,
+    )
 
 
 @router.get("/api/projects/{template_id}/versions/{version}")
 async def api_get_project_version(request: Request, template_id: int, version: int):
     user = _current_user(request)
-    if not user:
-        return RedirectResponse(url="/login", status_code=303)
-    tmpl = projects.get_template(template_id)
-    if not tmpl:
-        raise HTTPException(status_code=404, detail="Not found")
-    _check_accessible(tmpl, user)
-    ver = projects.get_version(template_id, version)
-    if not ver:
-        raise HTTPException(status_code=404, detail="Version not found")
-    return ver
-
-
-async def _get_body(request: Request) -> Dict[str, Any]:
-    # helper to accept JSON or form
-    if request.headers.get("content-type", "").startswith("application/json"):
-        return await request.json()  # type: ignore
-    return dict(await request.form())
+    message = "Legacy Project Template API is deprecated. Use /projects/new to create recipe templates."
+    return render_page(
+        request,
+        "projects_new.html",
+        user=user,
+        token_ok=None,
+        current_page="projects",
+        status_code=410,
+        error=message,
+    )
 
 
 @router.post("/api/projects")
 async def api_create_project(request: Request):
-    user = _ensure_user(request)
-    data = await _get_body(request)
-    name = data.get("name")
-    visibility = data.get("visibility", "private")
-    description = data.get("description")
-    clone_script = data.get("clone_script") or ""
-    build_script = data.get("build_script") or ""
-    notes = data.get("notes")
-    if not clone_script or not build_script:
-        raise HTTPException(status_code=400, detail="clone_script and build_script are required")
-    try:
-        template_id = projects.create_template(user, name, visibility, description, clone_script, build_script, notes)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to create template")
-    return {"id": template_id}
+    user = _current_user(request)
+    message = "Legacy Project Template API is deprecated. Use /projects/new to create recipe templates."
+    return render_page(
+        request,
+        "projects_new.html",
+        user=user,
+        token_ok=None,
+        current_page="projects",
+        status_code=410,
+        error=message,
+    )
 
 
 @router.post("/api/projects/{template_id}/versions")
 async def api_create_version(request: Request, template_id: int):
-    user = _ensure_user(request)
-    data = await _get_body(request)
-    clone_script = data.get("clone_script") or ""
-    build_script = data.get("build_script") or ""
-    notes = data.get("notes")
-    if not clone_script or not build_script:
-        raise HTTPException(status_code=400, detail="clone_script and build_script are required")
-    try:
-        version = projects.create_version(template_id, user, clone_script, build_script, notes)
-    except PermissionError:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to create version")
-    return {"version": version}
+    user = _current_user(request)
+    message = "Legacy Project Template API is deprecated. Use /projects/new to create recipe templates."
+    return render_page(
+        request,
+        "projects_new.html",
+        user=user,
+        token_ok=None,
+        current_page="projects",
+        status_code=410,
+        error=message,
+    )
 
 
 @router.patch("/api/projects/{template_id}")
 async def api_update_project(request: Request, template_id: int):
-    user = _ensure_user(request)
-    data = await request.json()
-    description = data.get("description")
-    visibility = data.get("visibility")
-    try:
-        projects.update_template(template_id, user, description, visibility)
-    except PermissionError:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to update template")
-    return {"ok": True}
+    user = _current_user(request)
+    message = "Legacy Project Template API is deprecated. Use /projects/new to create recipe templates."
+    return render_page(
+        request,
+        "projects_new.html",
+        user=user,
+        token_ok=None,
+        current_page="projects",
+        status_code=410,
+        error=message,
+    )
 
 
 @router.post("/api/projects/{template_id}/fork")
 async def api_fork_project(request: Request, template_id: int):
-    user = _ensure_user(request)
-    data = await _get_body(request)
-    name = data.get("name")
-    visibility = data.get("visibility", "private")
-    description = data.get("description")
-    try:
-        new_id, version = projects.fork_template(template_id, user, name, visibility, description)
-    except PermissionError:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to fork template")
-    return {"id": new_id, "version": version}
+    user = _current_user(request)
+    message = "Legacy Project Template API is deprecated. Use /projects/new to create recipe templates."
+    return render_page(
+        request,
+        "projects_new.html",
+        user=user,
+        token_ok=None,
+        current_page="projects",
+        status_code=410,
+        error=message,
+    )
 
 
 @router.get("/projects")
@@ -312,7 +284,7 @@ async def new_project_template_post(
             error="Invalid form submission",
         )
 
-    allowed_fields = {"platform", "project", "display_name", "workdir", "clone_lines", "init_lines", "build_lines"}
+    allowed_fields = {"platform", "project", "display_name", "workdir", "clone_lines", "init_lines", "build_lines", "save"}
     extras = [k for k in form.keys() if k not in allowed_fields]
     if extras:
         extras_sorted = ", ".join(sorted(extras))
@@ -340,6 +312,8 @@ async def new_project_template_post(
     clone_lines = str(form.get("clone_lines") or "")
     init_lines = str(form.get("init_lines") or "")
     build_lines = str(form.get("build_lines") or "")
+    save_requested_raw = str(form.get("save") or "").lower()
+    save_requested = save_requested_raw in {"1", "true", "yes", "on", "save"}
 
     def _split_lines(value: str):
         return (value or "").splitlines()
@@ -352,6 +326,79 @@ async def new_project_template_post(
         "build_block": {"lines": _split_lines(build_lines)},
     }
     generated_yaml = generate_recipe_yaml(template_model)
+
+    if save_requested:
+        def _invalid_path(val: str) -> bool:
+            if not val:
+                return True
+            if ".." in val or "/" in val or "\\" in val:
+                return True
+            import re as _re
+            return not _re.match(r"^[A-Za-z0-9._-]+$", val)
+
+        if _invalid_path(platform) or _invalid_path(project):
+            return render_page(
+                request,
+                "projects_new.html",
+                user=user,
+                token_ok=None,
+                current_page="projects",
+                status_code=400,
+                error="platform and project are required and must match [A-Za-z0-9._-]+ without path separators",
+                platform=platform,
+                project=project,
+                display_name=display_name,
+                workdir=workdir,
+                clone_lines=clone_lines,
+                init_lines=init_lines,
+                build_lines=build_lines,
+                generated_yaml=generated_yaml,
+            )
+        try:
+            presets_root = get_presets_root()
+            target_dir = presets_root / platform
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target_path = target_dir / f"{project}.yaml"
+            content = generated_yaml
+            if content and not content.endswith("\n"):
+                content += "\n"
+            target_path.write_text(content, encoding="utf-8")
+            success_msg = f"Saved template to {target_path}"
+        except Exception as exc:
+            return render_page(
+                request,
+                "projects_new.html",
+                user=user,
+                token_ok=None,
+                current_page="projects",
+                status_code=500,
+                error=f"Failed to save template: {exc}",
+                platform=platform,
+                project=project,
+                display_name=display_name,
+                workdir=workdir,
+                clone_lines=clone_lines,
+                init_lines=init_lines,
+                build_lines=build_lines,
+                generated_yaml=generated_yaml,
+            )
+        return render_page(
+            request,
+            "projects_new.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=200,
+            success=success_msg,
+            platform=platform,
+            project=project,
+            display_name=display_name,
+            workdir=workdir,
+            clone_lines=clone_lines,
+            init_lines=init_lines,
+            build_lines=build_lines,
+            generated_yaml=generated_yaml,
+        )
 
     return render_page(
         request,
