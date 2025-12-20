@@ -242,6 +242,37 @@ async def recipes_new_post(
             recipe_yaml=recipe_yaml_text,
         )
 
+    def _render_validation_error(message: str):
+        return render_page(
+            request,
+            "recipes_new.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error=message,
+            platform=platform,
+            project=project,
+            recipe_yaml=recipe_yaml_text,
+        )
+
+    schema_version = parsed.get("schema_version")
+    if schema_version is not None:
+        if not isinstance(schema_version, int) or schema_version != 1:
+            return _render_validation_error("schema_version must be integer 1")
+
+    for block_name in ("clone_block", "init_block", "build_block"):
+        block = parsed.get(block_name)
+        if block is None:
+            continue
+        if not isinstance(block, dict):
+            return _render_validation_error(f"{block_name} must be a mapping")
+        lines = block.get("lines")
+        if lines is None or lines == []:
+            continue
+        if not isinstance(lines, list) or not all(isinstance(item, str) for item in lines):
+            return _render_validation_error(f"{block_name}.lines must be a list of strings")
+
     # Filesystem path (<platform>/<project>.yaml) is the recipe ID source of truth; YAML id is optional.
     recipe_id = parsed.get("id")
     expected_id = f"{platform_val}/{project_val}"
