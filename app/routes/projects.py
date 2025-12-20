@@ -5,6 +5,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from .. import projects
+from ..recipes.generator import generate_recipe_yaml
 from ..web import render_page
 
 router = APIRouter()
@@ -273,3 +274,98 @@ async def fork_project_form(
     except Exception:
         return RedirectResponse(url=f"/projects?selected={template_id}&error=fork", status_code=303)
     return RedirectResponse(url=f"/projects?selected={new_id}", status_code=303)
+
+
+@router.get("/projects/new")
+async def new_project_template(request: Request):
+    user = _current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    return render_page(
+        request,
+        "projects_new.html",
+        user=user,
+        token_ok=None,
+        current_page="projects",
+        status_code=200,
+    )
+
+
+@router.post("/projects/new")
+async def new_project_template_post(
+    request: Request,
+):
+    user = _current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+
+    try:
+        form = await request.form()
+    except Exception:
+        return render_page(
+            request,
+            "projects_new.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error="Invalid form submission",
+        )
+
+    allowed_fields = {"platform", "project", "display_name", "workdir", "clone_lines", "init_lines", "build_lines"}
+    extras = [k for k in form.keys() if k not in allowed_fields]
+    if extras:
+        extras_sorted = ", ".join(sorted(extras))
+        return render_page(
+            request,
+            "projects_new.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error=f"Unexpected fields: {extras_sorted}",
+            platform=form.get("platform") or "",
+            project=form.get("project") or "",
+            display_name=form.get("display_name") or "",
+            workdir=form.get("workdir") or "",
+            clone_lines=form.get("clone_lines") or "",
+            init_lines=form.get("init_lines") or "",
+            build_lines=form.get("build_lines") or "",
+        )
+
+    platform = str(form.get("platform") or "")
+    project = str(form.get("project") or "")
+    display_name = str(form.get("display_name") or "")
+    workdir = str(form.get("workdir") or "")
+    clone_lines = str(form.get("clone_lines") or "")
+    init_lines = str(form.get("init_lines") or "")
+    build_lines = str(form.get("build_lines") or "")
+
+    def _split_lines(value: str):
+        return (value or "").splitlines()
+
+    template_model = {
+        "display_name": display_name,
+        "workdir": workdir,
+        "clone_block": {"lines": _split_lines(clone_lines)},
+        "init_block": {"lines": _split_lines(init_lines)},
+        "build_block": {"lines": _split_lines(build_lines)},
+    }
+    generated_yaml = generate_recipe_yaml(template_model)
+
+    return render_page(
+        request,
+        "projects_new.html",
+        user=user,
+        token_ok=None,
+        current_page="projects",
+        status_code=200,
+        platform=platform,
+        project=project,
+        display_name=display_name,
+        workdir=workdir,
+        clone_lines=clone_lines,
+        init_lines=init_lines,
+        build_lines=build_lines,
+        generated_yaml=generated_yaml,
+    )

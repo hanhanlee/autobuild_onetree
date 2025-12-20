@@ -1,0 +1,42 @@
+{% extends "_layout.html" %}
+{% block title %}New Project Template{% endblock %}
+{% block content %}
+<h1>New Project Template (v1)</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<div class="card">
+    <form method="post" action="/projects/new" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start;">
+        <div style="display:flex;flex-direction:column;gap:0.75rem;">
+            <div class="flex" style="gap:0.75rem;flex-wrap:wrap;">
+                <label style="flex:1;min-width:220px;">Platform
+                    <input type="text" name="platform" value="{{ platform or '' }}" placeholder="e.g. ast2600">
+                </label>
+                <label style="flex:1;min-width:220px;">Project
+                    <input type="text" name="project" value="{{ project or '' }}" placeholder="e.g. base">
+                </label>
+            </div>
+            <label>Display Name
+                <input type="text" name="display_name" value="{{ display_name or '' }}" placeholder="Human-friendly name">
+            </label>
+            <label>Workdir
+                <input type="text" name="workdir" value="{{ workdir or '' }}" placeholder="Optional workdir (e.g. onetree)">
+            </label>
+            <label>Clone Commands (one per line)
+                <textarea name="clone_lines" rows="5" placeholder="git clone ...&#10;cd repo">{{ clone_lines or '' }}</textarea>
+            </label>
+            <label>Init Commands (one per line)
+                <textarea name="init_lines" rows="5" placeholder="source env script&#10;export VAR=...">{{ init_lines or '' }}</textarea>
+            </label>
+            <label>Build Commands (one per line)
+                <textarea name="build_lines" rows="5" placeholder="bitbake ...">{{ build_lines or '' }}</textarea>
+            </label>
+            <button type="submit">Generate YAML</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.5rem;">
+            <label>Generated Recipe YAML (preview)
+                <textarea readonly rows="26" style="font-family:monospace;">{{ generated_yaml or '' }}</textarea>
+            </label>
+            <div class="status" style="color:#555;font-size:0.9rem;">Schema: Project Template v1. YAML is not saved yet; use this preview to verify before persisting.</div>
+        </div>
+    </form>
+</div>
+{% endblock %}
