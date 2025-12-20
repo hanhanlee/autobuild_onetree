@@ -34,14 +34,7 @@
 (() => {
     const filterInput = document.getElementById("recipe-filter");
     const select = document.getElementById("recipe-select");
-    const dataEl = document.getElementById("recipe-data");
-    if (!filterInput || !dataEl || !select) return;
-    let recipes = [];
-    try {
-        recipes = JSON.parse(dataEl.textContent || "[]");
-    } catch (e) {
-        recipes = [];
-    }
+    if (!filterInput || !select) return;
     const fuzzyMatch = (query, text) => {
         const q = (query || "").toLowerCase().replace(/\s+/g, "");
         const t = (text || "").toLowerCase().replace(/\s+/g, "");
@@ -51,28 +44,20 @@
     const renderOptions = (query) => {
         const q = (query || "").trim();
         const current = select.value;
-        select.innerHTML = "";
-        const defaultOpt = document.createElement("option");
-        defaultOpt.value = "";
-        defaultOpt.disabled = true;
-        defaultOpt.textContent = "Select a recipe...";
-        defaultOpt.selected = !current;
-        select.appendChild(defaultOpt);
-        const matched = recipes.filter((r) => fuzzyMatch(q, `${r.id} ${r.display_name || ""}`));
-        matched.forEach((r) => {
-            const opt = document.createElement("option");
-            opt.value = r.id;
-            opt.textContent = `${r.id} — ${r.display_name}`;
-            if (current === r.id) {
-                opt.selected = true;
-                defaultOpt.selected = false;
+        let hasCurrent = false;
+        Array.from(select.options).forEach((opt) => {
+            if (!opt.value) {
+                return;
             }
-            select.appendChild(opt);
+            const match = fuzzyMatch(q, opt.textContent || "");
+            opt.hidden = !match;
+            opt.disabled = !match;
+            if (match && opt.value === current) {
+                hasCurrent = true;
+            }
         });
-        const hasCurrent = matched.some((r) => r.id === current);
-        if (!hasCurrent) {
+        if (current && !hasCurrent) {
             select.value = "";
-            defaultOpt.selected = true;
         }
     };
     filterInput.addEventListener("input", () => renderOptions(filterInput.value));
