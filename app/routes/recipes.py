@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import RedirectResponse
 
 from .. import auth
@@ -19,14 +19,14 @@ def _current_user(request: Request):
 def _require_user(request: Request) -> str:
     user = _current_user(request)
     if not user:
-        raise HTTPException(status_code=303, detail="redirect")
+        raise ValueError("redirect")
     return user
 
 
 def _validate_identifier(value: str, field: str) -> str:
     value = (value or "").strip()
     if not value or not re.match(r"^[A-Za-z0-9._-]+$", value):
-        raise HTTPException(status_code=400, detail=f"{field} is required and must match [A-Za-z0-9._-]+")
+        raise ValueError(f"{field} is required and must match [A-Za-z0-9._-]+")
     return value
 
 
@@ -35,7 +35,7 @@ def _validate_relpath(value: str, field: str) -> str:
     if not value:
         return ""
     if value.startswith("/") or ".." in value:
-        raise HTTPException(status_code=400, detail=f"{field} must be a relative path without '..'")
+        raise ValueError(f"{field} must be a relative path without '..'")
     return value
 
 
@@ -46,20 +46,20 @@ def _parse_clone_lines(lines: List[str]) -> List[str]:
         if not line:
             continue
         if not line.startswith("git clone "):
-            raise HTTPException(status_code=400, detail="clone_lines must start with 'git clone '")
+            raise ValueError("clone_lines must start with 'git clone '")
         if ";" in line:
             parts = line.split(";", 1)
             clone_part = parts[0].strip()
             rest = parts[1].strip()
             tokens = clone_part.split()
             if len(tokens) < 4:
-                raise HTTPException(status_code=400, detail="clone_lines with ';' must include destination")
+                raise ValueError("clone_lines with ';' must include destination")
             dest = tokens[-1]
             if rest != f"cd {dest}":
-                raise HTTPException(status_code=400, detail="Only '; cd <DEST>' is allowed and must match clone destination")
+                raise ValueError("Only '; cd <DEST>' is allowed and must match clone destination")
         cleaned.append(line)
     if not cleaned:
-        raise HTTPException(status_code=400, detail="At least one clone line is required")
+        raise ValueError("At least one clone line is required")
     return cleaned
 
 
@@ -242,7 +242,7 @@ async def recipes_new_post(
             recipe_yaml=recipe_yaml_text,
         )
 
-    def _render_validation_error(message: str):
+    def _render_validation_error(message: str) -> Response:
         return render_page(
             request,
             "recipes_new.html",
