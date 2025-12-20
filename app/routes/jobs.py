@@ -65,7 +65,20 @@ async def create_job(
         return redirect
     user = _current_user(request)
     if not username_auth(user):
-        return render_page(request, "new_job.html", current_page="new", status_code=403, error="Unauthorized user", recipes=list_recipes(get_presets_root()), user=user, token_ok=None)
+        presets_root = get_presets_root()
+        recipes = list_recipes(presets_root)
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=403,
+            error="Unauthorized user",
+            recipes=recipes,
+            presets_root=str(presets_root),
+            recipes_count=len(recipes),
+            user=user,
+            token_ok=None,
+        )
     presets_root = get_presets_root()
     recipes = list_recipes(presets_root)
     try:

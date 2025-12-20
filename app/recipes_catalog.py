@@ -2,6 +2,8 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from .config import get_presets_root
+
 
 def recipe_path_from_id(presets_root: Path, recipe_id: str) -> Path:
     if not re.match(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$", recipe_id or ""):
@@ -29,7 +31,8 @@ def _iter_recipe_files(presets_root: Path):
             yield path
 
 
-def list_recipes(presets_root: Path) -> List[Dict[str, str]]:
+def list_recipes(presets_root: Optional[Path] = None) -> List[Dict[str, str]]:
+    presets_root = presets_root or get_presets_root()
     recipes: List[Dict[str, str]] = []
     if not presets_root.exists():
         return recipes
