@@ -40,7 +40,9 @@ timestamp() {
 
 cleanup() {
   local code=$?
-  echo "[lock] releasing codebase lock"
+  if [[ ${LOCK_ACQUIRED:-0} -eq 1 ]]; then
+    echo "[lock] releasing codebase lock"
+  fi
   echo "Job ${JOB_ID} completed with code ${code}"
   echo "${code}" > "${EXIT_CODE_FILE}"
   local finished_at
@@ -254,7 +256,7 @@ WORKDIR_VAL="${WORKDIR:-}"
 RAW_SHA256="${RAW_SHA256:-}"
 RAW_BYTES="${RAW_BYTES:-0}"
 RAW_LINES="${RAW_LINES:-0}"
-BASE_DIR="${CODEBASE_DIR}"
+BASE_DIR="${CODEBASE_DIR:-}"
 APPLY_FILE_EDITS_FOR_BUILD_ONLY="${APPLY_FILE_EDITS_FOR_BUILD_ONLY:-1}"
 
 if [[ -z "${CODEBASE_ID}" && "${MODE}" =~ ^(full|clone_only)$ ]]; then
@@ -326,6 +328,7 @@ if ! flock -w "${LOCK_TIMEOUT_SECONDS}" 200; then
   exit 2
 fi
 echo "[lock] acquired codebase lock for ${CODEBASE_ID}"
+LOCK_ACQUIRED=1
 
 touch_codebase_last_used() {
   python3 - "${CODEBASE_DIR}/codebase.json" <<'PY'
