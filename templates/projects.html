@@ -1,110 +1,61 @@
 {% extends "_layout.html" %}
 {% block title %}Project Templates{% endblock %}
 {% block content %}
-<div class="flex">
-    <div class="card" style="flex: 2;min-width:380px;">
-        <h2>Templates</h2>
-        {% if error %}<p class="error">{{ error }}</p>{% endif %}
-        <form method="get" action="/projects" class="flex" style="align-items: flex-end;">
-            <label>Visibility
-                <select name="visibility">
-                    <option value="all" {% if visibility=='all' %}selected{% endif %}>All</option>
-                    <option value="shared" {% if visibility=='shared' %}selected{% endif %}>Shared</option>
-                    <option value="private" {% if visibility=='private' %}selected{% endif %}>My Private</option>
-                </select>
-            </label>
-            <label>Search
-                <input type="text" name="query" value="{{ query }}">
-            </label>
-            <button type="submit">Apply</button>
-        </form>
-        <div class="list" style="max-height:320px;overflow:auto;border:1px solid #ddd;border-radius:6px;padding:0.5rem;">
-            <table>
-                <thead>
-                    <tr><th>Name</th><th>Vis</th><th>Latest</th><th>Owner</th><th>Updated</th><th></th></tr>
-                </thead>
-                <tbody>
-                    {% for t in templates %}
-                    <tr>
-                        <td>{{ t.name }}</td>
-                        <td>{{ t.visibility }}</td>
-                        <td>{{ t.latest_version or '-' }}</td>
-                        <td>{{ t.created_by }}</td>
-                        <td>{{ t.updated_at }}</td>
-                        <td><a href="/projects?selected={{ t.id }}">View</a></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+<h1>Project Template v1</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if success %}<p class="success">{{ success }}</p>{% endif %}
 
-    <div class="card" style="flex: 1;min-width:320px;">
-        <h2>New Template</h2>
-        <form method="post" action="/projects/create">
-            <label>Name <input type="text" name="name" required></label>
-            <label>Visibility
-                <select name="visibility">
-                    <option value="private">Private</option>
-                    <option value="shared">Shared</option>
-                </select>
-            </label>
-            <label>Description <input type="text" name="description"></label>
-            <label>Clone Script <textarea name="clone_script" required placeholder="git clone ..."></textarea></label>
-            <label>Build Script <textarea name="build_script" required placeholder="./autobuild.sh ..."></textarea></label>
-            <label>Notes <input type="text" name="notes"></label>
-            <button type="submit">Create</button>
+<div class="flex" style="gap:1rem;flex-wrap:wrap;">
+    <div class="card" style="flex: 2;min-width:360px;">
+        <h2>Create / Save Recipe</h2>
+        <form method="post" action="/projects" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;align-items:start;">
+            <div style="display:flex;flex-direction:column;gap:0.75rem;">
+                <div class="flex" style="gap:0.75rem;flex-wrap:wrap;">
+                    <label style="flex:1;min-width:200px;">Platform
+                        <input type="text" name="platform" value="{{ platform or '' }}" placeholder="e.g. ast2600">
+                    </label>
+                    <label style="flex:1;min-width:200px;">Project
+                        <input type="text" name="project" value="{{ project or '' }}" placeholder="e.g. base">
+                    </label>
+                </div>
+                <label>Display Name
+                    <input type="text" name="display_name" value="{{ display_name or '' }}" placeholder="Human-friendly name">
+                </label>
+                <label>Workdir
+                    <input type="text" name="workdir" value="{{ workdir or '' }}" placeholder="Optional workdir (e.g. onetree)">
+                </label>
+                <label>Clone Commands (one per line)
+                    <textarea name="clone_lines" rows="4" placeholder="git clone ...&#10;cd repo">{{ clone_lines or '' }}</textarea>
+                </label>
+                <label>Init Commands (one per line)
+                    <textarea name="init_lines" rows="4" placeholder="source env script&#10;export VAR=...">{{ init_lines or '' }}</textarea>
+                </label>
+                <label>Build Commands (one per line)
+                    <textarea name="build_lines" rows="4" placeholder="bitbake ...">{{ build_lines or '' }}</textarea>
+                </label>
+                <div class="flex" style="gap:0.5rem;flex-wrap:wrap;">
+                    <button type="submit">Preview YAML</button>
+                    <button type="submit" name="save" value="1">Save Recipe</button>
+                </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                <label>Generated Recipe YAML (preview)
+                    <textarea readonly rows="18" style="font-family:monospace;">{{ generated_yaml or '' }}</textarea>
+                </label>
+                <div class="status" style="color:#555;font-size:0.9rem;">Schema: Project Template v1. Use Preview to inspect, Save writes to filesystem.</div>
+            </div>
         </form>
+    </div>
+    <div class="card" style="flex: 1;min-width:280px;">
+        <h2>Debug</h2>
+        <p><strong>presets_root:</strong> {{ presets_root }}</p>
+        <p><strong>recipes_count:</strong> {{ recipes_count }}</p>
+        <p><strong>last_error:</strong> {{ last_error or 'None' }}</p>
     </div>
 </div>
 
 <div class="card" style="margin-top:1rem;">
-    <h2>Detail</h2>
-    {% if selected_template %}
-        <p><strong>{{ selected_template.name }}</strong> ({{ selected_template.visibility }}) Owner: {{ selected_template.created_by }}</p>
-        <p>{{ selected_template.description or '' }}</p>
-        <div class="flex">
-            <div class="card" style="flex: 1;">
-                <h3>Versions</h3>
-                <table>
-                    <thead><tr><th>Version</th><th>Notes</th><th>Created</th></tr></thead>
-                    <tbody>
-                        {% for v in versions %}
-                        <tr>
-                            <td>{{ v.version }}</td>
-                            <td>{{ v.notes or '' }}</td>
-                            <td>{{ v.created_at }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            <div class="card" style="flex: 1;">
-                <h3>Add Version</h3>
-                <form method="post" action="/projects/{{ selected_template.id }}/versions/create">
-                    <label>Clone Script <textarea name="clone_script" required></textarea></label>
-                    <label>Build Script <textarea name="build_script" required></textarea></label>
-                    <label>Notes <input type="text" name="notes"></label>
-                    <button type="submit">Create Version</button>
-                </form>
-            </div>
-            <div class="card" style="flex: 1;">
-                <h3>Fork</h3>
-                <form method="post" action="/projects/{{ selected_template.id }}/fork">
-                    <label>New Name <input type="text" name="name" required></label>
-                    <label>Visibility
-                        <select name="visibility">
-                            <option value="private">Private</option>
-                            <option value="shared">Shared</option>
-                        </select>
-                    </label>
-                    <label>Description <input type="text" name="description"></label>
-                    <button type="submit">Fork</button>
-                </form>
-            </div>
-        </div>
-    {% else %}
-        <p>Select a template to view details.</p>
-    {% endif %}
+    <h2>generated_yaml</h2>
+    <textarea readonly rows="16" style="width:100%;font-family:monospace;">{{ generated_yaml or '' }}</textarea>
 </div>
 {% endblock %}
