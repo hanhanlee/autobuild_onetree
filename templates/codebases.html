@@ -3,6 +3,7 @@
 {% block content %}
 <h1>Codebases</h1>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if success %}<p class="success">{{ success }}</p>{% endif %}
 <div class="card">
     <div class="status" style="margin-bottom:0.5rem;color:#555;">workspaces_root: {{ workspaces_root }} | codebases_count: {{ codebases_count }}</div>
     <table>
@@ -14,6 +15,7 @@
                 <th>Created</th>
                 <th>Last Used</th>
                 <th>Path</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -25,10 +27,23 @@
                 <td>{{ cb.created_at or '' }}</td>
                 <td>{{ cb.last_used_at or '' }}</td>
                 <td style="font-family:monospace;">{{ cb.path }}</td>
+                <td>
+                    {% if confirm_action and confirm_codebase == cb.id %}
+                    <form method="post" action="/codebases/action" style="display:inline;">
+                        <input type="hidden" name="action" value="{{ confirm_action }}">
+                        <input type="hidden" name="codebase_id" value="{{ cb.id }}">
+                        <button type="submit">Confirm {{ confirm_action }}</button>
+                    </form>
+                    <a href="/codebases" style="margin-left:0.5rem;">Cancel</a>
+                    {% else %}
+                    <a href="/codebases?confirm=archive&codebase_id={{ cb.id }}">Archive</a> |
+                    <a href="/codebases?confirm=delete&codebase_id={{ cb.id }}">Delete</a>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
             {% if (codebases or [])|length == 0 %}
-            <tr><td colspan="6" style="text-align:center;color:#777;">No codebases found.</td></tr>
+            <tr><td colspan="7" style="text-align:center;color:#777;">No codebases found.</td></tr>
             {% endif %}
         </tbody>
     </table>
