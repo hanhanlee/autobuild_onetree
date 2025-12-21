@@ -23,6 +23,29 @@
             <input id="recipe-filter" value="" placeholder="Filter recipes (e.g. 2600)" autocomplete="off">
             <div style="color:#555;font-size:0.9rem;">Type part of a platform or project name to filter the dropdown; selection comes from the dropdown.</div>
         </div>
+        <div style="display:flex;flex-direction:column;gap:0.35rem;">
+            <label for="mode-select" style="font-weight:600;">Mode</label>
+            <select id="mode-select" name="mode">
+                {% set current_mode = mode or 'full' %}
+                <option value="full" {% if current_mode=='full' %}selected{% endif %}>Full (clone + init + build)</option>
+                <option value="clone_only" {% if current_mode=='clone_only' %}selected{% endif %}>Clone only</option>
+                <option value="build_only" {% if current_mode=='build_only' %}selected{% endif %}>Build only (requires codebase)</option>
+                <option value="edit_only" {% if current_mode=='edit_only' %}selected{% endif %}>Edit only (requires codebase)</option>
+            </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.35rem;">
+            <label for="codebase-select" style="font-weight:600;">Codebase (optional unless build/edit only)</label>
+            {% if codebases_count is defined %}
+            <div class="status" style="color:#666;font-size:0.9rem;">workspaces_root: {{ workspaces_root }}, codebases_count: {{ codebases_count }}</div>
+            {% endif %}
+            <select id="codebase-select" name="codebase_id">
+                <option value="" {% if not codebase_id %}selected{% endif %}>-- Select a codebase --</option>
+                {% for cb in codebases or [] %}
+                    <option value="{{ cb.id }}" {% if codebase_id==cb.id %}selected{% endif %}>{{ cb.label or cb.id }}</option>
+                {% endfor %}
+            </select>
+            <div style="color:#555;font-size:0.9rem;">Build/Edit only modes require selecting a codebase with codebase.json under workspaces_root.</div>
+        </div>
         <label>Note (optional)
             <textarea name="note" rows="3" placeholder="Optional note for this job">{{ note or '' }}</textarea>
         </label>

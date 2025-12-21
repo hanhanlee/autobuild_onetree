@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from pathlib import Path
@@ -13,6 +14,7 @@ from ..web import render_page
 router = APIRouter()
 logger = logging.getLogger(__name__)
 PRESETS_ROOT = Path("/opt/autobuild/workspace/presets")
+WORKSPACES_ROOT = Path("/srv/autobuild/workspaces")
 
 
 def _current_user(request: Request) -> Optional[str]:
@@ -56,7 +58,10 @@ def _parse_recipe_id(recipe_id: str) -> Tuple[Optional[str], Optional[str], Opti
     return platform, project, None
 
 
-def _debug_context(last_error: Optional[str] = None, ignored_fields: Optional[List[str]] = None) -> Dict[str, object]:
+def _debug_context(
+    last_error: Optional[str] = None,
+    ignored_fields: Optional[List[str]] = None,
+) -> Dict[str, object]:
     debug: Dict[str, object] = {
         "presets_root": str(PRESETS_ROOT),
         "recipes_count": 0,
@@ -106,6 +111,41 @@ def _list_recipes_from_presets() -> Tuple[List[Dict[str, str]], Dict[str, object
     return recipes, debug
 
 
+def _list_codebases() -> Tuple[List[Dict[str, Optional[str]]], Optional[str]]:
+    codebases: List[Dict[str, Optional[str]]] = []
+    err: Optional[str] = None
+    try:
+        if not WORKSPACES_ROOT.exists():
+            err = f"workspaces_root missing: {WORKSPACES_ROOT}"
+            return codebases, err
+        if not WORKSPACES_ROOT.is_dir():
+            err = f"workspaces_root is not a directory: {WORKSPACES_ROOT}"
+            return codebases, err
+        for child in WORKSPACES_ROOT.iterdir():
+            if not child.is_dir():
+                continue
+            codebase_json = child / "codebase.json"
+            if not codebase_json.exists():
+                continue
+            item = {"id": child.name, "label": child.name, "owner": None, "created_at": None, "last_used_at": None}
+            try:
+                data = json.loads(codebase_json.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and data.get("label"):
+                    item["label"] = str(data.get("label"))
+                if isinstance(data, dict):
+                    item["owner"] = data.get("owner")
+                    item["created_at"] = data.get("created_at")
+                    item["last_used_at"] = data.get("last_used_at")
+            except Exception:
+                pass
+            codebases.append(item)
+        codebases.sort(key=lambda c: c.get("id") or "")
+    except Exception as exc:
+        logger.warning("Failed to list codebases: %s", exc)
+        err = err or f"Failed to list codebases: {exc}"
+    return codebases, err
+
+
 def _load_recipe_yaml(platform: str, project: str) -> Tuple[Optional[str], Optional[str]]:
     primary = PRESETS_ROOT / platform / f"{project}.yaml"
     fallback = PRESETS_ROOT / platform / f"{project}.yml"
@@ -125,6 +165,11 @@ async def new_job_page(request: Request):
         return redirect
     user = _current_user(request)
     recipes, debug_ctx = _list_recipes_from_presets()
+    codebases, cb_error = _list_codebases()
+    debug_ctx["workspaces_root"] = str(WORKSPACES_ROOT)
+    debug_ctx["codebases_count"] = len(codebases)
+    if cb_error and not debug_ctx.get("last_error"):
+        debug_ctx["last_error"] = cb_error
     error_msg = debug_ctx.get("last_error")
     return render_page(
         request,
@@ -132,9 +177,12 @@ async def new_job_page(request: Request):
         current_page="new",
         recipes=recipes,
         presets_root=str(PRESETS_ROOT),
-        recipes_count=debug_ctx.get("recipes_count", 0),
+        recipes_count=debug_ctx.get("recipes_count", len(recipes)),
         last_error=error_msg,
         debug_context=debug_ctx,
+        codebases=codebases,
+        codebases_count=len(codebases),
+        workspaces_root=str(WORKSPACES_ROOT),
         status_code=200,
         user=user,
         token_ok=None,
@@ -161,7 +209,13 @@ async def create_job(
     if redirect:
         return redirect
     user = _current_user(request)
-    recipes, debug_ctx = _list_recipes_from_presets()
+    recipes, debug_ctx_raw = _list_recipes_from_presets()
+    codebases, cb_error = _list_codebases()
+    debug_ctx = debug_ctx_raw
+    debug_ctx["workspaces_root"] = str(WORKSPACES_ROOT)
+    debug_ctx["codebases_count"] = len(codebases)
+    if cb_error and not debug_ctx.get("last_error"):
+        debug_ctx["last_error"] = cb_error
     ignored_fields: List[str] = []
     if not username_auth(user):
         debug_ctx["last_error"] = debug_ctx.get("last_error")
@@ -173,7 +227,10 @@ async def create_job(
             error="Unauthorized user",
             recipes=recipes,
             presets_root=str(PRESETS_ROOT),
-            recipes_count=debug_ctx.get("recipes_count", 0),
+            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+            codebases=codebases,
+            codebases_count=len(codebases),
+            workspaces_root=str(WORKSPACES_ROOT),
             last_error=debug_ctx.get("last_error"),
             debug_context=debug_ctx,
             user=user,
@@ -191,7 +248,10 @@ async def create_job(
             error="Invalid form submission",
             recipes=recipes,
             presets_root=str(PRESETS_ROOT),
-            recipes_count=debug_ctx.get("recipes_count", 0),
+            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+            codebases=codebases,
+            codebases_count=len(codebases),
+            workspaces_root=str(WORKSPACES_ROOT),
             last_error=debug_ctx.get("last_error"),
             debug_context=debug_ctx,
             user=user,
@@ -199,11 +259,59 @@ async def create_job(
         )
     recipe_id_val = str(form.get("recipe_id") or "").strip()
     note = str(form.get("note") or "").strip()
-    allowed_fields = {"recipe_id", "note"}
+    mode_raw = str(form.get("mode") or "full").strip().lower() or "full"
+    codebase_id = str(form.get("codebase_id") or "").strip()
+    allowed_fields = {"recipe_id", "note", "mode", "codebase_id"}
     extras = [k for k in form.keys() if k not in allowed_fields]
     if extras:
         ignored_fields = sorted(extras)
         debug_ctx["ignored_fields"] = ignored_fields
+    if mode_raw not in {"full", "clone_only", "build_only", "edit_only"}:
+        debug_ctx["last_error"] = debug_ctx.get("last_error") or "mode must be one of full, clone_only, build_only, edit_only"
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=400,
+            error="mode must be one of full, clone_only, build_only, edit_only",
+            recipes=recipes,
+            presets_root=str(PRESETS_ROOT),
+            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+            codebases=codebases,
+            codebases_count=len(codebases),
+            workspaces_root=str(WORKSPACES_ROOT),
+            last_error=debug_ctx.get("last_error"),
+            debug_context=debug_ctx,
+            user=user,
+            token_ok=None,
+            recipe_id=recipe_id_val,
+            note=note,
+            mode=mode_raw,
+            codebase_id=codebase_id,
+        )
+    if mode_raw in {"build_only", "edit_only"} and not codebase_id:
+        debug_ctx["last_error"] = debug_ctx.get("last_error") or "codebase_id is required for build_only/edit_only"
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=400,
+            error="codebase_id is required for build_only/edit_only",
+            recipes=recipes,
+            presets_root=str(PRESETS_ROOT),
+            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+            codebases=codebases,
+            codebases_count=len(codebases),
+            workspaces_root=str(WORKSPACES_ROOT),
+            last_error=debug_ctx.get("last_error"),
+            debug_context=debug_ctx,
+            user=user,
+            token_ok=None,
+            recipe_id=recipe_id_val,
+            note=note,
+            mode=mode_raw,
+            codebase_id=codebase_id,
+        )
     if not recipe_id_val:
         debug_ctx["last_error"] = debug_ctx.get("last_error") or "recipe_id is required"
         return render_page(
@@ -214,13 +322,18 @@ async def create_job(
             error="recipe_id is required",
             recipes=recipes,
             presets_root=str(PRESETS_ROOT),
-            recipes_count=debug_ctx.get("recipes_count", 0),
+            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+            codebases=codebases,
+            codebases_count=len(codebases),
+            workspaces_root=str(WORKSPACES_ROOT),
             last_error=debug_ctx.get("last_error"),
             debug_context=debug_ctx,
             user=user,
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
+            mode=mode_raw,
+            codebase_id=codebase_id,
         )
 
     platform, project, rid_error = _parse_recipe_id(recipe_id_val)
@@ -234,13 +347,18 @@ async def create_job(
             error=rid_error,
             recipes=recipes,
             presets_root=str(PRESETS_ROOT),
-            recipes_count=debug_ctx.get("recipes_count", 0),
+            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+            codebases=codebases,
+            codebases_count=len(codebases),
+            workspaces_root=str(WORKSPACES_ROOT),
             last_error=debug_ctx.get("last_error"),
             debug_context=debug_ctx,
             user=user,
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
+            mode=mode_raw,
+            codebase_id=codebase_id,
         )
 
     recipe_yaml, load_err = _load_recipe_yaml(platform, project)
@@ -254,13 +372,18 @@ async def create_job(
             error=load_err,
             recipes=recipes,
             presets_root=str(PRESETS_ROOT),
-            recipes_count=debug_ctx.get("recipes_count", 0),
+            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+            codebases=codebases,
+            codebases_count=len(codebases),
+            workspaces_root=str(WORKSPACES_ROOT),
             last_error=debug_ctx.get("last_error"),
             debug_context=debug_ctx,
             user=user,
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
+            mode=mode_raw,
+            codebase_id=codebase_id,
         )
 
     if not isinstance(recipe_yaml, str):
@@ -273,13 +396,18 @@ async def create_job(
             error="Recipe content invalid",
             recipes=recipes,
             presets_root=str(PRESETS_ROOT),
-            recipes_count=debug_ctx.get("recipes_count", 0),
+            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+            codebases=codebases,
+            codebases_count=len(codebases),
+            workspaces_root=str(WORKSPACES_ROOT),
             last_error=debug_ctx.get("last_error"),
             debug_context=debug_ctx,
             user=user,
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
+            mode=mode_raw,
+            codebase_id=codebase_id,
         )
 
     created_at = jobs.now_iso()
@@ -296,13 +424,18 @@ async def create_job(
             error="Failed to create job",
             recipes=recipes,
             presets_root=str(PRESETS_ROOT),
-            recipes_count=debug_ctx.get("recipes_count", 0),
+            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+            codebases=codebases,
+            codebases_count=len(codebases),
+            workspaces_root=str(WORKSPACES_ROOT),
             last_error=debug_ctx.get("last_error"),
             debug_context=debug_ctx,
             user=user,
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
+            mode=mode_raw,
+            codebase_id=codebase_id,
         )
 
     snapshot = {
@@ -312,6 +445,8 @@ async def create_job(
         "created_by": user,
         "created_at": created_at,
         "status": jobs.STATUS_PENDING,
+        "mode": mode_raw,
+        "codebase_id": codebase_id,
     }
     spec = {
         "schema_version": 2,
@@ -322,6 +457,8 @@ async def create_job(
         "recipe_id": recipe_id_val,
         "raw_recipe_yaml": recipe_yaml,
         "note": note,
+        "mode": mode_raw,
+        "codebase_id": codebase_id,
         "snapshot": snapshot,
     }
     try:
@@ -347,13 +484,18 @@ async def create_job(
             error="Failed to persist job snapshot",
             recipes=recipes,
             presets_root=str(PRESETS_ROOT),
-            recipes_count=debug_ctx.get("recipes_count", 0),
+            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+            codebases=codebases,
+            codebases_count=len(codebases),
+            workspaces_root=str(WORKSPACES_ROOT),
             last_error=debug_ctx.get("last_error"),
             debug_context=debug_ctx,
             user=user,
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
+            mode=mode_raw,
+            codebase_id=codebase_id,
         )
     background_tasks.add_task(jobs.start_job_runner, job_id)
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
