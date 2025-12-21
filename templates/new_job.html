@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Create Job</h1>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
-<p><a href="/recipes/new" style="margin-right:1rem;">New Template</a> | <a href="/settings">GitLab token</a></p>
+<p><a href="/projects" style="margin-right:1rem;">Create Recipe (Project Template v1)</a> | <a href="/settings">GitLab token</a></p>
 <div class="card">
     <form method="post" action="/new" style="display:grid;grid-template-columns:1fr;gap:0.85rem;max-width:720px;">
         <div style="display:flex;flex-direction:column;gap:0.35rem;">
@@ -18,7 +18,7 @@
                 {% endfor %}
             </select>
             {% if (recipes or [])|length == 0 %}
-            <div class="status" style="color:#a15c00;font-size:0.95rem;">No recipes found. Create one via /recipes/new and ensure it is saved under presets_root/&lt;platform&gt;/&lt;project&gt;.yaml</div>
+            <div class="status" style="color:#a15c00;font-size:0.95rem;">No recipes found. Create one via /projects (Project Template v1) and ensure it is saved under presets_root/&lt;platform&gt;/&lt;project&gt;.yaml</div>
             {% endif %}
             <input id="recipe-filter" value="" placeholder="Filter recipes (e.g. 2600)" autocomplete="off">
             <div style="color:#555;font-size:0.9rem;">Type part of a platform or project name to filter the dropdown; selection comes from the dropdown.</div>
