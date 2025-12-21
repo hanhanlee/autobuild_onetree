@@ -271,6 +271,36 @@ if [[ ! -f "${CODEBASE_DIR}/codebase.json" ]]; then
   exit 2
 fi
 
+touch_codebase_last_used() {
+  python3 - "${CODEBASE_DIR}/codebase.json" <<'PY'
+import json, sys, tempfile, time
+from pathlib import Path
+
+meta_path = Path(sys.argv[1])
+try:
+    data = json.loads(meta_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        print(f"[meta] warning: codebase.json is not an object: {meta_path}", file=sys.stderr)
+        sys.exit(0)
+except Exception as exc:
+    print(f"[meta] warning: failed to parse {meta_path}: {exc}", file=sys.stderr)
+    sys.exit(0)
+
+now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+data["last_used_at"] = now
+
+tmp = meta_path.with_suffix(".json.tmp")
+try:
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    tmp.replace(meta_path)
+    print(f"[meta] updated last_used_at={now}")
+except Exception as exc:
+    print(f"[meta] warning: failed to update last_used_at for {meta_path}: {exc}", file=sys.stderr)
+PY
+}
+
+touch_codebase_last_used
+
 if [[ ! -f "${TOKEN_FILE}" ]]; then
   echo "WARN: GitLab token not found for ${OWNER} at ${TOKEN_FILE}; clone commands may fail" >&2
 else
