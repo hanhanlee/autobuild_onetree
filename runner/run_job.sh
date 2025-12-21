@@ -287,6 +287,19 @@ echo "mode=${MODE}"
 echo "codebase_id=${CODEBASE_ID:-<none>}"
 echo "raw_recipe.yaml sha256=${RAW_SHA256} bytes=${RAW_BYTES} lines=${RAW_LINES}"
 echo "workdir=${WORKDIR_VAL:-<none>}"
+if [[ -n "${WORKDIR_VAL}" ]]; then
+  TARGET_WORKDIR="${CODEBASE_DIR}/${WORKDIR_VAL}"
+  if [[ ! -d "${TARGET_WORKDIR}" ]]; then
+    echo "CONFIG ERROR: workdir '${WORKDIR_VAL}' not found under ${CODEBASE_DIR}" >&2
+    echo "CONFIG ERROR: available subdirs:" >&2
+    if ls -1d "${CODEBASE_DIR}"/*/ >/dev/null 2>&1; then
+      ls -1d "${CODEBASE_DIR}"/*/ | sed 's:.*/::' >&2
+    else
+      echo "(none)" >&2
+    fi
+    exit 2
+  fi
+fi
 
 OWNER="${CREATED_BY:-${AUTOBUILD_JOB_OWNER:-${SUDO_USER:-${USER:-}}}}"
 if [[ -z "${OWNER}" ]]; then
