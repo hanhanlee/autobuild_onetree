@@ -16,6 +16,7 @@ from .routes import projects as projects_routes
 from .routes import token as token_routes
 from .routes import recipes as recipes_routes
 from .routes import jobs as jobs_routes
+from .routes import codebases as codebases_routes
 from .web import render_page
 
 
@@ -27,6 +28,7 @@ app.include_router(projects_routes.router)
 app.include_router(token_routes.router)
 app.include_router(recipes_routes.router)
 app.include_router(jobs_routes.router)
+app.include_router(codebases_routes.router)
 
 db.ensure_db()
 projects.ensure_migrations()

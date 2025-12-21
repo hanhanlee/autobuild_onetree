@@ -1,0 +1,40 @@
+{% extends "_layout.html" %}
+{% block title %}Codebases{% endblock %}
+{% block content %}
+<h1>Codebases</h1>
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<div class="card">
+    <div class="status" style="margin-bottom:0.5rem;color:#555;">workspaces_root: {{ workspaces_root }} | codebases_count: {{ codebases_count }}</div>
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Label</th>
+                <th>Owner</th>
+                <th>Created</th>
+                <th>Last Used</th>
+                <th>Path</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cb in codebases or [] %}
+            <tr>
+                <td>{{ cb.id }}</td>
+                <td>{{ cb.label }}</td>
+                <td>{{ cb.owner or '' }}</td>
+                <td>{{ cb.created_at or '' }}</td>
+                <td>{{ cb.last_used_at or '' }}</td>
+                <td style="font-family:monospace;">{{ cb.path }}</td>
+            </tr>
+            {% endfor %}
+            {% if (codebases or [])|length == 0 %}
+            <tr><td colspan="6" style="text-align:center;color:#777;">No codebases found.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+<div class="card" style="margin-top:1rem;">
+    <h3>Debug</h3>
+    <pre style="white-space:pre-wrap;">{{ debug_json }}</pre>
+</div>
+{% endblock %}
