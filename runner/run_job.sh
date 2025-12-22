@@ -410,11 +410,31 @@ run_stage() {
     return 0
   fi
   if [[ "${stage}" == "init" ]]; then
-    echo "[${stage}] sourcing ${file}"
-    set +u
-    # shellcheck source=/dev/null
-    source "${file}"
-    set -u
+    echo "[${stage}] running ${file} in isolated subshell"
+    local init_wrapper
+    init_wrapper="$(mktemp "${WORK_DIR:-/tmp}/init_wrapper.XXXXXX")"
+    {
+      echo "set +u"
+      cat "${file}"
+      echo "env"
+    } > "${init_wrapper}"
+    chmod +x "${init_wrapper}"
+    local init_env
+    init_env="$(/bin/bash "${init_wrapper}")"
+    rm -f "${init_wrapper}"
+    while IFS='=' read -r key value; do
+      case "${key}" in
+        PATH)
+          export PATH="${value}"
+          ;;
+        PWD)
+          cd "${value}" || exit 2
+          ;;
+        BUILDDIR)
+          export BUILDDIR="${value}"
+          ;;
+      esac
+    done <<< "${init_env}"
     return 0
   fi
   while IFS= read -r line || [[ -n "${line}" ]]; do
