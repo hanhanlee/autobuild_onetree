@@ -23,8 +23,13 @@
         {% endif %}
     </div>
 
-    <h2>Logs</h2>
-    <pre id="log-output"></pre>
+    <h2 style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Logs</span>
+        <a href="/jobs/{{ job.id }}/log/download" class="button">Download Full Log</a>
+    </h2>
+    <div id="terminal-console" style="background:#0b0b0b;color:#e5e5e5;padding:1rem;border-radius:8px;border:1px solid #222;max-height:80vh;overflow-y:scroll;white-space:pre-wrap;font-family:Consolas, 'Courier New', monospace;">
+        <div id="log-loading">Loading...</div>
+    </div>
 
     <h2>Artifacts</h2>
     <ul id="artifact-list">
@@ -35,5 +40,78 @@
         {% endfor %}
     </ul>
 
-    <script src="/static/app.js"></script>
+<script>
+    (function() {
+        const jobId = {{ job.id }};
+        const jobStatus = "{{ job.status or '' }}".toLowerCase();
+        const consoleEl = document.getElementById("terminal-console");
+        const loadingEl = document.getElementById("log-loading");
+        let currentOffset = 0;
+        let stopped = false;
+
+        // 簡單的 ANSI 轉 HTML 處理 (處理基本顏色與 Reset)
+        function parseAnsi(text) {
+            return text
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // HTML Escape
+                .replace(/\x1b\[0m/g, '</span>')                                    // Reset
+                .replace(/\x1b\[31m/g, '<span style="color:#ff5555">')              // Red
+                .replace(/\x1b\[32m/g, '<span style="color:#50fa7b">')              // Green
+                .replace(/\x1b\[33m/g, '<span style="color:#f1fa8c">')              // Yellow
+                .replace(/\x1b\[34m/g, '<span style="color:#bd93f9">')              // Blue
+                .replace(/\x1b\[36m/g, '<span style="color:#8be9fd">')              // Cyan
+                .replace(/\x1b\[1m/g, '<span style="font-weight:bold">')            // Bold
+                .replace(/\x1b\[\d+;?\d*m/g, '');                                   // 忽略其他複雜代碼
+        }
+
+        function appendLog(text) {
+            if (loadingEl) loadingEl.remove();
+            
+            // 判斷是否在底部 (自動捲動判定)
+            const atBottom = consoleEl.scrollTop + consoleEl.clientHeight >= consoleEl.scrollHeight - 50;
+            
+            // 1. 解析 ANSI 並使用 innerHTML 插入
+            const htmlContent = parseAnsi(text);
+            consoleEl.insertAdjacentHTML('beforeend', htmlContent);
+
+            // 2. 緩衝區清理 (Buffer Limiting): 如果內容過長，移除開頭部分以節省記憶體
+            if (consoleEl.childNodes.length > 5000) { // 簡單以節點數或長度判斷
+                 while (consoleEl.childNodes.length > 2000) {
+                    consoleEl.removeChild(consoleEl.firstChild);
+                 }
+            }
+
+            // 3. 自動捲動
+            if (atBottom) {
+                consoleEl.scrollTop = consoleEl.scrollHeight;
+            }
+        }
+
+        async function fetchLogChunk() {
+            if (stopped) return;
+            try {
+                const resp = await fetch(`/jobs/${jobId}/log/stream?offset=${currentOffset}`);
+                if (!resp.ok) throw new Error("fetch failed");
+                const data = await resp.json();
+                
+                if (data.content) {
+                    appendLog(data.content);
+                }
+                
+                currentOffset = data.next_offset || currentOffset;
+                const eof = !!data.eof;
+                const running = jobStatus === "running";
+                
+                // 如果 Job 還在跑，就算暫時 EOF 也要繼續 polling (但如果已結束且 EOF，就減緩頻率或停止)
+                const delay = (eof && !running) ? 10000 : 2000;
+                
+                setTimeout(fetchLogChunk, delay);
+            } catch (err) {
+                console.warn("Log stream error:", err);
+                setTimeout(fetchLogChunk, 5000);
+            }
+        }
+
+        fetchLogChunk();
+    })();
+    </script>
 {% endblock %}

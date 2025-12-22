@@ -1,13 +1,14 @@
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, BackgroundTasks, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
-from .. import jobs, db
+from .. import db, jobs
 from ..auth import username_auth
 from ..web import render_page
 
@@ -499,3 +500,44 @@ async def create_job(
         )
     background_tasks.add_task(jobs.start_job_runner, job_id)
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
+
+
+@router.get("/jobs/{job_id}/log/stream")
+async def job_log_stream(request: Request, job_id: int, offset: int = 0):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    path = jobs.log_file(job_id)
+    if not path.exists():
+        return JSONResponse({"content": "", "next_offset": 0, "eof": False})
+    start = offset if offset >= 0 else 0
+    chunk_size = 1024 * 1024
+    try:
+        with path.open("r", encoding="utf-8", errors="ignore") as fp:
+            fp.seek(start)
+            data = fp.read(chunk_size)
+            next_offset = fp.tell()
+            eof = next_offset >= os.path.getsize(path)
+            return JSONResponse({"content": data, "next_offset": next_offset, "eof": eof})
+    except Exception:
+        return JSONResponse({"content": "", "next_offset": start, "eof": False})
+
+
+@router.get("/jobs/{job_id}/log/download")
+async def job_log_download(request: Request, job_id: int):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    path = jobs.log_file(job_id)
+    if not path.exists():
+        return render_page(
+            request,
+            "error.html",
+            current_page="jobs",
+            status_code=404,
+            title="Log not found",
+            message="Job log file not found",
+            user=_current_user(request),
+            token_ok=None,
+        )
+    return FileResponse(path, media_type="text/plain", filename=f"job_{job_id}_log.txt")
