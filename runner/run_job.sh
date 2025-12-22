@@ -416,6 +416,7 @@ run_stage() {
     {
       echo "set +u"
       cat "${file}"
+      echo ""
       echo "env"
     } > "${init_wrapper}"
     chmod +x "${init_wrapper}"
