@@ -45,6 +45,7 @@
                     <li><a href="/new" class="{% if current_page=='new' %}active{% endif %}">Create Job</a></li>
                     <li><a href="/jobs" class="{% if current_page=='jobs' %}active{% endif %}">Jobs</a></li>
                     <li><a href="/projects" class="{% if current_page=='projects' %}active{% endif %}">Project Templates</a></li>
+                    <li><a href="/recipes" class="{% if current_page=='recipes' %}active{% endif %}">Recipes</a></li>
                     <li><a href="/settings" class="{% if current_page in ('token','settings') %}active{% endif %}{% if token_ok is defined and not token_ok %} token-alert{% endif %}">GitLab Token{% if token_ok is defined and not token_ok %} (!) {% endif %}</a></li>
                 </ul>
             </nav>
