@@ -593,16 +593,10 @@ case "${MODE}" in
 esac
 
 echo "Collecting artifacts..."
-IMAGE_DIR="${PWD}/repo/build/tmp/deploy/images"
-if [[ -n "${AUTOBUILD_MACHINE:-}" ]]; then
-  IMAGE_DIR="${IMAGE_DIR}/${AUTOBUILD_MACHINE}"
-fi
-if [[ -d "${IMAGE_DIR}" ]]; then
-  find "${IMAGE_DIR}" -maxdepth 1 -type f \( -name "*.bin" -o -name "*.mtd" \) -print0 | while IFS= read -r -d '' file; do
-    cp "${file}" "${ARTIFACT_DIR}/"
-  done
-else
-  echo "Image directory not found: ${IMAGE_DIR}"
-fi
+# Recursively find any file ending in .static.mtd starting from current directory
+find . -type f -name "*.static.mtd" -print0 | while IFS= read -r -d '' file; do
+  echo "Found artifact: ${file}"
+  cp "${file}" "${ARTIFACT_DIR}/"
+done
 
 echo "Job ${JOB_ID} finished at $(timestamp)"
