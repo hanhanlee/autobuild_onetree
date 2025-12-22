@@ -409,16 +409,18 @@ run_stage() {
     echo "[${stage}] no commands; skipping"
     return 0
   fi
+  if [[ "${stage}" == "init" ]]; then
+    echo "[${stage}] sourcing ${file}"
+    set +u
+    # shellcheck source=/dev/null
+    source "${file}"
+    set -u
+    return 0
+  fi
   while IFS= read -r line || [[ -n "${line}" ]]; do
     [[ -z "${line}" ]] && continue
     echo "[${stage}] ${line}"
-    if [[ "${line}" == *". openbmc-env"* ]]; then
-      set +u
-      eval "${line}"
-      set -u
-    else
-      eval "${line}"
-    fi
+    eval "${line}"
   done < "${file}"
 }
 
