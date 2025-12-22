@@ -32,8 +32,8 @@
             <thead>
                 <tr style="text-align:left;border-bottom:1px solid #ddd;">
                     <th style="padding:0.5rem 0.25rem;">File</th>
-                    <th style="padding:0.5rem 0.25rem;">Size</th>
                     <th style="padding:0.5rem 0.25rem;">Updated</th>
+                    <th style="padding:0.5rem 0.25rem;">Size</th>
                     <th style="padding:0.5rem 0.25rem;">Actions</th>
                 </tr>
             </thead>
@@ -41,13 +41,13 @@
                 {% for file in platform.files %}
                 <tr style="border-bottom:1px solid #eee;">
                     <td style="padding:0.4rem 0.25rem;"><code>{{ file.rid }}</code></td>
-                    <td style="padding:0.4rem 0.25rem;">{{ file.size if file.size is not none else "?" }} bytes</td>
                     <td style="padding:0.4rem 0.25rem;">{{ file.mtime }}</td>
+                    <td style="padding:0.4rem 0.25rem;">{{ file.size if file.size is not none else "?" }} bytes</td>
                     <td style="padding:0.4rem 0.25rem;display:flex;gap:0.5rem;align-items:center;">
                         <a href="/recipes/edit?rid={{ file.rid }}">Edit</a>
                         <form method="post" action="/recipes/archive" style="margin:0;">
                             <input type="hidden" name="rid" value="{{ file.rid }}">
-                            <button type="submit">Archive</button>
+                            <button type="submit" onclick="return confirm('Are you sure?');">Archive</button>
                         </form>
                     </td>
                 </tr>
