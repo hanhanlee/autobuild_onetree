@@ -302,6 +302,7 @@ mkdir -p "${WORKSPACES_ROOT}"
 CODEBASE_DIR="${WORKSPACES_ROOT}/${CODEBASE_ID}"
 LOCK_TIMEOUT_SECONDS="${LOCK_TIMEOUT_SECONDS:-600}"
 LOCKFILE="${CODEBASE_DIR}/.lock"
+WORKSPACE_CREATED=0
 
 if [[ ! -d "${CODEBASE_DIR}" ]]; then
   if [[ "${MODE}" =~ ^(full|clone_only)$ ]]; then
@@ -314,6 +315,7 @@ EOF
     echo "CONFIG ERROR: workspace ${CODEBASE_DIR} missing for mode ${MODE}" >&2
     exit 2
   fi
+  WORKSPACE_CREATED=1
 fi
 
 if [[ ! -f "${CODEBASE_DIR}/codebase.json" ]]; then
@@ -321,18 +323,26 @@ if [[ ! -f "${CODEBASE_DIR}/codebase.json" ]]; then
   exit 2
 fi
 
-if [[ -n "${WORKDIR_VAL}" ]]; then
-  TARGET_WORKDIR="${CODEBASE_DIR}/${WORKDIR_VAL}"
-  if [[ ! -d "${TARGET_WORKDIR}" ]]; then
-    echo "CONFIG ERROR: workdir '${WORKDIR_VAL}' not found under ${CODEBASE_DIR}" >&2
-    echo "CONFIG ERROR: available subdirs:" >&2
-    if ls -1d "${CODEBASE_DIR}"/*/ >/dev/null 2>&1; then
-      ls -1d "${CODEBASE_DIR}"/*/ | sed 's:.*/::' >&2
-    else
-      echo "(none)" >&2
-    fi
-    exit 2
+validate_workdir() {
+  if [[ -z "${WORKDIR_VAL}" ]]; then
+    return 0
   fi
+  local target="${CODEBASE_DIR}/${WORKDIR_VAL}"
+  if [[ -d "${target}" ]]; then
+    return 0
+  fi
+  echo "CONFIG ERROR: workdir '${WORKDIR_VAL}' not found under ${CODEBASE_DIR}" >&2
+  echo "CONFIG ERROR: available subdirs:" >&2
+  if ls -1d "${CODEBASE_DIR}"/*/ >/dev/null 2>&1; then
+    ls -1d "${CODEBASE_DIR}"/*/ | sed 's:.*/::' >&2
+  else
+    echo "(none)" >&2
+  fi
+  exit 2
+}
+
+if [[ "${MODE}" =~ ^(build_only|edit_only)$ || "${WORKSPACE_CREATED}" != "1" ]]; then
+  validate_workdir
 fi
 
 echo "[lock] attempting to acquire codebase lock at ${LOCKFILE} (timeout=${LOCK_TIMEOUT_SECONDS}s)"
@@ -522,6 +532,7 @@ fi
 case "${MODE}" in
   full)
     ( cd "${CODEBASE_DIR}" && run_stage "clone" "${CLONE_CMDS}" )
+    validate_workdir
     if [[ -n "${WORKDIR_VAL}" ]]; then cd "${CODEBASE_DIR}/${WORKDIR_VAL}" || exit 2; else cd "${CODEBASE_DIR}" || exit 2; fi
     apply_file_edits "${BASE_DIR}" "${FILE_EDITS_JSON}"
     run_stage "init" "${INIT_CMDS}"
@@ -530,6 +541,7 @@ case "${MODE}" in
     ;;
   clone_only)
     ( cd "${CODEBASE_DIR}" && run_stage "clone" "${CLONE_CMDS}" )
+    validate_workdir
     ;;
   edit_only)
     if [[ -n "${WORKDIR_VAL}" ]]; then cd "${CODEBASE_DIR}/${WORKDIR_VAL}" || exit 2; else cd "${CODEBASE_DIR}" || exit 2; fi
