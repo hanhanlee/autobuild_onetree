@@ -1,5 +1,9 @@
+import os
 import re
-from typing import List
+import shutil
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 from fastapi import APIRouter, Form, Request, Response
 from fastapi.responses import RedirectResponse
@@ -9,6 +13,8 @@ from ..config import get_presets_root
 from ..web import render_page
 
 router = APIRouter()
+RID_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.yaml$")
+NAME_RE = re.compile(r"^[A-Za-z0-9._-]+\.yaml$")
 
 
 def _current_user(request: Request):
@@ -96,6 +102,413 @@ def _build_recipe_yaml(data: dict) -> str:
     artifacts = data.get("artifacts") or []
     lines.extend(_to_yaml_list("artifacts", artifacts))
     return "\n".join(lines) + "\n"
+
+
+def _validate_rid(raw: str, *, require_exists: bool = False) -> Tuple[str, str, str, Path]:
+    rid = (raw or "").strip()
+    if not RID_RE.match(rid):
+        raise ValueError("rid must be <platform>/<name>.yaml using [A-Za-z0-9._-]")
+    platform, filename = rid.split("/", 1)
+    if platform.startswith(".") or filename.startswith("."):
+        raise ValueError("rid must not use hidden platform or filename")
+    presets_root = get_presets_root()
+    platform_path = presets_root / platform
+    if not platform_path.is_dir():
+        raise ValueError(f"platform not found: {platform}")
+    target_path = platform_path / filename
+    if require_exists and not target_path.exists():
+        raise ValueError(f"recipe not found: {rid}")
+    return rid, platform, filename, target_path
+
+
+def _list_recipes(presets_root: Path, platform_filter: str = "") -> Tuple[List[str], List[dict]]:
+    platforms: List[str] = []
+    entries: List[dict] = []
+    if presets_root.exists() and presets_root.is_dir():
+        for platform_path in sorted(presets_root.iterdir(), key=lambda p: p.name):
+            if not platform_path.is_dir() or platform_path.name.startswith("."):
+                continue
+            platforms.append(platform_path.name)
+        if platform_filter and platform_filter not in platforms:
+            raise ValueError(f"Unknown platform: {platform_filter}")
+        for platform in platforms:
+            if platform_filter and platform != platform_filter:
+                continue
+            platform_dir = presets_root / platform
+            files = []
+            for path in sorted(platform_dir.glob("*.yaml"), key=lambda p: p.name):
+                if path.name.startswith("."):
+                    continue
+                try:
+                    stat = path.stat()
+                    mtime = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                    size = stat.st_size
+                except OSError:
+                    mtime = "?"
+                    size = None
+                files.append({"name": path.name, "rid": f"{platform}/{path.name}", "mtime": mtime, "size": size})
+            entries.append({"name": platform, "files": files})
+    return platforms, entries
+
+
+def _atomic_write(target: Path, content: str) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    text = content if content.endswith("\n") else f"{content}\n"
+    tmp = target.with_suffix(f"{target.suffix}.tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, target)
+    finally:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+
+
+@router.get("/recipes")
+async def recipes_list(request: Request, platform: Optional[str] = None):
+    user = _current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    presets_root = get_presets_root()
+    platform_filter = (platform or request.query_params.get("platform") or "").strip()
+    try:
+        platform_names, platform_entries = _list_recipes(presets_root, platform_filter)
+    except ValueError as exc:
+        return render_page(
+            request,
+            "recipes.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=404,
+            error=str(exc),
+            presets_root=str(presets_root),
+            platform_filter=platform_filter,
+            platforms=[],
+            platform_names=[],
+        )
+    except Exception as exc:
+        return render_page(
+            request,
+            "recipes.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=500,
+            error=f"Failed to list recipes: {exc}",
+            presets_root=str(presets_root),
+            platform_filter=platform_filter,
+            platforms=[],
+            platform_names=[],
+        )
+    return render_page(
+        request,
+        "recipes.html",
+        user=user,
+        token_ok=None,
+        current_page="projects",
+        status_code=200,
+        error=None,
+        presets_root=str(presets_root),
+        platform_filter=platform_filter,
+        platforms=platform_entries,
+        platform_names=platform_names,
+    )
+
+
+@router.get("/recipes/edit")
+async def recipe_edit(request: Request, rid: str):
+    user = _current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    try:
+        rid_value, platform, filename, target_path = _validate_rid(rid, require_exists=True)
+    except ValueError as exc:
+        return render_page(
+            request,
+            "recipe_edit.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error=str(exc),
+            rid=rid,
+            content="",
+            platform="",
+            filename="",
+        )
+    try:
+        content = target_path.read_text(encoding="utf-8")
+    except Exception as exc:
+        return render_page(
+            request,
+            "recipe_edit.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=500,
+            error=f"Failed to read recipe: {exc}",
+            rid=rid_value,
+            content="",
+            platform=platform,
+            filename=filename,
+        )
+    return render_page(
+        request,
+        "recipe_edit.html",
+        user=user,
+        token_ok=None,
+        current_page="projects",
+        status_code=200,
+        error=None,
+        rid=rid_value,
+        content=content,
+        platform=platform,
+        filename=filename,
+    )
+
+
+@router.post("/recipes/save")
+async def recipe_save(request: Request):
+    user = _current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    try:
+        form = await request.form()
+    except Exception:
+        return render_page(
+            request,
+            "recipe_edit.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error="Invalid form submission",
+            rid="",
+            content="",
+            platform="",
+            filename="",
+        )
+    rid_raw = str(form.get("rid") or "")
+    content = str(form.get("content") or "")
+    try:
+        rid_value, platform, filename, target_path = _validate_rid(rid_raw, require_exists=True)
+    except ValueError as exc:
+        return render_page(
+            request,
+            "recipe_edit.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error=str(exc),
+            rid=rid_raw,
+            content=content,
+            platform="",
+            filename="",
+        )
+    try:
+        import yaml  # type: ignore
+    except Exception:
+        yaml = None
+    if yaml is not None:
+        try:
+            yaml.safe_load(content)
+        except Exception as exc:
+            return render_page(
+                request,
+                "recipe_edit.html",
+                user=user,
+                token_ok=None,
+                current_page="projects",
+                status_code=400,
+                error=f"Invalid YAML: {exc}",
+                rid=rid_value,
+                content=content,
+                platform=platform,
+                filename=filename,
+            )
+    try:
+        _atomic_write(target_path, content)
+    except Exception as exc:
+        return render_page(
+            request,
+            "recipe_edit.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=500,
+            error=f"Failed to save recipe: {exc}",
+            rid=rid_value,
+            content=content,
+            platform=platform,
+            filename=filename,
+        )
+    return RedirectResponse(url=f"/recipes/edit?rid={rid_value}", status_code=303)
+
+
+@router.post("/recipes/archive")
+async def recipe_archive(request: Request):
+    user = _current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    presets_root = get_presets_root()
+    try:
+        form = await request.form()
+    except Exception:
+        platform_names, platform_entries = [], []
+        try:
+            platform_names, platform_entries = _list_recipes(presets_root)
+        except Exception:
+            pass
+        return render_page(
+            request,
+            "recipes.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error="Invalid form submission",
+            presets_root=str(presets_root),
+            platform_filter="",
+            platforms=platform_entries,
+            platform_names=platform_names,
+        )
+    rid_raw = str(form.get("rid") or "")
+    try:
+        rid_value, platform, filename, target_path = _validate_rid(rid_raw, require_exists=True)
+    except ValueError as exc:
+        platform_names, platform_entries = [], []
+        try:
+            platform_names, platform_entries = _list_recipes(presets_root)
+        except Exception:
+            pass
+        return render_page(
+            request,
+            "recipes.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error=str(exc),
+            presets_root=str(presets_root),
+            platform_filter="",
+            platforms=platform_entries,
+            platform_names=platform_names,
+        )
+    try:
+        archive_dir = target_path.parent / ".archived"
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        archived_path = archive_dir / f"{target_path.stem}.{timestamp}.yaml"
+        shutil.move(str(target_path), str(archived_path))
+    except Exception as exc:
+        return render_page(
+            request,
+            "recipe_edit.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=500,
+            error=f"Failed to archive recipe: {exc}",
+            rid=rid_value,
+            content="",
+            platform=platform,
+            filename=filename,
+        )
+    return RedirectResponse(url=f"/recipes?platform={platform}", status_code=303)
+
+
+@router.post("/recipes/copy")
+async def recipe_copy(request: Request):
+    user = _current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    try:
+        form = await request.form()
+    except Exception:
+        return render_page(
+            request,
+            "recipe_edit.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error="Invalid form submission",
+            rid="",
+            content="",
+            platform="",
+            filename="",
+        )
+    rid_raw = str(form.get("rid") or "")
+    new_name_raw = str(form.get("new_name") or "")
+    try:
+        rid_value, platform, filename, source_path = _validate_rid(rid_raw, require_exists=True)
+    except ValueError as exc:
+        return render_page(
+            request,
+            "recipe_edit.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error=str(exc),
+            rid=rid_raw,
+            content="",
+            platform="",
+            filename="",
+        )
+    new_name = new_name_raw.strip()
+    if not NAME_RE.match(new_name) or new_name.startswith("."):
+        return render_page(
+            request,
+            "recipe_edit.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=400,
+            error="new_name must end with .yaml and use [A-Za-z0-9._-]",
+            rid=rid_value,
+            content="",
+            platform=platform,
+            filename=filename,
+        )
+    target_path = source_path.parent / new_name
+    if target_path.exists():
+        return render_page(
+            request,
+            "recipe_edit.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=409,
+            error=f"Destination already exists: {platform}/{new_name}",
+            rid=rid_value,
+            content="",
+            platform=platform,
+            filename=filename,
+        )
+    try:
+        content = source_path.read_text(encoding="utf-8")
+        _atomic_write(target_path, content)
+    except Exception as exc:
+        return render_page(
+            request,
+            "recipe_edit.html",
+            user=user,
+            token_ok=None,
+            current_page="projects",
+            status_code=500,
+            error=f"Failed to copy recipe: {exc}",
+            rid=rid_value,
+            content="",
+            platform=platform,
+            filename=filename,
+        )
+    new_rid = f"{platform}/{new_name}"
+    return RedirectResponse(url=f"/recipes/edit?rid={new_rid}", status_code=303)
 
 
 @router.get("/recipes/new")

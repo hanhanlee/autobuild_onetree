@@ -1,0 +1,41 @@
+{% extends "_layout.html" %}
+{% block title %}Edit Recipe{% endblock %}
+{% block content %}
+<h1>Edit Recipe</h1>
+{% if rid %}<p><strong>Recipe:</strong> <code>{{ rid }}</code></p>{% endif %}
+{% if error %}<p class="error">{{ error }}</p>{% endif %}
+<div class="card" style="margin-bottom:1rem;">
+    <form method="post" action="/recipes/save" style="display:flex;flex-direction:column;gap:0.75rem;">
+        <input type="hidden" name="rid" value="{{ rid }}">
+        <label>Content (YAML)
+            <textarea name="content" rows="18" style="width:100%;font-family:monospace;">{{ content }}</textarea>
+        </label>
+        <div class="flex" style="gap:0.5rem;">
+            <button type="submit">Save</button>
+            <a href="/recipes">Back to list</a>
+        </div>
+    </form>
+</div>
+
+{% if rid %}
+<div class="flex" style="gap:1rem;flex-wrap:wrap;">
+    <div class="card" style="flex:1;min-width:260px;">
+        <h3>Copy</h3>
+        <form method="post" action="/recipes/copy" style="display:flex;flex-direction:column;gap:0.5rem;">
+            <input type="hidden" name="rid" value="{{ rid }}">
+            <label>New filename (same platform)
+                <input type="text" name="new_name" placeholder="copy.yaml">
+            </label>
+            <button type="submit">Copy</button>
+        </form>
+    </div>
+    <div class="card" style="flex:1;min-width:200px;">
+        <h3>Archive</h3>
+        <form method="post" action="/recipes/archive" style="display:flex;flex-direction:column;gap:0.5rem;">
+            <input type="hidden" name="rid" value="{{ rid }}">
+            <button type="submit">Move to .archived</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
