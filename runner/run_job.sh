@@ -412,7 +412,13 @@ run_stage() {
   while IFS= read -r line || [[ -n "${line}" ]]; do
     [[ -z "${line}" ]] && continue
     echo "[${stage}] ${line}"
-    eval "${line}"
+    if [[ "${line}" == *". openbmc-env"* ]]; then
+      set +u
+      eval "${line}"
+      set -u
+    else
+      eval "${line}"
+    fi
   done < "${file}"
 }
 
