@@ -537,10 +537,16 @@ async def create_job(
             return obj.get(key)
         return None
 
-    selected_recipe = next(
-        (r for r in recipes if (_attr(r, "id") == recipe_id_val)),
-        None,
-    )
+    selected_recipe = None
+    if recipe_id_val:
+        try:
+            r_id_int = int(recipe_id_val)
+            selected_recipe = next((r for r in recipes if _attr(r, "id") == r_id_int), None)
+        except ValueError:
+            selected_recipe = None
+    if not selected_recipe and recipe_id_val:
+        selected_recipe = next((r for r in recipes if str(_attr(r, "id")) == recipe_id_val), None)
+    print(f"DEBUG: Form Recipe ID: {recipe_id_val}, Found Object: {selected_recipe}")
     def _flag(name: str, default: bool) -> bool:
         raw = form.get(name)
         if raw is None:

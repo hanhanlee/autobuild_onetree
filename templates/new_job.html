@@ -14,7 +14,7 @@
             <select id="recipe-select" name="recipe_id" required>
                 <option value="" disabled {% if not recipe_id %}selected{% endif %}>Select a recipe...</option>
                 {% for r in recipes or [] %}
-                    <option value="{{ r.id }}" {% if recipe_id==r.id %}selected{% endif %}>{{ r.id }} ??{{ r.display_name }}</option>
+                    <option value="{{ r.id }}" {% if recipe_id==r.id %}selected{% endif %}>{{ r.id }}{% if r.description %} ({{ r.description }}){% endif %}</option>
                 {% endfor %}
             </select>
             {% if (recipes or [])|length == 0 %}
@@ -141,11 +141,14 @@ function toggleFind(select) {
 // Recipe data injection for locked fields
 const recipesData = {};
 {% for r in recipes or [] %}
-recipesData[{{ (r.id)|tojson }}] = {
-    repo_url: {{ (r.repo_url or '')|tojson }},
-    branch: {{ (r.branch or '')|tojson }},
-    build_cmd: {{ (r.build_cmd or '')|tojson }}
-};
+{
+    const key = String({{ (r.id)|tojson }});
+    recipesData[key] = {
+        repo_url: {{ (r.repo_url or '')|tojson }},
+        branch: {{ (r.branch or '')|tojson }},
+        build_cmd: {{ (r.build_cmd or '')|tojson }}
+    };
+}
 {% endfor %}
 
 function updateRecipeInfo() {
@@ -176,6 +179,21 @@ function updateRecipeInfo() {
 
 document.getElementById("recipe-select")?.addEventListener("change", updateRecipeInfo);
 updateRecipeInfo();
+
+document.addEventListener("DOMContentLoaded", function() {
+    const map = {
+        "check-clone": "section-clone",
+        "check-edit": "section-edit",
+        "check-build": "section-build",
+    };
+    ["check-clone", "check-edit", "check-init", "check-build"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && el.checked && map[id]) {
+            toggleSection(map[id], true);
+        }
+    });
+    updateRecipeInfo();
+});
 </script>
 
 <template id="tpl-patch-row">
