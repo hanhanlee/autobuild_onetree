@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Stre
 from .. import db, jobs
 from ..auth import username_auth
 from ..config import get_jobs_root
+from ..recipes_catalog import list_recipes as catalog_list_recipes
 from ..system import get_disk_usage
 from ..web import render_page
 
@@ -92,27 +93,16 @@ def _debug_context(
     return debug
 
 
-def _list_recipes_from_presets() -> Tuple[List[Dict[str, str]], Dict[str, object]]:
-    recipes: List[Dict[str, str]] = []
+def _list_recipes_from_presets() -> Tuple[List[Dict[str, object]], Dict[str, object]]:
     debug = _debug_context()
     if debug["last_error"]:
-        return recipes, debug
+        return [], debug
     try:
-        for path in PRESETS_ROOT.rglob("*"):
-            if not path.is_file() or path.suffix.lower() not in {".yaml", ".yml"}:
-                continue
-            rel = path.relative_to(PRESETS_ROOT)
-            if len(rel.parts) != 2:
-                continue
-            platform = rel.parts[0]
-            project = path.stem
-            rid = f"{platform}/{project}"
-            label = rid
-            recipes.append({"id": rid, "label": label})
-        recipes.sort(key=lambda r: r["id"])
+        recipes = catalog_list_recipes(PRESETS_ROOT)
     except Exception as exc:
         logger.warning("Failed to list recipes: %s", exc)
-        debug["last_error"] = debug["last_error"] or f"Failed to list recipes: {exc}"
+        debug["last_error"] = debug.get("last_error") or f"Failed to list recipes: {exc}"
+        recipes = []
     debug["recipes_count"] = len(recipes)
     return recipes, debug
 
