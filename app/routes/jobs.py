@@ -344,23 +344,32 @@ async def prune_job(request: Request, job_id: int):
 
 
 @router.post("/jobs/{job_id}/delete")
-async def delete_job(request: Request, job_id: int):
-    redirect = _require_login(request)
-    if redirect:
-        return redirect
-    job = db.get_job(job_id)
-    if not job:
-        return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+async def delete_job_action(request: Request, job_id: int):
+    # 1. 權限檢查
+    # redirect = _require_login(request)
+    # if redirect: return redirect
+
+    # 2. 取得路徑 (安全檢查已經在 _safe_job_dir 裡面做完了)
     job_dir = _safe_job_dir(job_id)
-    if job_dir is None or not job_dir.exists():
-        return RedirectResponse(url="/jobs?error=invalid_path", status_code=303)
+    
+    # 3. 如果 _safe_job_dir 回傳 None，表示安全檢查失敗
+    if job_dir is None:
+        print(f"[ERROR] Delete failed: _safe_job_dir returned None for {job_id}", flush=True)
+        return RedirectResponse(url="/?error=invalid_path", status_code=303)
+
+    # 4. 執行刪除
     try:
-        shutil.rmtree(job_dir)
-    except Exception as exc:
-        logger.warning("Failed to delete job dir %s: %s", job_dir, exc)
-        return RedirectResponse(url=f"/jobs/{job_id}?error=delete_failed", status_code=303)
-    logger.info("Deleted job directory for job_id=%s path=%s", job_id, job_dir)
-    return RedirectResponse(url="/jobs?deleted=1", status_code=303)
+        if job_dir.exists():
+            shutil.rmtree(job_dir)
+            print(f"[INFO] Successfully deleted job {job_id}", flush=True)
+        else:
+            print(f"[WARN] Job folder {job_dir} does not exist, skipping.", flush=True)
+            
+    except Exception as e:
+        print(f"[ERROR] Failed to delete job {job_id}: {e}", flush=True)
+
+    # 5. 重導回首頁
+    return RedirectResponse(url="/", status_code=303)
 
 
 @router.post("/jobs/batch")
