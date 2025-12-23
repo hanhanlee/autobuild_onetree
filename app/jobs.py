@@ -161,6 +161,24 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
     env["AUTOBUILD_JOBS_ROOT"] = str(get_jobs_root())
     env["AUTO_BUILD_JOB_ID"] = str(job_id)
     env["AUTOBUILD_JOB_OWNER"] = owner
+    try:
+        run_clone = bool(spec.get("run_clone", True))
+        run_edit = bool(spec.get("run_edit", False))
+        run_init = bool(spec.get("run_init", True))
+        run_build = bool(spec.get("run_build", True))
+    except Exception:
+        run_clone = True
+        run_edit = False
+        run_init = True
+        run_build = True
+    if not run_clone:
+        env["SKIP_CLONE"] = "1"
+    if run_edit:
+        env["RUN_EDIT"] = "1"
+    if not run_init:
+        env["SKIP_INIT"] = "1"
+    if not run_build:
+        env["SKIP_BUILD"] = "1"
     logger.info("Starting runner for job %s (owner=%s) log=%s cmd=%s", job_id, owner, log_path, cmd)
     try:
         log_fp = log_path.open("ab", buffering=0)

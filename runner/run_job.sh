@@ -17,6 +17,8 @@ STATUS_FILE="${JOB_DIR}/status.json"
 EXIT_CODE_FILE="${JOB_DIR}/exit_code"
 WORK_DIR="${JOB_DIR}/work"
 WORKSPACES_ROOT="/srv/autobuild/workspaces"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PATCHES_FILE="${JOB_DIR}/patches.json"
 
 mkdir -p "${LOG_DIR}" "${ARTIFACT_DIR}" "${WORK_DIR}"
 touch "${LOG_FILE}"
@@ -39,10 +41,12 @@ timestamp() {
 }
 
 calc_disk_usage() {
+  local target_dir="${BASE_DIR:-${JOB_DIR}}"
   if command -v du >/dev/null 2>&1; then
     echo "Calculating disk usage..."
-    du -sh "${BASE_DIR}" | awk '{print $1}' > "${BASE_DIR}/disk_usage.txt"
-    echo "Disk usage recorded: $(cat "${BASE_DIR}/disk_usage.txt")"
+    du -sh "${target_dir}" | awk '{print $1}' > "${target_dir}/disk_usage.txt"
+    echo "Disk usage recorded: $(cat "${target_dir}/disk_usage.txt")"
+    du -sh "${target_dir}" | awk '{print $1}'
   fi
 }
 
@@ -324,7 +328,6 @@ WORKDIR_VAL="${WORKDIR:-}"
 RAW_SHA256="${RAW_SHA256:-}"
 RAW_BYTES="${RAW_BYTES:-0}"
 RAW_LINES="${RAW_LINES:-0}"
-BASE_DIR="${CODEBASE_DIR:-}"
 APPLY_FILE_EDITS_FOR_BUILD_ONLY="${APPLY_FILE_EDITS_FOR_BUILD_ONLY:-1}"
 
 if [[ -z "${CODEBASE_ID}" && "${MODE}" =~ ^(full|clone_only)$ ]]; then
@@ -348,6 +351,39 @@ if [[ -n "${CODEBASE_ID}" ]]; then
   fi
 fi
 
+if [[ -z "${SKIP_CLONE:-}" ]]; then
+  if [[ "${MODE}" =~ ^(build_only|edit_only)$ ]]; then
+    SKIP_CLONE=1
+  fi
+fi
+if [[ -z "${SKIP_INIT:-}" ]]; then
+  if [[ "${MODE}" =~ ^(clone_only|edit_only|build_only)$ ]]; then
+    SKIP_INIT=1
+  fi
+fi
+if [[ -z "${SKIP_BUILD:-}" ]]; then
+  if [[ "${MODE}" =~ ^(clone_only|edit_only)$ ]]; then
+    SKIP_BUILD=1
+  fi
+fi
+if [[ -z "${RUN_EDIT:-}" ]]; then
+  case "${MODE}" in
+    edit_only)
+      RUN_EDIT=1
+      ;;
+    clone_only)
+      RUN_EDIT=0
+      ;;
+    *)
+      if [[ -s "${MODIFY_CMDS}" || -s "${FILE_EDITS_JSON}" ]]; then
+        RUN_EDIT=1
+      else
+        RUN_EDIT=0
+      fi
+      ;;
+  esac
+fi
+
 echo "job_id=${JOB_ID}"
 echo "job_dir=${JOB_DIR}"
 echo "spec=${SPEC_PATH}"
@@ -368,6 +404,7 @@ TOKEN_FILE="${TOKEN_ROOT}/${OWNER}.token"
 mkdir -p "${WORKSPACES_ROOT}"
 
 CODEBASE_DIR="${WORKSPACES_ROOT}/${CODEBASE_ID}"
+BASE_DIR="${CODEBASE_DIR}"
 LOCK_TIMEOUT_SECONDS="${LOCK_TIMEOUT_SECONDS:-600}"
 LOCKFILE="${CODEBASE_DIR}/.lock"
 WORKSPACE_CREATED=0
@@ -626,49 +663,59 @@ if [[ -n "${WORKDIR_VAL}" ]]; then
   mkdir -p "${WORKDIR_VAL}"
 fi
 
-case "${MODE}" in
-  full)
-    ( cd "${CODEBASE_DIR}" && run_stage "clone" "${CLONE_CMDS}" )
-    validate_workdir
-    if [[ -n "${WORKDIR_VAL}" ]]; then cd "${CODEBASE_DIR}/${WORKDIR_VAL}" || exit 2; else cd "${CODEBASE_DIR}" || exit 2; fi
-    apply_file_edits "${BASE_DIR}" "${FILE_EDITS_JSON}"
-    run_stage "init" "${INIT_CMDS}"
+TARGET_DIR="${CODEBASE_DIR}"
+if [[ -n "${WORKDIR_VAL}" ]]; then
+  TARGET_DIR="${CODEBASE_DIR}/${WORKDIR_VAL}"
+fi
 
-    # === [NEW] Inject SState Cache Config ===
-    # Check if shared cache config exists and conf dir is ready (post-init)
-    if [[ -f "/work/site.conf" ]] && [[ -d "conf" ]]; then
-      echo "[cache] Injecting /work/site.conf for SState optimization"
-      ln -sf /work/site.conf conf/site.conf
-    else
-      echo "[cache] WARNING: /work/site.conf not found or conf dir missing. Cache disabled."
+if [[ -z "${SKIP_CLONE:-}" ]]; then
+  echo ">>> [Stage 1] Cloning..."
+  ( cd "${CODEBASE_DIR}" && run_stage "clone" "${CLONE_CMDS}" )
+else
+  echo ">>> [Stage 1] Cloning skipped (SKIP_CLONE set)"
+fi
+
+validate_workdir
+cd "${TARGET_DIR}" || exit 2
+
+if [[ "${RUN_EDIT}" == "1" ]]; then
+  echo ">>> [Stage 2] Applying patches..."
+  if [[ -s "${PATCHES_FILE}" ]]; then
+    python3 "${SCRIPT_DIR}/patcher.py" "${PATCHES_FILE}"
+    patch_rc=$?
+    if [[ ${patch_rc} -ne 0 ]]; then
+      echo "Error: patching failed with exit code ${patch_rc}"
+      exit 1
     fi
-    # ========================================
-    run_stage "modify" "${MODIFY_CMDS}"
-    run_stage "build" "${BUILD_CMDS}"
-    ;;
-  clone_only)
-    ( cd "${CODEBASE_DIR}" && run_stage "clone" "${CLONE_CMDS}" )
-    validate_workdir
-    ;;
-  edit_only)
-    if [[ -n "${WORKDIR_VAL}" ]]; then cd "${CODEBASE_DIR}/${WORKDIR_VAL}" || exit 2; else cd "${CODEBASE_DIR}" || exit 2; fi
-    apply_file_edits "${BASE_DIR}" "${FILE_EDITS_JSON}"
-    run_stage "modify" "${MODIFY_CMDS}"
-    ;;
-  build_only)
-    if [[ -n "${WORKDIR_VAL}" ]]; then cd "${CODEBASE_DIR}/${WORKDIR_VAL}" || exit 2; else cd "${CODEBASE_DIR}" || exit 2; fi
-    if [[ "${APPLY_FILE_EDITS_FOR_BUILD_ONLY}" != "0" ]]; then
-      apply_file_edits "${BASE_DIR}" "${FILE_EDITS_JSON}"
-    else
-      echo "[file_edits] skipped for build_only (APPLY_FILE_EDITS_FOR_BUILD_ONLY=0)"
-    fi
-    run_stage "build" "${BUILD_CMDS}"
-    ;;
-  *)
-    echo "CONFIG ERROR: unknown mode ${MODE}" >&2
-    exit 2
-    ;;
-esac
+  else
+    echo ">>> [Stage 2] No patches provided; skipping patcher"
+  fi
+  apply_file_edits "${TARGET_DIR}" "${FILE_EDITS_JSON}"
+  run_stage "modify" "${MODIFY_CMDS}"
+else
+  echo ">>> [Stage 2] Edit stage skipped (RUN_EDIT=0)"
+fi
+
+if [[ -z "${SKIP_INIT:-}" ]]; then
+  echo ">>> [Stage 3] Initializing..."
+  run_stage "init" "${INIT_CMDS}"
+
+  if [[ -f "/work/site.conf" ]] && [[ -d "conf" ]]; then
+    echo "[cache] Injecting /work/site.conf for SState optimization"
+    ln -sf /work/site.conf conf/site.conf
+  else
+    echo "[cache] WARNING: /work/site.conf not found or conf dir missing. Cache disabled."
+  fi
+else
+  echo ">>> [Stage 3] Init skipped (SKIP_INIT set)"
+fi
+
+if [[ -z "${SKIP_BUILD:-}" ]]; then
+  echo ">>> [Stage 4] Building..."
+  run_stage "build" "${BUILD_CMDS}"
+else
+  echo ">>> [Stage 4] Build skipped (SKIP_BUILD set)"
+fi
 
 echo "Collecting artifacts..."
 # Recursively find any file ending in .static.mtd starting from current directory

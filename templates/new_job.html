@@ -5,7 +5,7 @@
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 <p><a href="/projects" style="margin-right:1rem;">Create Recipe (Project Template v1)</a> | <a href="/settings">GitLab token</a></p>
 <div class="card">
-    <form method="post" action="/new" style="display:grid;grid-template-columns:1fr;gap:0.85rem;max-width:720px;">
+    <form method="post" action="/new" style="display:grid;grid-template-columns:1fr;gap:0.85rem;max-width:840px;">
         <div style="display:flex;flex-direction:column;gap:0.35rem;">
             <label for="recipe-select" style="font-weight:600;">Recipe Template</label>
             {% if recipes_count is defined %}
@@ -14,7 +14,7 @@
             <select id="recipe-select" name="recipe_id" required>
                 <option value="" disabled {% if not recipe_id %}selected{% endif %}>Select a recipe...</option>
                 {% for r in recipes or [] %}
-                    <option value="{{ r.id }}" {% if recipe_id==r.id %}selected{% endif %}>{{ r.id }} — {{ r.display_name }}</option>
+                    <option value="{{ r.id }}" {% if recipe_id==r.id %}selected{% endif %}>{{ r.id }} ??{{ r.display_name }}</option>
                 {% endfor %}
             </select>
             {% if (recipes or [])|length == 0 %}
@@ -23,16 +23,46 @@
             <input id="recipe-filter" value="" placeholder="Filter recipes (e.g. 2600)" autocomplete="off">
             <div style="color:#555;font-size:0.9rem;">Type part of a platform or project name to filter the dropdown; selection comes from the dropdown.</div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:0.35rem;">
-            <label for="mode-select" style="font-weight:600;">Mode</label>
-            <select id="mode-select" name="mode">
-                {% set current_mode = mode or 'full' %}
-                <option value="full" {% if current_mode=='full' %}selected{% endif %}>Full (clone + init + build)</option>
-                <option value="clone_only" {% if current_mode=='clone_only' %}selected{% endif %}>Clone only</option>
-                <option value="build_only" {% if current_mode=='build_only' %}selected{% endif %}>Build only (requires codebase)</option>
-                <option value="edit_only" {% if current_mode=='edit_only' %}selected{% endif %}>Edit only (requires codebase)</option>
-            </select>
+
+        <div class="card" style="padding:0.85rem;border:1px solid #d0d7de;background:#f8fafc;">
+            <label class="form-label fw-bold d-block">Pipeline Stages</label>
+            <div class="btn-group w-100" role="group">
+                <input type="checkbox" class="btn-check" id="check-clone" name="do_clone" autocomplete="off" checked onchange="toggleSection('section-clone', this.checked)">
+                <label class="btn btn-outline-primary" for="check-clone">1. Clone</label>
+
+                <input type="checkbox" class="btn-check" id="check-edit" name="do_edit" autocomplete="off" onchange="toggleSection('section-edit', this.checked)">
+                <label class="btn btn-outline-warning" for="check-edit">2. Edit</label>
+
+                <input type="checkbox" class="btn-check" id="check-init" name="do_init" autocomplete="off" checked>
+                <label class="btn btn-outline-info" for="check-init">3. Init</label>
+
+                <input type="checkbox" class="btn-check" id="check-build" name="do_build" autocomplete="off" checked onchange="toggleSection('section-build', this.checked)">
+                <label class="btn btn-outline-success" for="check-build">4. Build</label>
+            </div>
         </div>
+
+        <div id="section-clone" class="d-none card p-3 mb-1 bg-light border-primary">
+            <label class="form-label text-primary fw-bold">Git Configuration</label>
+            <input type="text" class="form-control mb-2" name="repo_url" placeholder="Git Repository URL">
+            <input type="text" class="form-control" name="branch" placeholder="Branch (default: main)">
+        </div>
+
+        <div id="section-edit" class="d-none card p-3 mb-1 border-warning">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label text-warning fw-bold mb-0">File Patches</label>
+                <button type="button" class="btn btn-sm btn-outline-warning" onclick="addPatchRow()">
+                    <i class="bi bi-plus-lg"></i> Add Patch
+                </button>
+            </div>
+            <div id="patch-container"></div>
+            <div class="form-text text-muted">Files will be modified after clone/checkout but before initialization.</div>
+        </div>
+
+        <div id="section-build" class="card p-3 mb-1 bg-light border-success">
+            <label class="form-label text-success fw-bold">Build Configuration</label>
+            <input type="text" class="form-control font-monospace" name="build_cmd" placeholder="bitbake core-image-minimal" required>
+        </div>
+
         <div style="display:flex;flex-direction:column;gap:0.35rem;">
             <label for="codebase-select" style="font-weight:600;">Codebase (optional unless build/edit only)</label>
             {% if codebases_count is defined %}
@@ -44,7 +74,7 @@
                     <option value="{{ cb.id }}" {% if codebase_id==cb.id %}selected{% endif %}>{{ cb.label or cb.id }}</option>
                 {% endfor %}
             </select>
-            <div style="color:#555;font-size:0.9rem;">Build/Edit only modes require selecting a codebase with codebase.json under workspaces_root.</div>
+            <div style="color:#555;font-size:0.9rem;">Build/Edit stages that require existing sources should set a codebase with codebase.json under workspaces_root.</div>
         </div>
         <label>Note (optional)
             <textarea name="note" rows="3" placeholder="Optional note for this job">{{ note or '' }}</textarea>
@@ -86,5 +116,47 @@
     filterInput.addEventListener("input", () => renderOptions(filterInput.value));
     renderOptions(filterInput.value);
 })();
+
+function toggleSection(id, show) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (show) el.classList.remove("d-none");
+    else el.classList.add("d-none");
+}
+
+function addPatchRow() {
+    const tpl = document.getElementById("tpl-patch-row");
+    if (!tpl) return;
+    const clone = tpl.content.cloneNode(true);
+    document.getElementById("patch-container").appendChild(clone);
+}
+
+function toggleFind(select) {
+    const row = select.closest(".patch-row");
+    const findInput = row.querySelector(".find-input");
+    if (select.value === "replace") findInput.classList.remove("d-none");
+    else findInput.classList.add("d-none");
+}
 </script>
+
+<template id="tpl-patch-row">
+    <div class="row g-2 mb-2 patch-row align-items-center">
+        <div class="col-4">
+            <input type="text" name="patch_paths" class="form-control form-control-sm font-monospace" placeholder="Path (e.g. conf/local.conf)" required>
+        </div>
+        <div class="col-2">
+            <select name="patch_actions" class="form-select form-select-sm" onchange="toggleFind(this)">
+                <option value="append">Append</option>
+                <option value="replace">Replace</option>
+            </select>
+        </div>
+        <div class="col-5">
+            <input type="text" name="patch_finds" class="form-control form-control-sm mb-1 d-none find-input" placeholder="Find text...">
+            <textarea name="patch_contents" class="form-control form-control-sm font-monospace" rows="1" placeholder="Content..."></textarea>
+        </div>
+        <div class="col-1 text-end">
+            <button type="button" class="btn btn-close" onclick="this.closest('.patch-row').remove()"></button>
+        </div>
+    </div>
+</template>
 {% endblock %}

@@ -520,59 +520,49 @@ async def create_job(
         )
     recipe_id_val = str(form.get("recipe_id") or "").strip()
     note = str(form.get("note") or "").strip()
-    mode_raw = str(form.get("mode") or "full").strip().lower() or "full"
     codebase_id = str(form.get("codebase_id") or "").strip()
-    allowed_fields = {"recipe_id", "note", "mode", "codebase_id"}
+    repo_url = str(form.get("repo_url") or "").strip()
+    branch = str(form.get("branch") or "").strip()
+    build_cmd = str(form.get("build_cmd") or "").strip()
+    def _flag(name: str, default: bool) -> bool:
+        raw = form.get(name)
+        if raw is None:
+            return default
+        raw_str = str(raw).strip().lower()
+        if raw_str in {"", "0", "false", "off", "no"}:
+            return False
+        return True
+
+    do_clone = _flag("do_clone", True)
+    do_edit = _flag("do_edit", False)
+    do_init = _flag("do_init", True)
+    do_build = _flag("do_build", True)
+
+    patch_paths = form.getlist("patch_paths") if hasattr(form, "getlist") else []
+    patch_actions = form.getlist("patch_actions") if hasattr(form, "getlist") else []
+    patch_finds = form.getlist("patch_finds") if hasattr(form, "getlist") else []
+    patch_contents = form.getlist("patch_contents") if hasattr(form, "getlist") else []
+
+    allowed_fields = {
+        "recipe_id",
+        "note",
+        "codebase_id",
+        "do_clone",
+        "do_edit",
+        "do_init",
+        "do_build",
+        "repo_url",
+        "branch",
+        "build_cmd",
+        "patch_paths",
+        "patch_actions",
+        "patch_finds",
+        "patch_contents",
+    }
     extras = [k for k in form.keys() if k not in allowed_fields]
     if extras:
         ignored_fields = sorted(extras)
         debug_ctx["ignored_fields"] = ignored_fields
-    if mode_raw not in {"full", "clone_only", "build_only", "edit_only"}:
-        debug_ctx["last_error"] = debug_ctx.get("last_error") or "mode must be one of full, clone_only, build_only, edit_only"
-        return render_page(
-            request,
-            "new_job.html",
-            current_page="new",
-            status_code=400,
-            error="mode must be one of full, clone_only, build_only, edit_only",
-            recipes=recipes,
-            presets_root=str(PRESETS_ROOT),
-            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
-            codebases=codebases,
-            codebases_count=len(codebases),
-            workspaces_root=str(WORKSPACES_ROOT),
-            last_error=debug_ctx.get("last_error"),
-            debug_context=debug_ctx,
-            user=user,
-            token_ok=None,
-            recipe_id=recipe_id_val,
-            note=note,
-            mode=mode_raw,
-            codebase_id=codebase_id,
-        )
-    if mode_raw in {"build_only", "edit_only"} and not codebase_id:
-        debug_ctx["last_error"] = debug_ctx.get("last_error") or "codebase_id is required for build_only/edit_only"
-        return render_page(
-            request,
-            "new_job.html",
-            current_page="new",
-            status_code=400,
-            error="codebase_id is required for build_only/edit_only",
-            recipes=recipes,
-            presets_root=str(PRESETS_ROOT),
-            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
-            codebases=codebases,
-            codebases_count=len(codebases),
-            workspaces_root=str(WORKSPACES_ROOT),
-            last_error=debug_ctx.get("last_error"),
-            debug_context=debug_ctx,
-            user=user,
-            token_ok=None,
-            recipe_id=recipe_id_val,
-            note=note,
-            mode=mode_raw,
-            codebase_id=codebase_id,
-        )
     if not recipe_id_val:
         debug_ctx["last_error"] = debug_ctx.get("last_error") or "recipe_id is required"
         return render_page(
@@ -593,7 +583,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            mode=mode_raw,
             codebase_id=codebase_id,
         )
 
@@ -618,7 +607,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            mode=mode_raw,
             codebase_id=codebase_id,
         )
 
@@ -643,7 +631,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            mode=mode_raw,
             codebase_id=codebase_id,
         )
 
@@ -667,7 +654,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            mode=mode_raw,
             codebase_id=codebase_id,
         )
 
@@ -695,7 +681,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            mode=mode_raw,
             codebase_id=codebase_id,
         )
 
@@ -706,8 +691,15 @@ async def create_job(
         "created_by": user,
         "created_at": created_at,
         "status": jobs.STATUS_PENDING,
-        "mode": mode_raw,
+        "mode": "full",
         "codebase_id": codebase_id,
+        "run_clone": do_clone,
+        "run_edit": do_edit,
+        "run_init": do_init,
+        "run_build": do_build,
+        "repo_url": repo_url,
+        "branch": branch,
+        "build_cmd": build_cmd,
     }
     spec = {
         "schema_version": 2,
@@ -718,16 +710,41 @@ async def create_job(
         "recipe_id": recipe_id_val,
         "raw_recipe_yaml": recipe_yaml,
         "note": note,
-        "mode": mode_raw,
+        "mode": "full",
         "codebase_id": codebase_id,
+        "run_clone": do_clone,
+        "run_edit": do_edit,
+        "run_init": do_init,
+        "run_build": do_build,
+        "repo_url": repo_url,
+        "branch": branch,
+        "build_cmd": build_cmd,
         "snapshot": snapshot,
     }
+    patches = []
+    if do_edit:
+        for idx, path_val in enumerate(patch_paths):
+            if not path_val:
+                continue
+            action_val = patch_actions[idx] if idx < len(patch_actions) else ""
+            content_val = patch_contents[idx] if idx < len(patch_contents) else ""
+            find_val = patch_finds[idx] if idx < len(patch_finds) else ""
+            patches.append(
+                {
+                    "path": path_val,
+                    "action": action_val,
+                    "content": content_val,
+                    "find": find_val,
+                }
+            )
+    spec["file_patches"] = patches
     try:
         jobs.write_job_spec(job_id, spec)
         try:
             job_dir = jobs.job_dir(job_id)
             job_dir.mkdir(parents=True, exist_ok=True)
             (job_dir / "raw_recipe.yaml").write_text(recipe_yaml if recipe_yaml.endswith("\n") else f"{recipe_yaml}\n", encoding="utf-8")
+            (job_dir / "patches.json").write_text(json.dumps(patches), encoding="utf-8")
         except Exception as exc:
             logger.warning("Failed to persist raw_recipe.yaml for job %s: %s", job_id, exc)
     except Exception as exc:
@@ -755,7 +772,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            mode=mode_raw,
             codebase_id=codebase_id,
         )
     background_tasks.add_task(jobs.start_job_runner, job_id)
