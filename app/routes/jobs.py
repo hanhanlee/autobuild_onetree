@@ -343,32 +343,41 @@ async def prune_job(request: Request, job_id: int):
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
 
 
+
 @router.post("/jobs/{job_id}/delete")
 async def delete_job_action(request: Request, job_id: int):
-    # 1. 權限檢查
-    # redirect = _require_login(request)
-    # if redirect: return redirect
-
-    # 2. 取得路徑 (安全檢查已經在 _safe_job_dir 裡面做完了)
+    # 1. 取得路徑
     job_dir = _safe_job_dir(job_id)
     
-    # 3. 如果 _safe_job_dir 回傳 None，表示安全檢查失敗
     if job_dir is None:
-        print(f"[ERROR] Delete failed: _safe_job_dir returned None for {job_id}", flush=True)
+        # 如果路徑完全非法，才報錯
         return RedirectResponse(url="/?error=invalid_path", status_code=303)
 
-    # 4. 執行刪除
+    # 2. [檔案刪除] 嘗試刪除資料夾 (如果存在)
     try:
         if job_dir.exists():
             shutil.rmtree(job_dir)
-            print(f"[INFO] Successfully deleted job {job_id}", flush=True)
+            print(f"[INFO] Filesystem: Deleted job {job_id}", flush=True)
         else:
-            print(f"[WARN] Job folder {job_dir} does not exist, skipping.", flush=True)
-            
+            print(f"[WARN] Filesystem: Folder {job_id} not found, skipping file deletion.", flush=True)
     except Exception as e:
-        print(f"[ERROR] Failed to delete job {job_id}: {e}", flush=True)
+        # 如果刪檔案失敗 (例如權限)，我們記錄錯誤，但視情況決定是否繼續刪 DB
+        # 這邊選擇：如果刪檔案失敗，就先不刪 DB，避免資料不一致
+        print(f"[ERROR] Failed to delete files for {job_id}: {e}", flush=True)
+        return RedirectResponse(url=f"/?error=delete_failed&msg={e}", status_code=303)
 
-    # 5. 重導回首頁
+    # 3. [資料庫刪除] 關鍵修正！無論資料夾原本在不在，都要刪除 DB 紀錄
+    try:
+        # 假設你的 db 模組有 delete_job 方法
+        # 如果沒有，你需要去 app/db.py 新增這個方法
+        if hasattr(db, 'delete_job'):
+            db.delete_job(job_id)
+            print(f"[INFO] Database: Deleted record {job_id}", flush=True)
+        else:
+            print(f"[ERROR] Database: db.delete_job method missing!", flush=True)
+    except Exception as e:
+        print(f"[ERROR] Failed to delete DB record {job_id}: {e}", flush=True)
+
     return RedirectResponse(url="/", status_code=303)
 
 
