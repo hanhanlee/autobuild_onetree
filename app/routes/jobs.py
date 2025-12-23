@@ -368,6 +368,7 @@ async def jobs_batch_action(request: Request):
     for job_id in job_ids:
         job = db.get_job(job_id)
         if not job:
+            print(f"[ERROR] Batch skip {job_id}: Invalid path or security check failed.")
             continue
         job_dir = _safe_job_dir(job_id)
         if job_dir is None:
@@ -397,7 +398,9 @@ async def jobs_batch_action(request: Request):
             if job_dir.exists():
                 try:
                     shutil.rmtree(job_dir)
+                    print(f"[INFO] Deleted {job_id}")
                 except Exception:
+                    print(f"[ERROR] Failed to delete {job_id}: {e}")
                     continue
 
     return RedirectResponse(url="/jobs?batch=1", status_code=303)
