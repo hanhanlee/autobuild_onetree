@@ -42,9 +42,8 @@
         </div>
 
         <div id="section-clone" class="card p-3 mb-1 bg-light border-primary">
-            <label class="form-label text-primary fw-bold">Git Configuration</label>
-            <input type="text" class="form-control mb-2" name="repo_url" placeholder="Git Repository URL">
-            <input type="text" class="form-control" name="branch" placeholder="Branch (default: main)">
+            <label class="form-label text-primary fw-bold">Clone Commands</label>
+            <textarea class="form-control font-monospace" name="clone_script" rows="4" placeholder="git clone ..." readonly></textarea>
         </div>
 
         <div id="section-edit" class="d-none card p-3 mb-1 border-warning">
@@ -59,16 +58,15 @@
         </div>
 
         <div id="section-init" class="card p-3 mb-1 bg-light border-info">
-            <label class="form-label text-info fw-bold">Initialization Configuration</label>
+            <label class="form-label text-info fw-bold">Initialization Commands</label>
             <div class="input-group">
-                <span class="input-group-text font-monospace text-muted">source</span>
-                <input type="text" class="form-control font-monospace" name="init_script" placeholder="oe-init-build-env" readonly>
+                <textarea class="form-control font-monospace" name="init_script" rows="3" placeholder="source oe-init-build-env" readonly></textarea>
             </div>
         </div>
 
         <div id="section-build" class="card p-3 mb-1 bg-light border-success">
-            <label class="form-label text-success fw-bold">Build Configuration</label>
-            <input type="text" class="form-control font-monospace" name="build_cmd" placeholder="bitbake core-image-minimal" required>
+            <label class="form-label text-success fw-bold">Build Commands</label>
+            <textarea class="form-control font-monospace" name="build_script" rows="2" placeholder="bitbake ..." required readonly></textarea>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:0.35rem;">
@@ -96,11 +94,25 @@ const recipesData = {};
 {% for r in recipes or [] %}
 {
     const rId = String({{ (r.id)|tojson }});
+    {% set clone_val = r.repo_url %}
+    {% if r.clone_block and r.clone_block.lines %}
+        {% set clone_val = r.clone_block.lines | join('\\n') %}
+    {% endif %}
+
+    {% set init_val = r.init_script or 'oe-init-build-env' %}
+    {% if r.init_block and r.init_block.lines %}
+        {% set init_val = r.init_block.lines | join('\\n') %}
+    {% endif %}
+
+    {% set build_val = r.build_cmd %}
+    {% if r.build_block and r.build_block.lines %}
+        {% set build_val = r.build_block.lines | join('\\n') %}
+    {% endif %}
+
     recipesData[rId] = {
-        repo_url: {{ (r.repo_url or '')|tojson }},
-        branch: {{ (r.branch or '')|tojson }},
-        build_cmd: {{ (r.build_cmd or '')|tojson }},
-        init_script: {{ (r.init_script or 'oe-init-build-env')|tojson }}
+        clone_script: {{ (clone_val or '')|tojson }},
+        init_script:  {{ (init_val  or '')|tojson }},
+        build_script: {{ (build_val or '')|tojson }},
     };
 }
 {% endfor %}
@@ -125,15 +137,14 @@ function updateRecipeInfo() {
     console.log("Selected Recipe:", rId, data);
 
     const fields = [
-        { name: "repo_url", key: "repo_url" },
-        { name: "branch", key: "branch" },
-        { name: "init_script", key: "init_script" },
-        { name: "build_cmd", key: "build_cmd" },
+        { name: "clone_script", key: "clone_script" },
+        { name: "init_script",  key: "init_script" },
+        { name: "build_script", key: "build_script" },
     ];
 
     if (data) {
         fields.forEach((f) => {
-            const input = document.querySelector(`input[name="${f.name}"]`);
+            const input = document.querySelector(`textarea[name="${f.name}"]`);
             if (input) {
                 input.value = data[f.key] || "";
                 input.readOnly = true;
@@ -142,7 +153,7 @@ function updateRecipeInfo() {
         });
     } else {
         fields.forEach((f) => {
-            const input = document.querySelector(`input[name="${f.name}"]`);
+            const input = document.querySelector(`textarea[name="${f.name}"]`);
             if (input) {
                 input.value = "";
                 input.readOnly = false;
@@ -198,7 +209,7 @@ document.addEventListener("DOMContentLoaded", function () {
     updateRecipeInfo();
 });
 
-// Helper functions for Edit/Patch section
+// Helper functions (Edit/Patch section)
 function addPatchRow() {
     const tpl = document.getElementById("tpl-patch-row");
     if (tpl) document.getElementById("patch-container").appendChild(tpl.content.cloneNode(true));
