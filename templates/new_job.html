@@ -58,6 +58,14 @@
             <div class="form-text text-muted">Apply automated file patches (append/replace) after cloning.</div>
         </div>
 
+        <div id="section-init" class="card p-3 mb-1 bg-light border-info">
+            <label class="form-label text-info fw-bold">Initialization Configuration</label>
+            <div class="input-group">
+                <span class="input-group-text font-monospace text-muted">source</span>
+                <input type="text" class="form-control font-monospace" name="init_script" placeholder="oe-init-build-env" readonly>
+            </div>
+        </div>
+
         <div id="section-build" class="card p-3 mb-1 bg-light border-success">
             <label class="form-label text-success fw-bold">Build Configuration</label>
             <input type="text" class="form-control font-monospace" name="build_cmd" placeholder="bitbake core-image-minimal" required>
@@ -83,85 +91,72 @@
     </form>
 </div>
 <script>
-// 1. Data Injection
+// 1. Data Injection (Backend -> Frontend)
 const recipesData = {};
 {% for r in recipes or [] %}
-    // Force ID to string to ensure matching with Select Value
-    recipesData["{{ r.id }}"] = {
+{
+    const rId = String({{ (r.id)|tojson }});
+    recipesData[rId] = {
         repo_url: {{ (r.repo_url or '')|tojson }},
         branch: {{ (r.branch or '')|tojson }},
-        build_cmd: {{ (r.build_cmd or '')|tojson }}
+        build_cmd: {{ (r.build_cmd or '')|tojson }},
+        init_script: {{ (r.init_script or 'oe-init-build-env')|tojson }}
     };
+}
 {% endfor %}
+console.log("Recipes Data Loaded:", recipesData);
 
-console.log("Loaded Recipes Data:", recipesData); // Debug Log
-
-// 2. Section Visibility Logic
+// 2. Visibility Logic
 function toggleSection(id, show) {
     const el = document.getElementById(id);
-    if (!el) return;
-    if (show) el.classList.remove("d-none");
-    else el.classList.add("d-none");
+    if (el) {
+        if (show) el.classList.remove("d-none");
+        else el.classList.add("d-none");
+    }
 }
 
-// 3. Dynamic Patch Rows
-function addPatchRow() {
-    const tpl = document.getElementById("tpl-patch-row");
-    if (!tpl) return;
-    const clone = tpl.content.cloneNode(true);
-    document.getElementById("patch-container").appendChild(clone);
-}
-
-function toggleFind(select) {
-    const row = select.closest(".patch-row");
-    const findInput = row.querySelector(".find-input");
-    if (select.value === "replace") findInput.classList.remove("d-none");
-    else findInput.classList.add("d-none");
-}
-
-// 4. Update Inputs from Recipe
+// 3. Data Population Logic
 function updateRecipeInfo() {
     const select = document.getElementById("recipe-select");
     if (!select) return;
-    
-    const rId = String(select.value); // Convert to String
+
+    const rId = String(select.value);
     const data = recipesData[rId];
-    
-    console.log("Selecting Recipe:", rId, data); // Debug Log
+    console.log("Selected Recipe:", rId, data);
 
-    const repoInput = document.querySelector('input[name="repo_url"]');
-    const branchInput = document.querySelector('input[name="branch"]');
-    const cmdInput = document.querySelector('input[name="build_cmd"]');
-
-    if (!repoInput || !branchInput || !cmdInput) return;
+    const fields = [
+        { name: "repo_url", key: "repo_url" },
+        { name: "branch", key: "branch" },
+        { name: "init_script", key: "init_script" },
+        { name: "build_cmd", key: "build_cmd" },
+    ];
 
     if (data) {
-        // Populate and Lock
-        repoInput.value = data.repo_url || "";
-        branchInput.value = data.branch || "";
-        cmdInput.value = data.build_cmd || "";
-        
-        [repoInput, branchInput, cmdInput].forEach(el => {
-            el.readOnly = true;
-            el.classList.add("bg-light", "text-muted");
+        fields.forEach((f) => {
+            const input = document.querySelector(`input[name="${f.name}"]`);
+            if (input) {
+                input.value = data[f.key] || "";
+                input.readOnly = true;
+                input.classList.add("bg-light", "text-muted");
+            }
         });
     } else {
-        // Clear and Unlock
-        [repoInput, branchInput, cmdInput].forEach(el => {
-            el.readOnly = false;
-            el.classList.remove("bg-light", "text-muted");
-            el.value = "";
+        fields.forEach((f) => {
+            const input = document.querySelector(`input[name="${f.name}"]`);
+            if (input) {
+                input.value = "";
+                input.readOnly = false;
+                input.classList.remove("bg-light", "text-muted");
+            }
         });
     }
 }
 
-// 5. Initialization
-document.addEventListener("DOMContentLoaded", function() {
-    // Attach Listeners
+// 4. Initialization
+document.addEventListener("DOMContentLoaded", function () {
     const select = document.getElementById("recipe-select");
     if (select) select.addEventListener("change", updateRecipeInfo);
 
-    // Filter Logic (Search)
     const filterInput = document.getElementById("recipe-filter");
     if (filterInput && select) {
         const fuzzyMatch = (query, text) => {
@@ -183,22 +178,36 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    // Initialize Visibility
-    const map = {
+    const stageMap = {
         "check-clone": "section-clone",
         "check-edit": "section-edit",
+        "check-init": "section-init",
         "check-build": "section-build",
     };
-    ["check-clone", "check-edit", "check-init", "check-build"].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el && map[id]) {
-            toggleSection(map[id], el.checked);
+    Object.keys(stageMap).forEach((chkId) => {
+        const checkbox = document.getElementById(chkId);
+        const sectionId = stageMap[chkId];
+        if (checkbox && sectionId) {
+            checkbox.addEventListener("change", function () {
+                toggleSection(sectionId, this.checked);
+            });
+            toggleSection(sectionId, checkbox.checked);
         }
     });
 
-    // Trigger Update
     updateRecipeInfo();
 });
+
+// Helper functions for Edit/Patch section
+function addPatchRow() {
+    const tpl = document.getElementById("tpl-patch-row");
+    if (tpl) document.getElementById("patch-container").appendChild(tpl.content.cloneNode(true));
+}
+function toggleFind(select) {
+    const row = select.closest(".patch-row");
+    const findInput = row.querySelector(".find-input");
+    if (findInput) findInput.classList.toggle("d-none", select.value !== "replace");
+}
 </script>
 
 <template id="tpl-patch-row">
