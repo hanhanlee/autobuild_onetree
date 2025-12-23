@@ -130,6 +130,7 @@ def update_job_status(job_id: int, status: str, started_at: Optional[str] = None
 
 
 def delete_job(job_id):
-    with get_db() as conn:
+    # 修正：使用 get_connection() 而不是 get_db()
+    with get_connection() as conn:
         conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
         conn.commit()
