@@ -163,16 +163,31 @@ def _load_recipe_yaml(platform: str, project: str) -> Tuple[Optional[str], Optio
         return None, f"Failed to read recipe: {exc}"
 
 
+# 找到原本的 _safe_job_dir 函數，整段換掉
 def _safe_job_dir(job_id: int) -> Optional[Path]:
     try:
-        resolved_root = get_jobs_root().resolve()
-        resolved_target = jobs.job_dir(job_id).resolve()
-        if resolved_root not in resolved_target.parents and resolved_target != resolved_root:
-            print(f"[safe_job_dir] invalid path: root={resolved_root} target={resolved_target}")
+        # 1. 取得設定檔定義的根目錄
+        root = Path(jobs.JOBS_DIR).resolve()
+        
+        # 2. 組合目標路徑
+        target = (Path(jobs.JOBS_DIR) / str(job_id)).resolve()
+        
+        # --- [DEBUG] 強制寫入 Log ---
+        print(f"--- DEBUG PATH CHECK ---", flush=True)
+        print(f"Config Root: {jobs.JOBS_DIR}", flush=True)
+        print(f"Resolved Root: {root}", flush=True)
+        print(f"Target Job: {target}", flush=True)
+        # ---------------------------
+
+        # 3. 檢查：目標路徑是否真的在根目錄底下？
+        # 使用 str() 比對可以避免某些特殊的 Path 物件比對問題
+        if str(root) not in str(target):
+            print(f"[ERROR] Path Mismatch! Root '{root}' not in '{target}'", flush=True)
             return None
-        return resolved_target
-    except Exception as exc:
-        print(f"[safe_job_dir] exception: {exc}")
+            
+        return target
+    except Exception as e:
+        print(f"[ERROR] _safe_job_dir exception: {e}", flush=True)
         return None
 
 
