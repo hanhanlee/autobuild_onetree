@@ -566,17 +566,15 @@ case "${MODE}" in
     apply_file_edits "${BASE_DIR}" "${FILE_EDITS_JSON}"
     run_stage "init" "${INIT_CMDS}"
 
-	# === [NEW] Inject SState Cache Config ===
-    # 檢查共用 Cache 設定是否存在，且目前目錄是否有 conf 資料夾 (代表 init 成功)
+    # === [NEW] Inject SState Cache Config ===
+    # Check if shared cache config exists and conf dir is ready (post-init)
     if [[ -f "/work/site.conf" ]] && [[ -d "conf" ]]; then
       echo "[cache] Injecting /work/site.conf for SState optimization"
-      # 使用軟連結 (symlink) 指向共用設定，省空間且即時同步
       ln -sf /work/site.conf conf/site.conf
     else
       echo "[cache] WARNING: /work/site.conf not found or conf dir missing. Cache disabled."
     fi
     # ========================================
-
     run_stage "modify" "${MODIFY_CMDS}"
     run_stage "build" "${BUILD_CMDS}"
     ;;
