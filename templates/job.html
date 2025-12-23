@@ -1,124 +1,175 @@
 {% extends "_layout.html" %}
 {% block title %}Job {{ job.id }}{% endblock %}
 {% block content %}
-    <h1 style="display:flex;align-items:center;gap:0.5rem;">
-        <span>Job {{ job.id }}</span>
-        <form method="post" action="/jobs/{{ job.id }}/pin">
-            <button type="submit" name="pinned" value="{% if job.pinned %}0{% else %}1{% endif %}" title="Toggle pin" style="border:none;background:none;cursor:pointer;">
-                <span class="bi {% if job.pinned %}bi-pin-fill{% else %}bi-pin-angle{% endif %}" {% if job.pinned %}style="color:#d97706;"{% endif %}></span>
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body d-flex flex-wrap align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-3">
+          <h2 class="mb-0">Job {{ job.id }}</h2>
+          {% set st = (job.status or '')|lower %}
+          {% set badge_class = 'bg-secondary' %}
+          {% if st == 'success' %}{% set badge_class = 'bg-success' %}{% elif st == 'failed' %}{% set badge_class = 'bg-danger' %}{% elif st == 'running' %}{% set badge_class = 'bg-primary progress-bar-striped progress-bar-animated' %}{% elif st == 'pending' %}{% set badge_class = 'bg-warning text-dark' %}{% endif %}
+          <span class="badge {{ badge_class }} text-uppercase px-3 py-2">{{ job.status }}</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <a href="/new" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus-circle"></i> New Job</a>
+          <form method="post" action="/jobs/{{ job.id }}/pin">
+            <button type="submit" name="pinned" value="{% if job.pinned %}0{% else %}1{% endif %}" class="btn btn-outline-warning">
+              <i class="bi {% if job.pinned %}bi-pin-fill{% else %}bi-pin-angle{% endif %}"></i> {% if job.pinned %}Pinned{% else %}Pin{% endif %}
             </button>
-        </form>
-    </h1>
-    <p><a href="/new">New job</a></p>
-    <div id="job" data-job-id="{{ job.id }}">
-        <p>Status: <span id="job-status">{{ job.status }}</span></p>
-        <p>Recipe: <code>{{ job.recipe_id or 'unknown' }}</code></p>
-        <p>Created by: {{ job.created_by or job.owner }}</p>
-        <p>Note: {% if job.note %}{{ job.note }}{% else %}-{% endif %}</p>
-        <p>Created: {{ job.created_at }}{% if job.started_at %}, Started: {{ job.started_at }}{% endif %}{% if job.finished_at %}, Finished: {{ job.finished_at }}{% endif %}</p>
+          </form>
+        </div>
+      </div>
     </div>
+  </div>
+</div>
 
-    <h2>Recipe Snapshot</h2>
-    <div class="card" style="max-width: 820px;">
-        {% if job.raw_recipe_yaml %}
-            <details open>
-                <summary>raw_recipe_yaml</summary>
-                <pre style="white-space:pre-wrap">{{ job.raw_recipe_yaml }}</pre>
-            </details>
-        {% else %}
-            <p>No recipe captured for this job.</p>
-        {% endif %}
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Job Details</h5>
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Owner</dt><dd class="col-sm-8">{{ job.created_by or job.owner }}</dd>
+          <dt class="col-sm-4">Recipe</dt><dd class="col-sm-8"><code>{{ job.recipe_id or 'unknown' }}</code></dd>
+          <dt class="col-sm-4">Note</dt><dd class="col-sm-8">{% if job.note %}{{ job.note }}{% else %}-{% endif %}</dd>
+          <dt class="col-sm-4">Created</dt><dd class="col-sm-8">{{ job.created_at or '-' }}</dd>
+          <dt class="col-sm-4">Started</dt><dd class="col-sm-8">{{ job.started_at or '-' }}</dd>
+          <dt class="col-sm-4">Finished</dt><dd class="col-sm-8">{{ job.finished_at or '-' }}</dd>
+          <dt class="col-sm-4">Exit Code</dt><dd class="col-sm-8">{% if job.exit_code is not none %}{{ job.exit_code }}{% else %}-{% endif %}</dd>
+        </dl>
+      </div>
     </div>
-
-    <h2 style="display:flex;justify-content:space-between;align-items:center;">
-        <span>Logs</span>
-        <a href="/jobs/{{ job.id }}/log/download" class="button">Download Full Log</a>
-    </h2>
-    <div id="terminal-console" style="background:#0b0b0b;color:#e5e5e5;padding:1rem;border-radius:8px;border:1px solid #222;max-height:80vh;overflow-y:scroll;white-space:pre-wrap;font-family:Consolas, 'Courier New', monospace;">
-        <div id="log-loading">Loading...</div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Artifacts</h5>
+        <ul class="list-group list-group-flush">
+          {% for item in artifacts.values() %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <a href="/api/jobs/{{ job.id }}/artifacts/{{ item.name }}">{{ item.name }}</a>
+            <span class="text-muted small">{{ item.size }} bytes</span>
+          </li>
+          {% else %}
+          <li class="list-group-item text-muted">No artifacts yet.</li>
+          {% endfor %}
+        </ul>
+      </div>
     </div>
+  </div>
+</div>
 
-    <h2>Artifacts</h2>
-    <ul id="artifact-list">
-        {% for item in artifacts.values() %}
-            <li><a href="/api/jobs/{{ job.id }}/artifacts/{{ item.name }}">{{ item.name }}</a> ({{ item.size }} bytes)</li>
-        {% else %}
-            <li>No artifacts yet.</li>
-        {% endfor %}
-    </ul>
+<div class="card shadow-sm mt-3">
+  <div class="card-body">
+    <details open>
+      <summary class="fw-semibold mb-2">Recipe Snapshot</summary>
+      <pre class="bg-light border rounded p-3" style="white-space: pre-wrap;">{{ job.raw_recipe_yaml }}</pre>
+    </details>
+  </div>
+</div>
+
+<div class="card shadow-sm mt-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h5 class="mb-0">Logs</h5>
+      <div class="d-flex gap-2">
+        <button id="copy-log" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-clipboard"></i> Copy</button>
+        <a href="/jobs/{{ job.id }}/log/download" class="btn btn-outline-primary btn-sm"><i class="bi bi-download"></i> Download</a>
+      </div>
+    </div>
+    <div id="terminal-console" class="border rounded" style="background:#0d1117;color:#c9d1d9;padding:1rem;max-height:70vh;overflow-y:auto;white-space:pre-wrap;font-family:SFMono-Regular,Consolas,'Liberation Mono',Menlo,monospace;">
+      <div id="log-loading">Loading...</div>
+    </div>
+  </div>
+</div>
 
 <script>
-    (function() {
-        const jobId = {{ job.id }};
-        const jobStatus = "{{ job.status or '' }}".toLowerCase();
-        const consoleEl = document.getElementById("terminal-console");
-        const loadingEl = document.getElementById("log-loading");
-        let currentOffset = 0;
-        let stopped = false;
+  (function() {
+      const jobId = {{ job.id }};
+      const jobStatus = "{{ job.status or '' }}".toLowerCase();
+      const consoleEl = document.getElementById("terminal-console");
+      const loadingEl = document.getElementById("log-loading");
+      let currentOffset = 0;
+      let stopped = false;
 
-        // Simple ANSI-to-HTML handling (basic colors and reset)
-        function parseAnsi(text) {
-            return text
-                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // HTML Escape
-                .replace(/\x1b\[0m/g, '</span>')                                    // Reset
-                .replace(/\x1b\[31m/g, '<span style="color:#ff5555">')              // Red
-                .replace(/\x1b\[32m/g, '<span style="color:#50fa7b">')              // Green
-                .replace(/\x1b\[33m/g, '<span style="color:#f1fa8c">')              // Yellow
-                .replace(/\x1b\[34m/g, '<span style="color:#bd93f9">')              // Blue
-                .replace(/\x1b\[36m/g, '<span style="color:#8be9fd">')              // Cyan
-                .replace(/\x1b\[1m/g, '<span style="font-weight:bold">')            // Bold
-                .replace(/\x1b\[\d+;?\d*m/g, '');                                   // Ignore other complex codes
-        }
+      // Simple ANSI-to-HTML handling (basic colors and reset)
+      function parseAnsi(text) {
+          return text
+              .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // HTML Escape
+              .replace(/\x1b\[0m/g, '</span>')                                    // Reset
+              .replace(/\x1b\[31m/g, '<span style="color:#ff7b72">')              // Red
+              .replace(/\x1b\[32m/g, '<span style="color:#3fb950">')              // Green
+              .replace(/\x1b\[33m/g, '<span style="color:#e3b341">')              // Yellow
+              .replace(/\x1b\[34m/g, '<span style="color:#58a6ff">')              // Blue
+              .replace(/\x1b\[36m/g, '<span style="color:#56d4dd">')              // Cyan
+              .replace(/\x1b\[1m/g, '<span style="font-weight:bold">')            // Bold
+              .replace(/\x1b\[\d+;?\d*m/g, '');                                   // Ignore other complex codes
+      }
 
-        function appendLog(text) {
-            if (loadingEl) loadingEl.remove();
-            
-            // Detect whether we are at the bottom (auto-scroll check)
-            const atBottom = consoleEl.scrollTop + consoleEl.clientHeight >= consoleEl.scrollHeight - 50;
-            
-            // 1. Parse ANSI and insert via innerHTML
-            const htmlContent = parseAnsi(text);
-            consoleEl.insertAdjacentHTML('beforeend', htmlContent);
+      function appendLog(text) {
+          if (loadingEl) loadingEl.remove();
+          
+          // Detect whether we are at the bottom (auto-scroll check)
+          const atBottom = consoleEl.scrollTop + consoleEl.clientHeight >= consoleEl.scrollHeight - 50;
+          
+          // 1. Parse ANSI and insert via innerHTML
+          const htmlContent = parseAnsi(text);
+          consoleEl.insertAdjacentHTML('beforeend', htmlContent);
 
-            // 2. Buffer limiting: if content grows too large, drop from the start to save memory
-            if (consoleEl.childNodes.length > 5000) { // Simple heuristic by node count
-                 while (consoleEl.childNodes.length > 2000) {
-                    consoleEl.removeChild(consoleEl.firstChild);
-                 }
-            }
+          // 2. Buffer limiting: if content grows too large, drop from the start to save memory
+          if (consoleEl.childNodes.length > 5000) { // Simple heuristic by node count
+               while (consoleEl.childNodes.length > 2000) {
+                  consoleEl.removeChild(consoleEl.firstChild);
+               }
+          }
 
-            // 3. Auto-scroll
-            if (atBottom) {
-                consoleEl.scrollTop = consoleEl.scrollHeight;
-            }
-        }
+          // 3. Auto-scroll
+          if (atBottom) {
+              consoleEl.scrollTop = consoleEl.scrollHeight;
+          }
+      }
 
-        async function fetchLogChunk() {
-            if (stopped) return;
-            try {
-                const resp = await fetch(`/jobs/${jobId}/log/stream?offset=${currentOffset}`);
-                if (!resp.ok) throw new Error("fetch failed");
-                const data = await resp.json();
-                
-                if (data.content) {
-                    appendLog(data.content);
-                }
-                
-                currentOffset = data.next_offset || currentOffset;
-                const eof = !!data.eof;
-                const running = jobStatus === "running";
-                
-                // If the job is still running, keep polling even if temporarily at EOF; slow down once finished
-                const delay = (eof && !running) ? 10000 : 2000;
-                
-                setTimeout(fetchLogChunk, delay);
-            } catch (err) {
-                console.warn("Log stream error:", err);
-                setTimeout(fetchLogChunk, 5000);
-            }
-        }
+      async function fetchLogChunk() {
+          if (stopped) return;
+          try {
+              const resp = await fetch(`/jobs/${jobId}/log/stream?offset=${currentOffset}`);
+              if (!resp.ok) throw new Error("fetch failed");
+              const data = await resp.json();
+              
+              if (data.content) {
+                  appendLog(data.content);
+              }
+              
+              currentOffset = data.next_offset || currentOffset;
+              const eof = !!data.eof;
+              const running = jobStatus === "running";
+              
+              // If the job is still running, keep polling even if temporarily at EOF; slow down once finished
+              const delay = (eof && !running) ? 10000 : 2000;
+              
+              setTimeout(fetchLogChunk, delay);
+          } catch (err) {
+              console.warn("Log stream error:", err);
+              setTimeout(fetchLogChunk, 5000);
+          }
+      }
 
-        fetchLogChunk();
-    })();
-    </script>
+      fetchLogChunk();
+
+      const copyBtn = document.getElementById("copy-log");
+      if (copyBtn) {
+        copyBtn.addEventListener("click", () => {
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(consoleEl);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          try { document.execCommand("copy"); } catch (e) { console.warn("Copy failed", e); }
+          selection.removeAllRanges();
+        });
+      }
+  })();
+</script>
 {% endblock %}
