@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -6,7 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, BackgroundTasks, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 
 from .. import db, jobs
 from ..auth import username_auth
@@ -199,6 +200,27 @@ async def jobs_page(request: Request):
     user = _current_user(request)
     recent = db.list_recent_jobs(limit=50)
     return render_page(request, "jobs.html", current_page="jobs", jobs=recent, status_code=200, user=user, token_ok=None)
+
+
+@router.get("/jobs/{job_id}")
+async def job_detail(request: Request, job_id: int):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    job = db.get_job(job_id)
+    if not job:
+        return render_page(
+            request,
+            "error.html",
+            current_page="jobs",
+            status_code=404,
+            title="Job not found",
+            message="Job not found",
+            user=_current_user(request),
+            token_ok=None,
+        )
+    artifact_list = jobs.list_artifacts(job_id)
+    return render_page(request, "job.html", current_page="jobs", job=job, artifacts=artifact_list)
 
 
 @router.post("/new")
@@ -541,3 +563,94 @@ async def job_log_download(request: Request, job_id: int):
             token_ok=None,
         )
     return FileResponse(path, media_type="text/plain", filename=f"job_{job_id}_log.txt")
+
+
+@router.get("/api/jobs/{job_id}/artifacts")
+async def api_artifacts(request: Request, job_id: int):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    if not db.get_job(job_id):
+        return JSONResponse({"detail": "Job not found"}, status_code=404)
+    return list(jobs.list_artifacts(job_id).values())
+
+
+@router.get("/api/jobs/{job_id}/artifacts/{name}")
+async def api_artifact_download(request: Request, job_id: int, name: str):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    job = db.get_job(job_id)
+    if not job:
+        return render_page(
+            request,
+            "error.html",
+            current_page="jobs",
+            status_code=404,
+            title="Job not found",
+            message="Job not found",
+            user=_current_user(request),
+            token_ok=None,
+        )
+    if Path(name).name != name:
+        return render_page(
+            request,
+            "error.html",
+            current_page="jobs",
+            status_code=400,
+            title="Invalid name",
+            message="Invalid artifact name",
+            user=_current_user(request),
+            token_ok=None,
+        )
+    path = jobs.job_dir(job_id) / "artifacts" / name
+    if not path.exists() or not path.is_file():
+        return render_page(
+            request,
+            "error.html",
+            current_page="jobs",
+            status_code=404,
+            title="Artifact not found",
+            message="Artifact not found",
+            user=_current_user(request),
+            token_ok=None,
+        )
+    return FileResponse(path, headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@router.get("/api/jobs/{job_id}/log/stream")
+async def stream_log(request: Request, job_id: int):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    if not db.get_job(job_id):
+        return JSONResponse({"detail": "Job not found"}, status_code=404)
+
+    async def event_stream():
+        path = jobs.log_file(job_id)
+        last_pos = 0
+        while True:
+            if await request.is_disconnected():
+                break
+            if path.exists():
+                with path.open("r", encoding="utf-8", errors="ignore") as f:
+                    f.seek(last_pos)
+                    data = f.read()
+                    if data:
+                        last_pos = f.tell()
+                        for line in data.splitlines():
+                            yield f"data: {line}\n\n"
+            await asyncio.sleep(1)
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.get("/jobs/{job_id}/refresh")
+async def refresh_job(request: Request, job_id: int):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    job = db.get_job(job_id)
+    if not job:
+        return JSONResponse({"detail": "Job not found"}, status_code=404)
+    return JSONResponse(job)
