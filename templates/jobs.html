@@ -16,24 +16,24 @@
     </div>
   </div>
   <div class="col-md-4">
-    {% set total = jobs|length %}
-    {% set success_count = 0 %}
+    {% set running_count = 0 %}
+    {% set pending_count = 0 %}
     {% for j in jobs %}
-      {% if (j.status or '')|lower == 'success' %}
-        {% set success_count = success_count + 1 %}
-      {% endif %}
+      {% if (j.status or '')|lower == 'running' %}{% set running_count = running_count + 1 %}{% endif %}
+      {% if (j.status or '')|lower == 'pending' %}{% set pending_count = pending_count + 1 %}{% endif %}
     {% endfor %}
-    {% set success_rate = (success_count / total * 100) if total > 0 else 0 %}
+    {% set active_total = running_count + pending_count %}
     <div class="card shadow-sm">
       <div class="card-body d-flex align-items-center justify-content-between">
         <div>
-          <div class="text-muted small">Success Rate</div>
-          <div class="h4 mb-0">{{ '%.0f' % success_rate }}%</div>
-          <div class="progress mt-2" style="height:6px;">
-            <div class="progress-bar bg-success" role="progressbar" style="width: {{ success_rate }}%;"></div>
+          <div class="text-muted small text-uppercase fw-bold">Active Jobs</div>
+          <div class="h4 mb-0 text-primary">{{ active_total }}</div>
+          <div class="small text-muted">
+            <span class="text-primary">{{ running_count }} running</span>,
+            <span class="text-warning">{{ pending_count }} pending</span>
           </div>
         </div>
-        <i class="bi bi-graph-up-arrow fs-3 text-success"></i>
+        <i class="bi bi-activity fs-3 text-primary"></i>
       </div>
     </div>
   </div>
