@@ -378,7 +378,7 @@ async def delete_job_action(request: Request, job_id: int):
     except Exception as e:
         print(f"[ERROR] Failed to delete DB record {job_id}: {e}", flush=True)
 
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/jobs", status_code=303)
 
 
 @router.post("/jobs/batch")
@@ -441,7 +441,7 @@ async def jobs_batch_action(request: Request):
                     print(f"[ERROR] Failed to delete {job_id}: {e}")
                     continue
 
-    return RedirectResponse(url="/jobs?batch=1", status_code=303)
+    return RedirectResponse(url="/jobs?msg=Batch action completed", status_code=303)
 
 
 @router.post("/new")
