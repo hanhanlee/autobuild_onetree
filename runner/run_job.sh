@@ -83,7 +83,7 @@ data["status"] = status
 data["exit_code"] = parse_exit(exit_code)
 data["finished_at"] = finished_at
 data["disk_usage"] = disk_usage
-data["is_pruned"] = bool(data.get("is_pruned", False))
+data["is_pruned"] = False
 snap = data.get("snapshot")
 if isinstance(snap, dict):
     snap.update(
@@ -92,7 +92,7 @@ if isinstance(snap, dict):
             "exit_code": data["exit_code"],
             "finished_at": finished_at,
             "disk_usage": disk_usage,
-            "is_pruned": data["is_pruned"],
+            "is_pruned": False,
         }
     )
     data["snapshot"] = snap
@@ -125,7 +125,7 @@ exec > >(tee -a "${LOG_FILE}") 2>&1
 
 echo "Starting job ${JOB_ID} at $(timestamp)"
 
-write_status "RUNNING" "null" ""
+write_status "running" "null" ""
 
 SPEC_PATH="${JOB_DIR}/job_spec.json"
 if [[ ! -f "${SPEC_PATH}" ]]; then

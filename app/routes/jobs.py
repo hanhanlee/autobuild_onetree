@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -11,6 +12,8 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Stre
 
 from .. import db, jobs
 from ..auth import username_auth
+from ..config import get_jobs_root
+from ..system import get_disk_usage
 from ..web import render_page
 
 router = APIRouter()
@@ -160,6 +163,34 @@ def _load_recipe_yaml(platform: str, project: str) -> Tuple[Optional[str], Optio
         return None, f"Failed to read recipe: {exc}"
 
 
+def _load_job_state(job_id: int) -> Dict[str, object]:
+    try:
+        data = jobs.load_job_spec(job_id) or {}
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _update_job_json(job_id: int, mutate_fn) -> bool:
+    job_path = jobs.job_dir(job_id) / "job.json"
+    try:
+        existing = {}
+        if job_path.exists():
+            existing = json.loads(job_path.read_text(encoding="utf-8")) or {}
+            if not isinstance(existing, dict):
+                existing = {}
+        data = existing
+        mutate_fn(data)
+        job_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = job_path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+        tmp.replace(job_path)
+        return True
+    except Exception as exc:
+        logger.warning("Failed to update job.json for %s: %s", job_id, exc)
+        return False
+
+
 @router.get("/new")
 async def new_job_page(request: Request):
     redirect = _require_login(request)
@@ -199,7 +230,32 @@ async def jobs_page(request: Request):
         return redirect
     user = _current_user(request)
     recent = db.list_recent_jobs(limit=50)
-    return render_page(request, "jobs.html", current_page="jobs", jobs=recent, status_code=200, user=user, token_ok=None)
+    disk_usage = None
+    try:
+        disk_usage = get_disk_usage(str(get_jobs_root()))
+    except Exception as exc:
+        logger.warning("Failed to read disk usage: %s", exc)
+    job_states: Dict[int, Dict[str, object]] = {}
+    for job in recent:
+        jid = job.get("id")
+        if jid is None:
+            continue
+        state = _load_job_state(int(jid))
+        job_states[int(jid)] = {
+            "disk_usage": state.get("disk_usage"),
+            "is_pruned": state.get("is_pruned"),
+        }
+    return render_page(
+        request,
+        "jobs.html",
+        current_page="jobs",
+        jobs=recent,
+        disk_usage=disk_usage,
+        job_states=job_states,
+        status_code=200,
+        user=user,
+        token_ok=None,
+    )
 
 
 @router.get("/jobs/{job_id}")
@@ -221,6 +277,44 @@ async def job_detail(request: Request, job_id: int):
         )
     artifact_list = jobs.list_artifacts(job_id)
     return render_page(request, "job.html", current_page="jobs", job=job, artifacts=artifact_list)
+
+
+@router.post("/jobs/{job_id}/prune")
+async def prune_job(request: Request, job_id: int):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    job = db.get_job(job_id)
+    if not job:
+        return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+    status_val = (job.get("status") or "").lower()
+    if status_val not in {"success", "failed"}:
+        return RedirectResponse(url=f"/jobs/{job_id}?error=not_finished", status_code=303)
+    base_dir = jobs.job_dir(job_id)
+    try:
+        base_resolved = base_dir.resolve()
+        workspace_dir = (base_dir / "workspace").resolve()
+        if base_resolved not in workspace_dir.parents and workspace_dir != base_resolved:
+            return RedirectResponse(url=f"/jobs/{job_id}?error=invalid_path", status_code=303)
+    except Exception:
+        return RedirectResponse(url=f"/jobs/{job_id}?error=invalid_path", status_code=303)
+    if workspace_dir.exists():
+        try:
+            shutil.rmtree(workspace_dir)
+        except Exception as exc:
+            logger.warning("Failed to prune workspace for job %s: %s", job_id, exc)
+            return RedirectResponse(url=f"/jobs/{job_id}?error=prune_failed", status_code=303)
+    def _mutate(data: Dict[str, object]) -> None:
+        data["disk_usage"] = "Pruned"
+        data["is_pruned"] = True
+        snap = data.get("snapshot")
+        if isinstance(snap, dict):
+            snap["disk_usage"] = "Pruned"
+            snap["is_pruned"] = True
+            data["snapshot"] = snap
+
+    _update_job_json(job_id, _mutate)
+    return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
 
 
 @router.post("/new")

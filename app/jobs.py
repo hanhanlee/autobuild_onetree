@@ -16,10 +16,10 @@ from .db import get_connection, update_job_status
 logger = logging.getLogger(__name__)
 
 
-STATUS_PENDING = "PENDING"
-STATUS_RUNNING = "RUNNING"
-STATUS_SUCCESS = "SUCCESS"
-STATUS_FAILED = "FAILED"
+STATUS_PENDING = "pending"
+STATUS_RUNNING = "running"
+STATUS_SUCCESS = "success"
+STATUS_FAILED = "failed"
 
 
 def now_iso() -> str:
