@@ -38,6 +38,71 @@ timestamp() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"
 }
 
+calc_disk_usage() {
+  if command -v du >/dev/null 2>&1; then
+    du -sh "${JOB_DIR}" 2>/dev/null | awk '{print $1}'
+  fi
+}
+
+update_job_json() {
+  local status="$1"
+  local exit_code="$2"
+  local finished_at="$3"
+  local job_json="${JOB_DIR}/job.json"
+  if [[ ! -f "${job_json}" ]]; then
+    echo "[job.json] skipping update (missing ${job_json})"
+    return 0
+  fi
+  local disk_usage="Unavailable"
+  local du_val
+  du_val="$(calc_disk_usage || true)"
+  if [[ -n "${du_val}" ]]; then
+    disk_usage="${du_val}"
+  fi
+  python3 - "${job_json}" "${status}" "${exit_code}" "${finished_at}" "${disk_usage}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+job_json, status, exit_code, finished_at, disk_usage = sys.argv[1:]
+path = Path(job_json)
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        data = {}
+except Exception:
+    data = {}
+
+def parse_exit(val: str):
+    try:
+        return int(val)
+    except Exception:
+        return None
+
+data["status"] = status
+data["exit_code"] = parse_exit(exit_code)
+data["finished_at"] = finished_at
+data["disk_usage"] = disk_usage
+data["is_pruned"] = bool(data.get("is_pruned", False))
+snap = data.get("snapshot")
+if isinstance(snap, dict):
+    snap.update(
+        {
+            "status": data["status"],
+            "exit_code": data["exit_code"],
+            "finished_at": finished_at,
+            "disk_usage": disk_usage,
+            "is_pruned": data["is_pruned"],
+        }
+    )
+    data["snapshot"] = snap
+tmp = path.with_suffix(".json.tmp")
+tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+tmp.replace(path)
+PY
+  echo "[job.json] updated with status=${status} exit_code=${exit_code} disk_usage=${disk_usage}"
+}
+
 cleanup() {
   local code=$?
   if [[ ${LOCK_ACQUIRED:-0} -eq 1 ]]; then
@@ -47,11 +112,12 @@ cleanup() {
   echo "${code}" > "${EXIT_CODE_FILE}"
   local finished_at
   finished_at=$(timestamp)
+  local status_val="failed"
   if [[ ${code} -eq 0 ]]; then
-    write_status "SUCCESS" "${code}" "${finished_at}"
-  else
-    write_status "FAILED" "${code}" "${finished_at}"
+    status_val="success"
   fi
+  write_status "${status_val}" "${code}" "${finished_at}"
+  update_job_json "${status_val}" "${code}" "${finished_at}" || true
 }
 trap cleanup EXIT
 
