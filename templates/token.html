@@ -12,9 +12,9 @@
     </p>
     <p>Token store path: /opt/autobuild/workspace/secrets/gitlab/</p>
     {% if not token_ok %}
-    <p class="error">Token 不可用：請檢查 token store 的 owner/group/mode，並確認啟動前已完成 normalize_token_perms() 與權限 fail-fast 檢查。</p>
+    <p class="error">Token unavailable: check token store owner/group/mode and ensure normalize_token_perms() and permission fail-fast checks ran before startup.</p>
     {% else %}
-    <p class="status">Token 狀態正常。</p>
+    <p class="status">Token status is healthy.</p>
     {% endif %}
 </div>
 {% endblock %}

@@ -49,7 +49,7 @@
         let currentOffset = 0;
         let stopped = false;
 
-        // 簡單的 ANSI 轉 HTML 處理 (處理基本顏色與 Reset)
+        // Simple ANSI-to-HTML handling (basic colors and reset)
         function parseAnsi(text) {
             return text
                 .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // HTML Escape
@@ -60,27 +60,27 @@
                 .replace(/\x1b\[34m/g, '<span style="color:#bd93f9">')              // Blue
                 .replace(/\x1b\[36m/g, '<span style="color:#8be9fd">')              // Cyan
                 .replace(/\x1b\[1m/g, '<span style="font-weight:bold">')            // Bold
-                .replace(/\x1b\[\d+;?\d*m/g, '');                                   // 忽略其他複雜代碼
+                .replace(/\x1b\[\d+;?\d*m/g, '');                                   // Ignore other complex codes
         }
 
         function appendLog(text) {
             if (loadingEl) loadingEl.remove();
             
-            // 判斷是否在底部 (自動捲動判定)
+            // Detect whether we are at the bottom (auto-scroll check)
             const atBottom = consoleEl.scrollTop + consoleEl.clientHeight >= consoleEl.scrollHeight - 50;
             
-            // 1. 解析 ANSI 並使用 innerHTML 插入
+            // 1. Parse ANSI and insert via innerHTML
             const htmlContent = parseAnsi(text);
             consoleEl.insertAdjacentHTML('beforeend', htmlContent);
 
-            // 2. 緩衝區清理 (Buffer Limiting): 如果內容過長，移除開頭部分以節省記憶體
-            if (consoleEl.childNodes.length > 5000) { // 簡單以節點數或長度判斷
+            // 2. Buffer limiting: if content grows too large, drop from the start to save memory
+            if (consoleEl.childNodes.length > 5000) { // Simple heuristic by node count
                  while (consoleEl.childNodes.length > 2000) {
                     consoleEl.removeChild(consoleEl.firstChild);
                  }
             }
 
-            // 3. 自動捲動
+            // 3. Auto-scroll
             if (atBottom) {
                 consoleEl.scrollTop = consoleEl.scrollHeight;
             }
@@ -101,7 +101,7 @@
                 const eof = !!data.eof;
                 const running = jobStatus === "running";
                 
-                // 如果 Job 還在跑，就算暫時 EOF 也要繼續 polling (但如果已結束且 EOF，就減緩頻率或停止)
+                // If the job is still running, keep polling even if temporarily at EOF; slow down once finished
                 const delay = (eof && !running) ? 10000 : 2000;
                 
                 setTimeout(fetchLogChunk, delay);

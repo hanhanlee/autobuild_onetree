@@ -165,24 +165,24 @@ def _load_recipe_yaml(platform: str, project: str) -> Tuple[Optional[str], Optio
 
 def _safe_job_dir(job_id: int) -> Optional[Path]:
     try:
-        # --- FIX: 直接定義路徑，不依賴 app.jobs 模組屬性 ---
-        # 根據系統規範，這是標準路徑
+        # Define the jobs root explicitly instead of relying on app.jobs attributes
+        # According to system layout this is the canonical path
         jobs_root_path = Path("/srv/autobuild/jobs") 
         
-        # 1. 解析根目錄
+        # 1. Resolve root directory
         root = jobs_root_path.resolve()
         
-        # 2. 組合目標路徑
+        # 2. Build target path
         target = (jobs_root_path / str(job_id)).resolve()
         
-        # --- [DEBUG] 強制寫入 Log (保留著以便觀察) ---
+        # Debug logging for path checks
         print(f"--- DEBUG PATH CHECK ---", flush=True)
         print(f"Config Root: {jobs_root_path}", flush=True)
         print(f"Resolved Root: {root}", flush=True)
         print(f"Target Job: {target}", flush=True)
         # ---------------------------
 
-        # 3. 檢查：目標路徑是否真的在根目錄底下？
+        # 3. Verify target truly lives under root
         if str(root) not in str(target):
             print(f"[ERROR] Path Mismatch! Root '{root}' not in '{target}'", flush=True)
             return None
@@ -346,14 +346,14 @@ async def prune_job(request: Request, job_id: int):
 
 @router.post("/jobs/{job_id}/delete")
 async def delete_job_action(request: Request, job_id: int):
-    # 1. 取得路徑
+    # 1. Resolve path
     job_dir = _safe_job_dir(job_id)
     
     if job_dir is None:
-        # 如果路徑完全非法，才報錯
+        # If the path is invalid, abort
         return RedirectResponse(url="/?error=invalid_path", status_code=303)
 
-    # 2. [檔案刪除] 嘗試刪除資料夾 (如果存在)
+    # 2. Delete folder if it exists
     try:
         if job_dir.exists():
             shutil.rmtree(job_dir)
@@ -361,15 +361,12 @@ async def delete_job_action(request: Request, job_id: int):
         else:
             print(f"[WARN] Filesystem: Folder {job_id} not found, skipping file deletion.", flush=True)
     except Exception as e:
-        # 如果刪檔案失敗 (例如權限)，我們記錄錯誤，但視情況決定是否繼續刪 DB
-        # 這邊選擇：如果刪檔案失敗，就先不刪 DB，避免資料不一致
+        # If filesystem delete fails (e.g., permissions), log and stop before deleting DB to avoid inconsistency
         print(f"[ERROR] Failed to delete files for {job_id}: {e}", flush=True)
         return RedirectResponse(url=f"/?error=delete_failed&msg={e}", status_code=303)
 
-    # 3. [資料庫刪除] 關鍵修正！無論資料夾原本在不在，都要刪除 DB 紀錄
+    # 3. Delete DB record regardless of folder existence
     try:
-        # 假設你的 db 模組有 delete_job 方法
-        # 如果沒有，你需要去 app/db.py 新增這個方法
         if hasattr(db, 'delete_job'):
             db.delete_job(job_id)
             print(f"[INFO] Database: Deleted record {job_id}", flush=True)
