@@ -1,6 +1,7 @@
 import re
+import yaml  # noqa: F401 - used for parsing recipe files
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .config import get_presets_root
 
@@ -31,11 +32,12 @@ def _iter_recipe_files(presets_root: Path):
             yield path
 
 
-def list_recipes(presets_root: Optional[Path] = None) -> List[Dict[str, str]]:
+def list_recipes(presets_root: Optional[Path] = None) -> List[Dict[str, Any]]:
     presets_root = presets_root or get_presets_root()
-    recipes: List[Dict[str, str]] = []
+    recipes: List[Dict[str, Any]] = []
     if not presets_root.exists():
         return recipes
+
     for path in _iter_recipe_files(presets_root):
         rel = path.relative_to(presets_root)
         if len(rel.parts) != 2:
@@ -43,8 +45,26 @@ def list_recipes(presets_root: Optional[Path] = None) -> List[Dict[str, str]]:
         platform = rel.parts[0]
         project = path.stem
         recipe_id = f"{platform}/{project}"
-        display = _guess_display_name(path) or recipe_id
-        recipes.append({"id": recipe_id, "display_name": display})
+
+        recipe_data: Dict[str, Any] = {
+            "id": recipe_id,
+            "display_name": recipe_id,
+        }
+
+        try:
+            content = path.read_text(encoding="utf-8")
+            data = yaml.safe_load(content)
+            if isinstance(data, dict):
+                recipe_data.update(data)
+        except Exception:
+            pass
+
+        if "display_name" not in recipe_data or not recipe_data["display_name"]:
+            fallback = _guess_display_name(path)
+            recipe_data["display_name"] = fallback or recipe_id
+
+        recipes.append(recipe_data)
+
     recipes.sort(key=lambda x: x["id"])
     return recipes
 
