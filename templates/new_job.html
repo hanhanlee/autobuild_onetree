@@ -31,7 +31,7 @@
                 <label class="btn btn-outline-primary" for="check-clone">1. Clone</label>
 
                 <input type="checkbox" class="btn-check" id="check-edit" name="do_edit" autocomplete="off" onchange="toggleSection('section-edit', this.checked)">
-                <label class="btn btn-outline-warning" for="check-edit">2. Edit</label>
+                <label class="btn btn-outline-warning" for="check-edit">2. Edit/Patch</label>
 
                 <input type="checkbox" class="btn-check" id="check-init" name="do_init" autocomplete="off" checked>
                 <label class="btn btn-outline-info" for="check-init">3. Init</label>
@@ -55,7 +55,7 @@
                 </button>
             </div>
             <div id="patch-container"></div>
-            <div class="form-text text-muted">Files will be modified after clone/checkout but before initialization.</div>
+            <div class="form-text text-muted">Apply automated file patches (append/replace) after cloning.</div>
         </div>
 
         <div id="section-build" class="card p-3 mb-1 bg-light border-success">
@@ -137,6 +137,45 @@ function toggleFind(select) {
     if (select.value === "replace") findInput.classList.remove("d-none");
     else findInput.classList.add("d-none");
 }
+
+// Recipe data injection for locked fields
+const recipesData = {};
+{% for r in recipes or [] %}
+recipesData[{{ (r.id)|tojson }}] = {
+    repo_url: {{ (r.repo_url or '')|tojson }},
+    branch: {{ (r.branch or '')|tojson }},
+    build_cmd: {{ (r.build_cmd or '')|tojson }}
+};
+{% endfor %}
+
+function updateRecipeInfo() {
+    const select = document.getElementById("recipe-select");
+    if (!select) return;
+    const rId = select.value;
+    const data = recipesData[rId];
+    const repoInput = document.querySelector('input[name="repo_url"]');
+    const branchInput = document.querySelector('input[name="branch"]');
+    const cmdInput = document.querySelector('input[name="build_cmd"]');
+    if (!repoInput || !branchInput || !cmdInput) return;
+    if (data) {
+        repoInput.value = data.repo_url || "";
+        branchInput.value = data.branch || "";
+        cmdInput.value = data.build_cmd || "";
+        repoInput.readOnly = true;
+        branchInput.readOnly = true;
+        cmdInput.readOnly = true;
+        repoInput.classList.add("bg-light", "text-muted");
+        branchInput.classList.add("bg-light", "text-muted");
+        cmdInput.classList.add("bg-light", "text-muted");
+    } else {
+        repoInput.value = "";
+        branchInput.value = "";
+        cmdInput.value = "";
+    }
+}
+
+document.getElementById("recipe-select")?.addEventListener("change", updateRecipeInfo);
+updateRecipeInfo();
 </script>
 
 <template id="tpl-patch-row">

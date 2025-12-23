@@ -524,6 +524,23 @@ async def create_job(
     repo_url = str(form.get("repo_url") or "").strip()
     branch = str(form.get("branch") or "").strip()
     build_cmd = str(form.get("build_cmd") or "").strip()
+
+    def _attr(obj, key: str):
+        if obj is None:
+            return None
+        if hasattr(obj, key):
+            try:
+                return getattr(obj, key)
+            except Exception:
+                pass
+        if isinstance(obj, dict):
+            return obj.get(key)
+        return None
+
+    selected_recipe = next(
+        (r for r in recipes if (_attr(r, "id") == recipe_id_val)),
+        None,
+    )
     def _flag(name: str, default: bool) -> bool:
         raw = form.get(name)
         if raw is None:
@@ -542,6 +559,14 @@ async def create_job(
     patch_actions = form.getlist("patch_actions") if hasattr(form, "getlist") else []
     patch_finds = form.getlist("patch_finds") if hasattr(form, "getlist") else []
     patch_contents = form.getlist("patch_contents") if hasattr(form, "getlist") else []
+
+    if selected_recipe:
+        recipe_repo = _attr(selected_recipe, "repo_url")
+        recipe_branch = _attr(selected_recipe, "branch")
+        recipe_build = _attr(selected_recipe, "build_cmd")
+        repo_url = str(recipe_repo or "").strip()
+        branch = str(recipe_branch or "").strip()
+        build_cmd = str(recipe_build or "").strip()
 
     allowed_fields = {
         "recipe_id",
