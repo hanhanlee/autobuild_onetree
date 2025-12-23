@@ -41,7 +41,7 @@
             </div>
         </div>
 
-        <div id="section-clone" class="d-none card p-3 mb-1 bg-light border-primary">
+        <div id="section-clone" class="card p-3 mb-1 bg-light border-primary">
             <label class="form-label text-primary fw-bold">Git Configuration</label>
             <input type="text" class="form-control mb-2" name="repo_url" placeholder="Git Repository URL">
             <input type="text" class="form-control" name="branch" placeholder="Branch (default: main)">
@@ -82,41 +82,21 @@
         <button type="submit">Submit</button>
     </form>
 </div>
-<script type="application/json" id="recipe-data">{{ recipes or [] | tojson }}</script>
 <script>
-(() => {
-    const filterInput = document.getElementById("recipe-filter");
-    const select = document.getElementById("recipe-select");
-    if (!filterInput || !select) return;
-    const fuzzyMatch = (query, text) => {
-        const q = (query || "").toLowerCase().replace(/\s+/g, "");
-        const t = (text || "").toLowerCase().replace(/\s+/g, "");
-        if (!q) return true;
-        return t.includes(q);
+// 1. Data Injection
+const recipesData = {};
+{% for r in recipes or [] %}
+    // Force ID to string to ensure matching with Select Value
+    recipesData["{{ r.id }}"] = {
+        repo_url: {{ (r.repo_url or '')|tojson }},
+        branch: {{ (r.branch or '')|tojson }},
+        build_cmd: {{ (r.build_cmd or '')|tojson }}
     };
-    const renderOptions = (query) => {
-        const q = (query || "").trim();
-        const current = select.value;
-        let hasCurrent = false;
-        Array.from(select.options).forEach((opt) => {
-            if (!opt.value) {
-                return;
-            }
-            const match = fuzzyMatch(q, opt.textContent || "");
-            opt.hidden = !match;
-            opt.disabled = !match;
-            if (match && opt.value === current) {
-                hasCurrent = true;
-            }
-        });
-        if (current && !hasCurrent) {
-            select.value = "";
-        }
-    };
-    filterInput.addEventListener("input", () => renderOptions(filterInput.value));
-    renderOptions(filterInput.value);
-})();
+{% endfor %}
 
+console.log("Loaded Recipes Data:", recipesData); // Debug Log
+
+// 2. Section Visibility Logic
 function toggleSection(id, show) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -124,6 +104,7 @@ function toggleSection(id, show) {
     else el.classList.add("d-none");
 }
 
+// 3. Dynamic Patch Rows
 function addPatchRow() {
     const tpl = document.getElementById("tpl-patch-row");
     if (!tpl) return;
@@ -138,49 +119,71 @@ function toggleFind(select) {
     else findInput.classList.add("d-none");
 }
 
-// Recipe data injection for locked fields
-const recipesData = {};
-{% for r in recipes or [] %}
-{
-    const key = String({{ (r.id)|tojson }});
-    recipesData[key] = {
-        repo_url: {{ (r.repo_url or '')|tojson }},
-        branch: {{ (r.branch or '')|tojson }},
-        build_cmd: {{ (r.build_cmd or '')|tojson }}
-    };
-}
-{% endfor %}
-
+// 4. Update Inputs from Recipe
 function updateRecipeInfo() {
     const select = document.getElementById("recipe-select");
     if (!select) return;
-    const rId = select.value;
+    
+    const rId = String(select.value); // Convert to String
     const data = recipesData[rId];
+    
+    console.log("Selecting Recipe:", rId, data); // Debug Log
+
     const repoInput = document.querySelector('input[name="repo_url"]');
     const branchInput = document.querySelector('input[name="branch"]');
     const cmdInput = document.querySelector('input[name="build_cmd"]');
+
     if (!repoInput || !branchInput || !cmdInput) return;
+
     if (data) {
+        // Populate and Lock
         repoInput.value = data.repo_url || "";
         branchInput.value = data.branch || "";
         cmdInput.value = data.build_cmd || "";
-        repoInput.readOnly = true;
-        branchInput.readOnly = true;
-        cmdInput.readOnly = true;
-        repoInput.classList.add("bg-light", "text-muted");
-        branchInput.classList.add("bg-light", "text-muted");
-        cmdInput.classList.add("bg-light", "text-muted");
+        
+        [repoInput, branchInput, cmdInput].forEach(el => {
+            el.readOnly = true;
+            el.classList.add("bg-light", "text-muted");
+        });
     } else {
-        repoInput.value = "";
-        branchInput.value = "";
-        cmdInput.value = "";
+        // Clear and Unlock
+        [repoInput, branchInput, cmdInput].forEach(el => {
+            el.readOnly = false;
+            el.classList.remove("bg-light", "text-muted");
+            el.value = "";
+        });
     }
 }
 
-document.getElementById("recipe-select")?.addEventListener("change", updateRecipeInfo);
-updateRecipeInfo();
-
+// 5. Initialization
 document.addEventListener("DOMContentLoaded", function() {
+    // Attach Listeners
+    const select = document.getElementById("recipe-select");
+    if (select) select.addEventListener("change", updateRecipeInfo);
+
+    // Filter Logic (Search)
+    const filterInput = document.getElementById("recipe-filter");
+    if (filterInput && select) {
+        const fuzzyMatch = (query, text) => {
+            const q = (query || "").toLowerCase().replace(/\s+/g, "");
+            const t = (text || "").toLowerCase().replace(/\s+/g, "");
+            return !q || t.includes(q);
+        };
+        filterInput.addEventListener("input", () => {
+            const q = filterInput.value.trim();
+            Array.from(select.options).forEach((opt) => {
+                if (!opt.value) return;
+                const match = fuzzyMatch(q, opt.textContent);
+                opt.hidden = !match;
+                opt.disabled = !match;
+            });
+            if (select.selectedOptions.length && select.selectedOptions[0].hidden) {
+                select.value = "";
+            }
+        });
+    }
+
+    // Initialize Visibility
     const map = {
         "check-clone": "section-clone",
         "check-edit": "section-edit",
@@ -188,10 +191,12 @@ document.addEventListener("DOMContentLoaded", function() {
     };
     ["check-clone", "check-edit", "check-init", "check-build"].forEach((id) => {
         const el = document.getElementById(id);
-        if (el && el.checked && map[id]) {
-            toggleSection(map[id], true);
+        if (el && map[id]) {
+            toggleSection(map[id], el.checked);
         }
     });
+
+    // Trigger Update
     updateRecipeInfo();
 });
 </script>
