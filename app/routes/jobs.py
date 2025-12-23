@@ -165,12 +165,14 @@ def _load_recipe_yaml(platform: str, project: str) -> Tuple[Optional[str], Optio
 
 def _safe_job_dir(job_id: int) -> Optional[Path]:
     try:
-        root = get_jobs_root().resolve()
-        target = jobs.job_dir(job_id).resolve()
-        if target.parent != root:
+        resolved_root = get_jobs_root().resolve()
+        resolved_target = jobs.job_dir(job_id).resolve()
+        if resolved_root not in resolved_target.parents and resolved_target != resolved_root:
+            print(f"[safe_job_dir] invalid path: root={resolved_root} target={resolved_target}")
             return None
-        return target
-    except Exception:
+        return resolved_target
+    except Exception as exc:
+        print(f"[safe_job_dir] exception: {exc}")
         return None
 
 
@@ -340,6 +342,7 @@ async def delete_job(request: Request, job_id: int):
     except Exception as exc:
         logger.warning("Failed to delete job dir %s: %s", job_dir, exc)
         return RedirectResponse(url=f"/jobs/{job_id}?error=delete_failed", status_code=303)
+    logger.info("Deleted job directory for job_id=%s path=%s", job_id, job_dir)
     return RedirectResponse(url="/jobs?deleted=1", status_code=303)
 
 
