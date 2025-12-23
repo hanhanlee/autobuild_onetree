@@ -163,6 +163,17 @@ def _load_recipe_yaml(platform: str, project: str) -> Tuple[Optional[str], Optio
         return None, f"Failed to read recipe: {exc}"
 
 
+def _safe_job_dir(job_id: int) -> Optional[Path]:
+    try:
+        root = get_jobs_root().resolve()
+        target = jobs.job_dir(job_id).resolve()
+        if target.parent != root:
+            return None
+        return target
+    except Exception:
+        return None
+
+
 def _load_job_state(job_id: int) -> Dict[str, object]:
     try:
         data = jobs.load_job_spec(job_id) or {}
@@ -290,14 +301,10 @@ async def prune_job(request: Request, job_id: int):
     status_val = (job.get("status") or "").lower()
     if status_val not in {"success", "failed"}:
         return RedirectResponse(url=f"/jobs/{job_id}?error=not_finished", status_code=303)
-    base_dir = jobs.job_dir(job_id)
-    try:
-        base_resolved = base_dir.resolve()
-        workspace_dir = (base_dir / "workspace").resolve()
-        if base_resolved not in workspace_dir.parents and workspace_dir != base_resolved:
-            return RedirectResponse(url=f"/jobs/{job_id}?error=invalid_path", status_code=303)
-    except Exception:
+    base_dir = _safe_job_dir(job_id)
+    if base_dir is None:
         return RedirectResponse(url=f"/jobs/{job_id}?error=invalid_path", status_code=303)
+    workspace_dir = (base_dir / "workspace").resolve()
     if workspace_dir.exists():
         try:
             shutil.rmtree(workspace_dir)
@@ -315,6 +322,85 @@ async def prune_job(request: Request, job_id: int):
 
     _update_job_json(job_id, _mutate)
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
+
+
+@router.post("/jobs/{job_id}/delete")
+async def delete_job(request: Request, job_id: int):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    job = db.get_job(job_id)
+    if not job:
+        return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+    job_dir = _safe_job_dir(job_id)
+    if job_dir is None or not job_dir.exists():
+        return RedirectResponse(url="/jobs?error=invalid_path", status_code=303)
+    try:
+        shutil.rmtree(job_dir)
+    except Exception as exc:
+        logger.warning("Failed to delete job dir %s: %s", job_dir, exc)
+        return RedirectResponse(url=f"/jobs/{job_id}?error=delete_failed", status_code=303)
+    return RedirectResponse(url="/jobs?deleted=1", status_code=303)
+
+
+@router.post("/jobs/batch")
+async def jobs_batch_action(request: Request):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    try:
+        form = await request.form()
+    except Exception:
+        return RedirectResponse(url="/jobs?error=invalid_form", status_code=303)
+    action = (str(form.get("action") or "")).lower()
+    if action not in {"prune", "delete"}:
+        return RedirectResponse(url="/jobs?error=invalid_action", status_code=303)
+    raw_ids = form.getlist("job_ids")
+    job_ids: List[int] = []
+    for raw in raw_ids:
+        try:
+            job_ids.append(int(raw))
+        except Exception:
+            continue
+    if not job_ids:
+        return RedirectResponse(url="/jobs?error=no_selection", status_code=303)
+
+    for job_id in job_ids:
+        job = db.get_job(job_id)
+        if not job:
+            continue
+        job_dir = _safe_job_dir(job_id)
+        if job_dir is None:
+            continue
+        if action == "prune":
+            status_val = (job.get("status") or "").lower()
+            if status_val not in {"success", "failed"}:
+                continue
+            workspace_dir = job_dir / "workspace"
+            if workspace_dir.exists():
+                try:
+                    shutil.rmtree(workspace_dir)
+                except Exception:
+                    continue
+
+            def _mutate(data: Dict[str, object]) -> None:
+                data["disk_usage"] = "Pruned"
+                data["is_pruned"] = True
+                snap = data.get("snapshot")
+                if isinstance(snap, dict):
+                    snap["disk_usage"] = "Pruned"
+                    snap["is_pruned"] = True
+                    data["snapshot"] = snap
+
+            _update_job_json(job_id, _mutate)
+        else:
+            if job_dir.exists():
+                try:
+                    shutil.rmtree(job_dir)
+                except Exception:
+                    continue
+
+    return RedirectResponse(url="/jobs?batch=1", status_code=303)
 
 
 @router.post("/new")
