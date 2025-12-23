@@ -1,7 +1,14 @@
 {% extends "_layout.html" %}
 {% block title %}Job {{ job.id }}{% endblock %}
 {% block content %}
-    <h1>Job {{ job.id }}</h1>
+    <h1 style="display:flex;align-items:center;gap:0.5rem;">
+        <span>Job {{ job.id }}</span>
+        <form method="post" action="/jobs/{{ job.id }}/pin">
+            <button type="submit" name="pinned" value="{% if job.pinned %}0{% else %}1{% endif %}" title="Toggle pin" style="border:none;background:none;cursor:pointer;">
+                <span class="bi {% if job.pinned %}bi-pin-fill{% else %}bi-pin-angle{% endif %}" {% if job.pinned %}style="color:#d97706;"{% endif %}></span>
+            </button>
+        </form>
+    </h1>
     <p><a href="/new">New job</a></p>
     <div id="job" data-job-id="{{ job.id }}">
         <p>Status: <span id="job-status">{{ job.status }}</span></p>

@@ -30,6 +30,7 @@ def _migrate_jobs_table(conn: sqlite3.Connection) -> None:
     _add_column(conn, "jobs", "raw_recipe_yaml", "TEXT DEFAULT ''")
     _add_column(conn, "jobs", "note", "TEXT DEFAULT ''")
     _add_column(conn, "jobs", "created_by", "TEXT DEFAULT ''")
+    _add_column(conn, "jobs", "pinned", "INTEGER DEFAULT 0")
     conn.commit()
     # Backfill created_by from owner when possible for legacy rows.
     if _has_column(conn, "jobs", "created_by") and _has_column(conn, "jobs", "owner"):
@@ -65,7 +66,8 @@ def ensure_db() -> None:
                 recipe_id TEXT DEFAULT '',
                 raw_recipe_yaml TEXT DEFAULT '',
                 note TEXT DEFAULT '',
-                created_by TEXT DEFAULT ''
+                created_by TEXT DEFAULT '',
+                pinned INTEGER DEFAULT 0
             )
             """
         )
@@ -102,7 +104,7 @@ def list_recent_jobs(limit: int = 50) -> List[Dict[str, Any]]:
     with get_connection() as conn:
         cur = conn.execute(
             """
-            SELECT id, owner, created_by, recipe_id, note, status, created_at, exit_code
+            SELECT id, owner, created_by, recipe_id, note, status, created_at, exit_code, pinned
               FROM jobs
              ORDER BY COALESCE(created_at, '') DESC, id DESC
              LIMIT ?
@@ -111,6 +113,12 @@ def list_recent_jobs(limit: int = 50) -> List[Dict[str, Any]]:
         )
         rows = cur.fetchall()
         return [row_to_dict(row) for row in rows]
+
+
+def set_job_pin(job_id: int, pinned: bool) -> None:
+    with get_connection() as conn:
+        conn.execute("UPDATE jobs SET pinned = ? WHERE id = ?", (1 if pinned else 0, job_id))
+        conn.commit()
 
 
 def update_job_status(job_id: int, status: str, started_at: Optional[str] = None, finished_at: Optional[str] = None, exit_code: Optional[int] = None) -> None:

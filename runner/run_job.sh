@@ -40,7 +40,9 @@ timestamp() {
 
 calc_disk_usage() {
   if command -v du >/dev/null 2>&1; then
-    du -sh "${JOB_DIR}" 2>/dev/null | awk '{print $1}'
+    echo "Calculating disk usage..."
+    du -sh "${BASE_DIR}" | awk '{print $1}' > "${BASE_DIR}/disk_usage.txt"
+    echo "Disk usage recorded: $(cat "${BASE_DIR}/disk_usage.txt")"
   fi
 }
 

@@ -6,6 +6,7 @@ import re
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from urllib.parse import quote_plus
 
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
@@ -165,31 +166,19 @@ def _load_recipe_yaml(platform: str, project: str) -> Tuple[Optional[str], Optio
 
 def _safe_job_dir(job_id: int) -> Optional[Path]:
     try:
-        # Define the jobs root explicitly instead of relying on app.jobs attributes
-        # According to system layout this is the canonical path
-        jobs_root_path = Path("/srv/autobuild/jobs") 
-        
-        # 1. Resolve root directory
+        jobs_root_path = Path("/srv/autobuild/jobs")
         root = jobs_root_path.resolve()
-        
-        # 2. Build target path
         target = (jobs_root_path / str(job_id)).resolve()
-        
-        # Debug logging for path checks
         print(f"--- DEBUG PATH CHECK ---", flush=True)
         print(f"Config Root: {jobs_root_path}", flush=True)
         print(f"Resolved Root: {root}", flush=True)
         print(f"Target Job: {target}", flush=True)
-        # ---------------------------
-
-        # 3. Verify target truly lives under root
         if str(root) not in str(target):
             print(f"[ERROR] Path Mismatch! Root '{root}' not in '{target}'", flush=True)
             return None
-            
         return target
-    except Exception as e:
-        print(f"[ERROR] _safe_job_dir exception: {e}", flush=True)
+    except Exception as exc:
+        print(f"[safe_job_dir] exception: {exc}", flush=True)
         return None
 
 
@@ -309,6 +298,28 @@ async def job_detail(request: Request, job_id: int):
     return render_page(request, "job.html", current_page="jobs", job=job, artifacts=artifact_list)
 
 
+@router.post("/jobs/{job_id}/pin")
+async def pin_job(request: Request, job_id: int):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    job = db.get_job(job_id)
+    if not job:
+        return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+    try:
+        form = await request.form()
+    except Exception:
+        form = {}
+    pinned_raw = form.get("pinned") if hasattr(form, "get") else None
+    if pinned_raw is None or str(pinned_raw).strip() == "":
+        desired = not bool(job.get("pinned"))
+    else:
+        desired = str(pinned_raw).strip().lower() in {"1", "true", "yes", "on", "pin", "pinned"}
+    db.set_job_pin(job_id, desired)
+    referer = request.headers.get("referer") or "/jobs"
+    return RedirectResponse(url=referer, status_code=303)
+
+
 @router.post("/jobs/{job_id}/prune")
 async def prune_job(request: Request, job_id: int):
     redirect = _require_login(request)
@@ -317,6 +328,8 @@ async def prune_job(request: Request, job_id: int):
     job = db.get_job(job_id)
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+    if job.get("pinned"):
+        return RedirectResponse(url=f"/jobs/{job_id}?error=job_is_pinned", status_code=303)
     status_val = (job.get("status") or "").lower()
     if status_val not in {"success", "failed"}:
         return RedirectResponse(url=f"/jobs/{job_id}?error=not_finished", status_code=303)
@@ -345,35 +358,30 @@ async def prune_job(request: Request, job_id: int):
 
 
 @router.post("/jobs/{job_id}/delete")
-async def delete_job_action(request: Request, job_id: int):
-    # 1. Resolve path
+async def delete_job(request: Request, job_id: int):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    job = db.get_job(job_id)
+    if not job:
+        return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+    if job.get("pinned"):
+        return RedirectResponse(url=f"/jobs/{job_id}?error=job_is_pinned", status_code=303)
+
     job_dir = _safe_job_dir(job_id)
-    
-    if job_dir is None:
-        # If the path is invalid, abort
-        return RedirectResponse(url="/?error=invalid_path", status_code=303)
-
-    # 2. Delete folder if it exists
-    try:
-        if job_dir.exists():
+    if job_dir and job_dir.exists():
+        try:
             shutil.rmtree(job_dir)
-            print(f"[INFO] Filesystem: Deleted job {job_id}", flush=True)
-        else:
-            print(f"[WARN] Filesystem: Folder {job_id} not found, skipping file deletion.", flush=True)
-    except Exception as e:
-        # If filesystem delete fails (e.g., permissions), log and stop before deleting DB to avoid inconsistency
-        print(f"[ERROR] Failed to delete files for {job_id}: {e}", flush=True)
-        return RedirectResponse(url=f"/?error=delete_failed&msg={e}", status_code=303)
+        except Exception as exc:
+            logger.warning("Failed to delete job dir %s: %s", job_dir, exc)
+            return RedirectResponse(url=f"/jobs/{job_id}?error=delete_failed", status_code=303)
 
-    # 3. Delete DB record regardless of folder existence
     try:
-        if hasattr(db, 'delete_job'):
+        if hasattr(db, "delete_job"):
             db.delete_job(job_id)
-            print(f"[INFO] Database: Deleted record {job_id}", flush=True)
-        else:
-            print(f"[ERROR] Database: db.delete_job method missing!", flush=True)
-    except Exception as e:
-        print(f"[ERROR] Failed to delete DB record {job_id}: {e}", flush=True)
+    except Exception as exc:
+        logger.warning("Failed to delete DB record for job %s: %s", job_id, exc)
+        return RedirectResponse(url=f"/jobs/{job_id}?error=delete_failed", status_code=303)
 
     return RedirectResponse(url="/jobs", status_code=303)
 
@@ -400,24 +408,28 @@ async def jobs_batch_action(request: Request):
     if not job_ids:
         return RedirectResponse(url="/jobs?error=no_selection", status_code=303)
 
+    processed = 0
+    skipped_pinned = 0
+
     for job_id in job_ids:
         job = db.get_job(job_id)
         if not job:
-            print(f"[ERROR] Batch skip {job_id}: Invalid path or security check failed.")
+            continue
+        if job.get("pinned"):
+            skipped_pinned += 1
             continue
         job_dir = _safe_job_dir(job_id)
-        if job_dir is None:
-            continue
         if action == "prune":
             status_val = (job.get("status") or "").lower()
             if status_val not in {"success", "failed"}:
                 continue
-            workspace_dir = job_dir / "workspace"
-            if workspace_dir.exists():
-                try:
-                    shutil.rmtree(workspace_dir)
-                except Exception:
-                    continue
+            if job_dir:
+                workspace_dir = job_dir / "workspace"
+                if workspace_dir.exists():
+                    try:
+                        shutil.rmtree(workspace_dir)
+                    except Exception:
+                        continue
 
             def _mutate(data: Dict[str, object]) -> None:
                 data["disk_usage"] = "Pruned"
@@ -429,16 +441,24 @@ async def jobs_batch_action(request: Request):
                     data["snapshot"] = snap
 
             _update_job_json(job_id, _mutate)
+            processed += 1
         else:
-            if job_dir.exists():
+            if job_dir and job_dir.exists():
                 try:
                     shutil.rmtree(job_dir)
-                    print(f"[INFO] Deleted {job_id}")
                 except Exception:
-                    print(f"[ERROR] Failed to delete {job_id}: {e}")
                     continue
+            try:
+                if hasattr(db, "delete_job"):
+                    db.delete_job(job_id)
+            except Exception:
+                continue
+            processed += 1
 
-    return RedirectResponse(url="/jobs?msg=Batch action completed", status_code=303)
+    msg = f"{action.title()}d {processed} jobs"
+    if skipped_pinned:
+        msg += f" ({skipped_pinned} pinned jobs skipped)"
+    return RedirectResponse(url=f"/jobs?success={quote_plus(msg)}", status_code=303)
 
 
 @router.post("/new")

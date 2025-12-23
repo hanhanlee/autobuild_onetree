@@ -45,9 +45,17 @@
             {% set state = states.get(j.id, {}) %}
             {% set is_pruned = state.is_pruned %}
             {% set st = (j.status or '')|lower %}
-            <tr>
-                <td><input type="checkbox" name="job_ids" value="{{ j.id }}"></td>
-                <td><a href="/jobs/{{ j.id }}">{{ j.id }}</a></td>
+            {% set is_pinned = j.pinned %}
+            <tr {% if is_pinned %}style="background:#fff9e6;border-left:4px solid #f4c842;"{% endif %}>
+                <td><input type="checkbox" name="job_ids" value="{{ j.id }}" {% if is_pinned %}disabled{% endif %}></td>
+                <td>
+                    <a href="/jobs/{{ j.id }}">{{ j.id }}</a>
+                    <form method="post" action="/jobs/{{ j.id }}/pin" style="display:inline;">
+                        <button type="submit" name="pinned" value="{% if is_pinned %}0{% else %}1{% endif %}" title="Toggle pin" style="border:none;background:none;cursor:pointer;">
+                            <span class="bi {% if is_pinned %}bi-pin-fill{% else %}bi-pin-angle{% endif %}" {% if is_pinned %}style="color:#d97706;"{% endif %}></span>
+                        </button>
+                    </form>
+                </td>
                 <td>{{ j.recipe_id or '-' }}</td>
                 <td>{{ j.status }}</td>
                 <td>{{ j.created_by or j.owner }}</td>
@@ -58,10 +66,10 @@
                 </td>
                 <td>{% if j.exit_code is not none %}{{ j.exit_code }}{% else %}-{% endif %}</td>
                 <td>
-                    {% if st in ['success', 'failed'] and not is_pruned %}
+                    {% if st in ['success', 'failed'] and not is_pruned and not is_pinned %}
                         <button type="submit" formaction="/jobs/{{ j.id }}/prune" formmethod="post">Prune</button>
                     {% else %}-{% endif %}
-                    <button type="submit" formaction="/jobs/{{ j.id }}/delete" formmethod="post" style="margin-left:0.25rem;">Delete</button>
+                    <button type="submit" formaction="/jobs/{{ j.id }}/delete" formmethod="post" style="margin-left:0.25rem;" {% if is_pinned %}disabled{% endif %}>Delete</button>
                 </td>
             </tr>
             {% else %}
