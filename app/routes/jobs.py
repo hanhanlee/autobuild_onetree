@@ -13,6 +13,8 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Stre
 
 from .. import db, jobs
 from ..auth import username_auth
+from ..crud_settings import get_system_settings
+from ..database import SessionLocal
 from ..config import get_jobs_root
 from ..recipes_catalog import list_recipes as catalog_list_recipes
 from ..system import get_disk_usage
@@ -677,6 +679,38 @@ async def create_job(
             note=note,
             codebase_id=codebase_id,
         )
+
+    try:
+        with SessionLocal() as session:
+            settings = get_system_settings(session)
+        usage = shutil.disk_usage(get_jobs_root())
+        free_gb = usage.free / (1024 ** 3)
+        required_gb = settings.disk_min_free_gb if settings else 0
+        if settings and free_gb < required_gb:
+            msg = f"Server disk is too full (Free: {free_gb:.1f} GB, Required: {required_gb} GB). Please prune old jobs."
+            debug_ctx["last_error"] = debug_ctx.get("last_error") or msg
+            return render_page(
+                request,
+                "new_job.html",
+                current_page="new",
+                status_code=400,
+                error=msg,
+                recipes=recipes,
+                presets_root=str(PRESETS_ROOT),
+                recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+                codebases=codebases,
+                codebases_count=len(codebases),
+                workspaces_root=str(WORKSPACES_ROOT),
+                last_error=debug_ctx.get("last_error"),
+                debug_context=debug_ctx,
+                user=user,
+                token_ok=None,
+                recipe_id=recipe_id_val,
+                note=note,
+                codebase_id=codebase_id,
+            )
+    except Exception as exc:
+        logger.warning("Disk safety check failed; proceeding without guard: %s", exc)
 
     created_at = jobs.now_iso()
     try:
