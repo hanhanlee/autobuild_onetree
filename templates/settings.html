@@ -1,19 +1,52 @@
 {% extends "_layout.html" %}
-{% block title %}GitLab Token{% endblock %}
+{% block title %}Settings{% endblock %}
 {% block content %}
-    <h1>GitLab Token</h1>
-    {% if saved %}<p class="status">Token saved.</p>{% endif %}
-    {% if error %}<p class="error">{{ error }}</p>{% endif %}
-    {% if git_credentials_configured is not none %}
-        {% if git_credentials_configured %}
-            <p class="status">Git credential store configured.</p>
-        {% else %}
-            <p class="error">Git credential store is not configured. {{ git_credentials_error }}</p>
-        {% endif %}
-    {% endif %}
-    <form method="post" action="/settings">
-        <label>Personal Access Token <input type="text" name="token" required></label>
-        <button type="submit">Save</button>
-    </form>
-    <p><a href="/new">Back to new job</a></p>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h1 class="mb-1">Global Settings</h1>
+        <p class="text-muted mb-0">Tune retention, tokens, and disk safeguards for every workspace.</p>
+    </div>
+</div>
+
+<div id="settings-response" class="mb-3"></div>
+
+<form class="row g-3" hx-post="/settings/update" hx-target="#settings-response">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Retention</h5>
+                <p class="card-text text-muted">Control how long logs and artifacts stay available.</p>
+                <div class="mb-3">
+                    <label class="form-label" for="prune_days">Prune Days</label>
+                    <input type="number" min="0" class="form-control" id="prune_days" name="prune_days" value="{{ settings.prune_days_age }}">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="delete_days">Delete Days</label>
+                    <input type="number" min="0" class="form-control" id="delete_days" name="delete_days" value="{{ settings.delete_days_age }}">
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">GitLab & Storage</h5>
+                <p class="card-text text-muted">Centralize the token and guardrails for job execution.</p>
+                <div class="mb-3">
+                    <label class="form-label" for="gitlab_token">GitLab Token</label>
+                    <input type="text" class="form-control" id="gitlab_token" name="gitlab_token" value="{{ settings.gitlab_token or '' }}" placeholder="Personal access token">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="disk_min">Disk Threshold (GB)</label>
+                    <input type="number" min="0" class="form-control" id="disk_min" name="disk_min" value="{{ settings.disk_min_free_gb }}">
+                    <div class="form-text">Minimum free disk space to keep before new jobs are scheduled.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 d-flex justify-content-between align-items-center mt-2">
+        <small class="text-muted">Changes apply instantly and are stored centrally.</small>
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+    </div>
+</form>
 {% endblock %}

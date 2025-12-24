@@ -122,52 +122,6 @@ async def login_token_post(request: Request, token: str = Form(...), username: s
     return _prg("/new")
 
 
-@router.get("/settings")
-async def settings_page(
-    request: Request,
-    saved: Optional[str] = None,
-    error: Optional[str] = None,
-    git_error: Optional[str] = None,
-    git_ok: Optional[str] = None,
-):
-    if not _current_user(request):
-        return _prg("/login")
-    saved_flag = _bool_param(saved or request.query_params.get("saved")) or False
-    git_configured = _bool_param(git_ok or request.query_params.get("git_ok"))
-    git_error_msg = git_error or request.query_params.get("git_error")
-    error_msg = error or request.query_params.get("error")
-    return render_page(
-        request,
-        "settings.html",
-        current_page="settings",
-        saved=saved_flag,
-        error=error_msg,
-        git_credentials_configured=git_configured,
-        git_credentials_error=git_error_msg,
-        status_code=200 if not error_msg else 400,
-    )
-
-
-@router.post("/settings")
-async def settings_post(request: Request, token: str = Form(...)):
-    if not _current_user(request):
-        return _prg("/login")
-    username = _current_user(request)
-    err = auth.save_gitlab_token(username, token)
-    if err:
-        return _prg(f"/settings?saved=0&git_ok=0&git_error={_encode(err)}&error={_encode(err)}")
-    git_credentials_ok, git_error = auth.try_setup_user_git_credentials(username, token, git_host=get_git_host())
-    params = [
-        "saved=1",
-        f"git_ok={'1' if git_credentials_ok else '0'}",
-    ]
-    if git_error:
-        encoded_err = _encode(git_error)
-        params.append(f"git_error={encoded_err}")
-        params.append(f"error={encoded_err}")
-    return _prg(f"/settings?{'&'.join(params)}")
-
-
 @router.on_event("startup")
 async def ensure_paths():
     get_jobs_root().mkdir(parents=True, exist_ok=True)
