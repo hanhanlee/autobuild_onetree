@@ -8,9 +8,12 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
+from urllib.parse import urlparse
 
 from .auth import normalize_token_perms
 from .config import get_jobs_root
+from .crud_settings import get_system_settings
+from .database import SessionLocal
 from .db import get_connection, update_job_status
 
 logger = logging.getLogger(__name__)
@@ -24,6 +27,33 @@ STATUS_FAILED = "failed"
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def setup_job_git_env(job_dir: Path, settings) -> Dict[str, str]:
+    """Write per-job git credentials/config and return env overrides."""
+    if not settings or not getattr(settings, "gitlab_token", None):
+        return {}
+    host = getattr(settings, "gitlab_host", "") or ""
+    parsed = urlparse(host)
+    if parsed.scheme and parsed.netloc:
+        host = parsed.netloc
+    host = host.strip().rstrip("/")
+    if not host:
+        host = "gitlab.com"
+
+    creds_path = job_dir / ".git-credentials"
+    creds_path.parent.mkdir(parents=True, exist_ok=True)
+    creds_path.write_text(f"https://oauth2:{settings.gitlab_token}@{host}\n", encoding="utf-8")
+
+    config_path = job_dir / ".config" / "git" / "config"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_body = (
+        "[credential]\n"
+        f"    helper = store --file={creds_path}\n"
+        "    useHttpPath = true\n"
+    )
+    config_path.write_text(config_body, encoding="utf-8")
+    return {"XDG_CONFIG_HOME": str(job_dir / ".config")}
 
 
 def create_job(created_by: str, recipe_id: str, raw_recipe_yaml: str, note: str, created_at: Optional[str] = None) -> int:
@@ -179,6 +209,12 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
         env["SKIP_INIT"] = "1"
     if not run_build:
         env["SKIP_BUILD"] = "1"
+    try:
+        with SessionLocal() as session:
+            settings = get_system_settings(session)
+        env.update(setup_job_git_env(job_root, settings))
+    except Exception:
+        logger.warning("Failed to inject per-job git credentials", exc_info=True)
     logger.info("Starting runner for job %s (owner=%s) log=%s cmd=%s", job_id, owner, log_path, cmd)
     try:
         log_fp = log_path.open("ab", buffering=0)
