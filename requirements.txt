@@ -6,3 +6,4 @@ sse-starlette
 python-pam
 PyYAML
 SQLAlchemy
+itsdangerous
