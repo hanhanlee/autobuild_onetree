@@ -243,7 +243,7 @@ async def jobs_page(request: Request):
     recent = db.list_recent_jobs(limit=50)
     disk_usage = None
     try:
-        disk_usage = get_disk_usage(str(get_jobs_root()))
+        disk_usage = get_disk_usage(str(WORKSPACES_ROOT))
     except Exception as exc:
         logger.warning("Failed to read disk usage: %s", exc)
     job_states: Dict[int, Dict[str, object]] = {}
