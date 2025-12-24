@@ -8,7 +8,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 JOB_ID="$1"
-JOBS_ROOT="${AUTOBUILD_JOBS_ROOT:-${AUTO_BUILD_JOBS_ROOT:-/srv/autobuild/jobs}}"
+JOBS_ROOT="${AUTOBUILD_JOBS_ROOT:-${AUTO_BUILD_JOBS_ROOT:-/opt/autobuild/workspace/jobs}}"
 : "${JOB_DIR:=${JOBS_ROOT}/${JOB_ID}}"
 LOG_DIR="${JOB_DIR}/logs"
 LOG_FILE="${LOG_DIR}/build.log"
@@ -16,7 +16,7 @@ ARTIFACT_DIR="${JOB_DIR}/artifacts"
 STATUS_FILE="${JOB_DIR}/status.json"
 EXIT_CODE_FILE="${JOB_DIR}/exit_code"
 WORK_DIR="${JOB_DIR}/work"
-WORKSPACES_ROOT="/srv/autobuild/workspaces"
+WORKSPACES_ROOT="${AUTOBUILD_WORKSPACE_ROOT:-${AUTO_BUILD_WORKSPACE_ROOT:-/opt/autobuild/workspace}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCHES_FILE="${JOB_DIR}/patches.json"
 

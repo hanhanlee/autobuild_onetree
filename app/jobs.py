@@ -11,7 +11,7 @@ from typing import Dict, Optional
 from urllib.parse import urlparse
 
 from .auth import normalize_token_perms
-from .config import get_jobs_root
+from .config import get_jobs_root, get_token_root
 from .crud_settings import get_system_settings
 from .database import SessionLocal
 from .db import get_connection, update_job_status
@@ -138,7 +138,7 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
             except Exception:
                 owner = None
     owner = owner or os.environ.get("USER") or "autobuild"
-    token_root = os.environ.get("AUTOBUILD_TOKEN_ROOT") or os.environ.get("AUTO_BUILD_TOKEN_ROOT") or "/opt/autobuild/workspace/secrets/gitlab"
+    token_root = str(get_token_root())
     token_path = Path(token_root) / f"{owner}.token"
     if token_path.exists():
         try:

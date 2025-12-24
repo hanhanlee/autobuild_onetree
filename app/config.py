@@ -1,70 +1,79 @@
-import logging
 import os
 from pathlib import Path
-from typing import List, Optional
-
-_logger = logging.getLogger(__name__)
+from typing import List, Union
 
 
-def _env_path(key: str, default: str, legacy_keys: Optional[List[str]] = None) -> Path:
-    legacy_keys = legacy_keys or []
-    value = os.getenv(key)
-    for legacy in legacy_keys:
-        if value:
-            break
-        value = os.getenv(legacy)
-    return Path(value) if value else Path(default)
+def _env_path(keys: List[str], default: Union[Path, str]) -> Path:
+    """
+    Return the first set environment variable from `keys` as a Path; otherwise return `default` as a Path.
+    """
+    for key in keys:
+        val = os.getenv(key)
+        if val:
+            return Path(val)
+    return Path(default)
 
 
 def get_root() -> Path:
-    preferred_root = _env_path("AUTOBUILD_ROOT", "/opt/autobuild", ["AUTO_BUILD_ROOT"])
-    if preferred_root.exists():
-        return preferred_root
-    fallback = Path("/srv/autobuild")
-    if fallback.exists():
-        _logger.warning("AUTOBUILD_ROOT not found at %s, falling back to %s", preferred_root, fallback)
-        return fallback
-    return preferred_root
+    """
+    Application root (parent of the app package), unless overridden by AUTOBUILD_ROOT/AUTO_BUILD_ROOT.
+    """
+    app_root = Path(__file__).resolve().parent.parent
+    return _env_path(["AUTOBUILD_ROOT", "AUTO_BUILD_ROOT"], app_root)
 
 
 def get_workspace_root() -> Path:
+    """
+    Workspace root for jobs/artifacts/workspaces.
+    """
     return _env_path(
-        "AUTOBUILD_WORKSPACE_ROOT",
-        str(get_root() / "workspace"),
-        ["AUTO_BUILD_WORKSPACE_ROOT"],
+        ["AUTOBUILD_WORKSPACE_ROOT", "AUTO_BUILD_WORKSPACE_ROOT"],
+        get_root() / "workspace",
     )
 
 
 def get_jobs_root() -> Path:
+    """
+    Root for jobs/artifacts/logs.
+    """
     return _env_path(
-        "AUTOBUILD_JOBS_ROOT",
-        str(get_workspace_root() / "jobs"),
-        ["AUTO_BUILD_JOBS_ROOT"],
+        ["AUTOBUILD_JOBS_ROOT", "AUTO_BUILD_JOBS_ROOT"],
+        get_workspace_root() / "jobs",
+    )
+
+
+def get_token_root() -> Path:
+    """
+    Root for Git tokens.
+    """
+    return _env_path(
+        ["AUTOBUILD_TOKEN_ROOT", "AUTO_BUILD_TOKEN_ROOT"],
+        get_workspace_root() / "secrets" / "gitlab",
     )
 
 
 def get_presets_root() -> Path:
+    """
+    Root for recipe presets.
+    """
     return _env_path(
-        "AUTOBUILD_PRESETS_ROOT",
-        str(get_workspace_root() / "presets"),
-        ["AUTO_BUILD_PRESETS_ROOT"],
+        ["AUTOBUILD_PRESETS_ROOT"],
+        get_workspace_root() / "presets",
     )
 
 
 def get_db_path() -> Path:
-    return _env_path("AUTOBUILD_DB", str(get_root() / "data" / "jobs.db"), ["AUTO_BUILD_DB"])
+    """
+    SQLite DB path (kept for existing callers), relative to the app root by default.
+    """
+    return _env_path(
+        ["AUTOBUILD_DB", "AUTO_BUILD_DB"],
+        get_root() / "data" / "jobs.db",
+    )
 
 
 def get_secret_key() -> str:
     return os.getenv("AUTOBUILD_SECRET_KEY", os.getenv("AUTO_BUILD_SECRET_KEY", "change-me-please"))
-
-
-def get_token_root() -> Path:
-    return _env_path(
-        "AUTOBUILD_TOKEN_ROOT",
-        str(get_workspace_root() / "secrets" / "gitlab"),
-        ["AUTO_BUILD_TOKEN_ROOT"],
-    )
 
 
 def get_git_host() -> str:

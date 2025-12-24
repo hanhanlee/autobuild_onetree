@@ -9,11 +9,12 @@ from typing import Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Request, Response
 
+from ..config import get_workspace_root
 from ..web import render_page
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-WORKSPACES_ROOT = Path("/srv/autobuild/workspaces")
+WORKSPACES_ROOT = Path(get_workspace_root())
 
 
 def _current_user(request: Request) -> Optional[str]:

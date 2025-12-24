@@ -7,12 +7,13 @@ from typing import Dict, Optional, Tuple
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
+from ..config import get_presets_root
 from ..recipes.generator import generate_recipe_yaml
 from ..web import render_page
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-PRESETS_ROOT = Path("/opt/autobuild/workspace/presets")
+PRESETS_ROOT = get_presets_root()
 
 
 def _current_user(request: Request) -> Optional[str]:

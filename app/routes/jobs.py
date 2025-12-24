@@ -15,15 +15,15 @@ from .. import db, jobs
 from ..auth import username_auth
 from ..crud_settings import get_system_settings
 from ..database import SessionLocal
-from ..config import get_jobs_root
+from ..config import get_jobs_root, get_presets_root, get_workspace_root
 from ..recipes_catalog import list_recipes as catalog_list_recipes
 from ..system import get_disk_usage
 from ..web import render_page
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-PRESETS_ROOT = Path("/opt/autobuild/workspace/presets")
-WORKSPACES_ROOT = Path("/srv/autobuild/workspaces")
+PRESETS_ROOT = get_presets_root()
+WORKSPACES_ROOT = Path(get_workspace_root())
 
 
 def _current_user(request: Request) -> Optional[str]:
@@ -158,7 +158,7 @@ def _load_recipe_yaml(platform: str, project: str) -> Tuple[Optional[str], Optio
 
 def _safe_job_dir(job_id: int) -> Optional[Path]:
     try:
-        jobs_root_path = Path("/srv/autobuild/jobs")
+        jobs_root_path = get_jobs_root()
         root = jobs_root_path.resolve()
         target = (jobs_root_path / str(job_id)).resolve()
         print(f"--- DEBUG PATH CHECK ---", flush=True)
