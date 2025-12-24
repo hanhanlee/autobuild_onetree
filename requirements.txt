@@ -3,6 +3,6 @@ uvicorn[standard]
 jinja2
 python-multipart
 sse-starlette
-pypam
+python-pam
 PyYAML
 SQLAlchemy
