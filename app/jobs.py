@@ -66,7 +66,7 @@ def setup_job_git_env(job_dir: Path, settings, fallback_token: Optional[str] = N
     config_body = (
         "[credential]\n"
         f"    helper = store --file={creds_path}\n"
-        "    useHttpPath = true\n"
+        "    useHttpPath = false\n"
     )
     config_path.write_text(config_body, encoding="utf-8")
     return {"XDG_CONFIG_HOME": str(job_dir / ".config")}
