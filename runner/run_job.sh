@@ -1,34 +1,32 @@
 #!/usr/bin/env bash
-# [DEBUG] 暫時拿掉 pipefail，避免 id 指令出錯就直接退出，我們需要看到完整的偵錯訊息
+# [DEBUG] ?��??��? pipefail，避??id ?�令?�錯就直?�退?��??�們�?要�??��??��??�錯訊息
 set -eu
 # set -euo pipefail
 
-# 1. [關鍵修正] 設定 umask 為 002，確保群組可寫
-umask 002
+# 1. [?�鍵修正] 設�? umask ??002，確保群組可�?umask 002
 
 # ================= [DEBUG DIAGNOSIS START] =================
-# 這段代碼只負責印出權限資訊，完全不影響後面的業務邏輯
+# ?�段�?��?��?責印?��??��?訊�?完全不影?��??��?業�??�輯
 echo "================= [DEBUG INFO] ================="
 echo "Timestamp: $(date)"
 
-# 1. 檢查執行身分
+# 1. 檢查?��?身�?
 echo "[1] Current User Identity:"
 id
 echo "Effective User: $(whoami)"
 
-# 2. 檢查環境變數
+# 2. 檢查?��?變數
 echo "[2] Job Parameters:"
 echo "JOB_ID (Arg 1): ${1:-<missing>}"
 echo "AUTOBUILD_JOBS_ROOT: ${AUTOBUILD_JOBS_ROOT:-<unset>}"
 
-# 3. 模擬計算路徑 (與下方邏輯一致)
+# 3. 模擬計�?路�? (?��??��?輯�???
 _JOB_ID="${1:-}"
 _JOBS_ROOT="${AUTOBUILD_JOBS_ROOT:-${AUTO_BUILD_JOBS_ROOT:-/opt/autobuild/workspace/jobs}}"
 _JOB_DIR="${_JOBS_ROOT}/${_JOB_ID}"
 _WORK_DIR="${_JOB_DIR}/work"
 
-# 4. 檢查父目錄權限
-if [ -d "${_JOB_DIR}" ]; then
+# 4. 檢查?�目?��???if [ -d "${_JOB_DIR}" ]; then
     echo "[3] Permissions of JOB_DIR (${_JOB_DIR}):"
     ls -ld "${_JOB_DIR}"
 else
@@ -37,7 +35,7 @@ else
     ls -ld "${_JOBS_ROOT}"
 fi
 
-# 5. 現場寫入測試 (Touch Test)
+# 5. ?�場寫入測試 (Touch Test)
 if [ -d "${_JOB_DIR}" ]; then
     echo "[4] Try to write to JOB_DIR:"
     if touch "${_JOB_DIR}/debug_write_test" 2>/dev/null; then
@@ -48,7 +46,7 @@ if [ -d "${_JOB_DIR}" ]; then
     fi
 fi
 
-# 6. 檢查掛載點 (排除 Systemd ReadOnlyPaths 干擾)
+# 6. 檢查?��?�?(?�除 Systemd ReadOnlyPaths 干擾)
 echo "[5] Mount info for /work:"
 grep "/work" /proc/self/mounts || echo "/work not found in mounts"
 
@@ -56,7 +54,7 @@ echo "================= [DEBUG INFO END] ================="
 # ================= [DEBUG DIAGNOSIS END] =================
 
 
-# --- 以下為您原本的代碼 (完全保留，只在 mkdir 處加強錯誤顯示) ---
+# --- 以�??�您?�本?�代�?(完全保�?，只??mkdir ?��?強錯誤顯�? ---
 
 if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <job_id>" >&2
@@ -76,8 +74,7 @@ WORKSPACES_ROOT="${AUTOBUILD_WORKSPACE_ROOT:-${AUTO_BUILD_WORKSPACE_ROOT:-/opt/a
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCHES_FILE="${JOB_DIR}/patches.json"
 
-# [DEBUG] 在這裡加入錯誤捕捉，如果 mkdir 失敗，印出更詳細的原因
-if ! mkdir -p "${LOG_DIR}" "${ARTIFACT_DIR}" "${WORK_DIR}"; then
+# [DEBUG] ?�這裡?�入?�誤?��?，�???mkdir 失�?，印?�更詳細?��???if ! mkdir -p "${LOG_DIR}" "${ARTIFACT_DIR}" "${WORK_DIR}"; then
     echo "CRITICAL ERROR: Failed to create directories!"
     echo "Target: ${LOG_DIR}, ${ARTIFACT_DIR}, ${WORK_DIR}"
     echo "Check permissions of ${JOB_DIR}"
