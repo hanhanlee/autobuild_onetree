@@ -77,21 +77,19 @@ sync_code() {
 }
 
 fix_permissions() {
-    echo -e "${YELLOW}[2/3] Fixing ownership and permissions...${NC}"
+    echo -e "${YELLOW}[2/3] Fixing ownership...${NC}"
     
-    # 1. 確保程式碼權限
+    # 1. 修正 /opt/autobuild 的擁有者
+    # 我們只改擁有者，不要去動 chmod 644，這樣會保留您在地端的 +x 設定
     chown -R "${TARGET_USER}:${TARGET_GROUP}" "$DEST_DIR"
-    # 設定目錄權限 755, 檔案 644
-    find "$DEST_DIR" -type d -exec chmod 755 {} \;
-    find "$DEST_DIR" -type f -exec chmod 644 {} \;
-    # 特別確保執行腳本有 x 權限
+    
+    # 2. 保險起見，強制賦予執行腳本 x 權限 (雙重保險)
     chmod +x "$DEST_DIR/runner/run_job.sh"
 
-    # 2. 確保資料硬碟權限
+    # 3. 確保 /work 資料硬碟權限正確 (這是為了之前的 Group Write 問題)
     if [ -d "/work/autobuild_workspace" ]; then
         echo "Fixing /work/autobuild_workspace permissions..."
         chown -R "${TARGET_USER}:${TARGET_GROUP}" "/work/autobuild_workspace"
-        # 關鍵：設定 SGID 與群組可寫
         find "/work/autobuild_workspace" -type d -exec chmod 2775 {} \;
         find "/work/autobuild_workspace" -type f -exec chmod 664 {} \;
     fi
