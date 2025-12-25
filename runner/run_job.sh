@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# [DEBUG] Keeping pipefail disabled to avoid premature exit while collecting diagnostics; enable if you need stricter handling
-set -eu
-# set -euo pipefail
+# [DEBUG] Keep -e for early exit on failures; avoid -u because third-party scripts (e.g., Yocto) may reference unset vars
+set -e
+# set -eo pipefail
 
 # 1. Set umask to 002 to keep group-writable files/dirs
 
@@ -83,6 +83,8 @@ git config --global credential.helper "store --file=${JOB_DIR}/.git-credentials"
 git config --global credential.useHttpPath false
 # Avoid unbound var errors in env scripts (oe-init-build-env uses BBSERVER)
 export BBSERVER="${BBSERVER:-}"
+# Avoid unbound var errors for shells (oe-init-build-env references ZSH_NAME)
+export ZSH_NAME="${ZSH_NAME:-}"
 
 # [DEBUG] If mkdir fails, print more detail before exiting
 if ! mkdir -p "${LOG_DIR}" "${ARTIFACT_DIR}" "${WORK_DIR}"; then
