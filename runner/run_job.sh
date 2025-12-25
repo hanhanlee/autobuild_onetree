@@ -359,6 +359,25 @@ if [[ -s "${PATCHES_FILE}" ]]; then
 fi
 
 run_script "${META_SH}" "Meta script"
+echo "================= [GIT AUTH DEBUG START] ================="
+echo "Current User: $(whoami)"
+echo "HOME: $HOME"
+echo "JOB_DIR: $JOB_DIR"
+echo "XDG_CONFIG_HOME: ${XDG_CONFIG_HOME:-<unset>}"
+echo "Checking .git-credentials..."
+if [ -f "${JOB_DIR}/.git-credentials" ]; then
+    echo "FOUND: ${JOB_DIR}/.git-credentials"
+    echo "Content (Masked):"
+    sed -E 's/:([^:@]{0,64})@/:***@/' "${JOB_DIR}/.git-credentials"
+else
+    echo "CRITICAL ERROR: .git-credentials NOT FOUND at ${JOB_DIR}/.git-credentials"
+fi
+echo "Effective Git Config:"
+git config --list --show-origin
+echo "Directory listing for JOB_DIR:"
+ls -ld "${JOB_DIR}"
+ls -la "${JOB_DIR}"
+echo "================= [GIT AUTH DEBUG END] ================="
 run_cmds_file "${CLONE_CMDS}" "Clone commands"
 run_cmds_file "${INIT_CMDS}" "Init commands"
 run_cmds_file "${MODIFY_CMDS}" "Modify commands"
