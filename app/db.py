@@ -104,7 +104,17 @@ def list_recent_jobs(limit: int = 50) -> List[Dict[str, Any]]:
     with get_connection() as conn:
         cur = conn.execute(
             """
-            SELECT id, owner, created_by, recipe_id, note, status, created_at, exit_code, pinned
+            SELECT id,
+                   owner,
+                   created_by,
+                   recipe_id,
+                   note,
+                   status,
+                   created_at,
+                   started_at,
+                   finished_at,
+                   exit_code,
+                   pinned
               FROM jobs
              ORDER BY COALESCE(created_at, '') DESC, id DESC
              LIMIT ?

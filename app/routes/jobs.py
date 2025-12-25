@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote_plus
@@ -174,6 +175,63 @@ def _safe_job_dir(job_id: int) -> Optional[Path]:
         return None
 
 
+def _parse_iso_dt(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        return datetime.fromisoformat(text)
+    except Exception:
+        return None
+
+
+def _format_duration(start: datetime, end: datetime) -> Optional[str]:
+    delta = end - start
+    total_seconds = int(delta.total_seconds())
+    if total_seconds < 0:
+        return None
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    parts: List[str] = []
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes or hours:
+        parts.append(f"{minutes}m")
+    parts.append(f"{seconds}s")
+    return " ".join(parts)
+
+
+def _job_duration_text(job: Dict[str, object]) -> Optional[str]:
+    status = (job.get("status") or "").lower()
+    if status in {"running", "pending"}:
+        return "Running..."
+    start = _parse_iso_dt(job.get("created_at"))
+    end = _parse_iso_dt(job.get("finished_at") or job.get("updated_at") or job.get("started_at"))
+    if not start or not end:
+        return None
+    return _format_duration(start, end)
+
+
+def _clean_disk_usage(raw: Optional[object]) -> Optional[str]:
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    parts = re.split(r"recorded:\s*", text, flags=re.IGNORECASE)
+    if len(parts) >= 2:
+        text = parts[-1].strip()
+    tokens = text.split()
+    if tokens:
+        return tokens[-1]
+    return text or None
+
+
 def _load_job_state(job_id: int) -> Dict[str, object]:
     try:
         data = jobs.load_job_spec(job_id) or {}
@@ -254,8 +312,11 @@ async def jobs_page(request: Request):
         state = _load_job_state(int(jid))
         job_states[int(jid)] = {
             "disk_usage": state.get("disk_usage"),
+            "disk_usage_clean": _clean_disk_usage(state.get("disk_usage")),
             "is_pruned": state.get("is_pruned"),
+            "workspace_path": str(jobs.job_dir(int(jid)) / "workspace"),
         }
+        job["duration"] = _job_duration_text(job)
     return render_page(
         request,
         "jobs.html",
