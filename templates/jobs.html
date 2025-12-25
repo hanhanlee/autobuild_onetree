@@ -94,14 +94,20 @@
             <tr class="{% if is_pinned %}border-start border-4 border-warning bg-warning bg-opacity-10{% endif %}">
               <td><input type="checkbox" name="job_ids" value="{{ j.id }}" {% if is_pinned %}disabled{% endif %}></td>
               <td>
-                <a href="/jobs/{{ j.id }}" class="fw-semibold">{{ j.id }}</a>
+                <a href="/jobs/{{ j.id }}" class="fw-semibold text-primary text-decoration-underline">{{ j.id }}</a>
                 <form method="post" action="/jobs/{{ j.id }}/pin" class="d-inline">
                   <button type="submit" name="pinned" value="{% if is_pinned %}0{% else %}1{% endif %}" class="btn btn-sm btn-outline-warning" title="Toggle pin">
                     <i class="bi {% if is_pinned %}bi-pin-fill{% else %}bi-pin-angle{% endif %}"></i>
                   </button>
                 </form>
               </td>
-              <td>{{ j.recipe_id or '-' }}</td>
+              <td>
+                {% if j.recipe_id %}
+                  <a href="/jobs/{{ j.id }}" class="text-primary text-decoration-underline">{{ j.recipe_id }}</a>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
               <td><span class="badge {{ badge_class }} text-uppercase">{{ j.status }}</span></td>
               <td>{{ j.created_by or j.owner }}</td>
               <td>{% if j.note %}{{ j.note }}{% else %}-{% endif %}</td>
@@ -109,6 +115,7 @@
               <td>{% if is_pruned %}Pruned{% elif state.disk_usage %}{{ state.disk_usage }}{% else %}-{% endif %}</td>
               <td>{% if j.exit_code is not none %}{{ j.exit_code }}{% else %}-{% endif %}</td>
               <td class="d-flex gap-1">
+                <a href="/jobs/{{ j.id }}" class="btn btn-sm btn-outline-primary" title="View details"><i class="bi bi-eye"></i></a>
                 {% if st in ['success', 'failed'] and not is_pruned and not is_pinned %}
                 <button type="submit" formaction="/jobs/{{ j.id }}/prune" formmethod="post" class="btn btn-sm btn-outline-secondary" title="Prune workspace"><i class="bi bi-eraser"></i></button>
                 {% else %}
