@@ -154,17 +154,7 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
             pass
         update_job_status(job_id, STATUS_FAILED, finished_at=now_iso(), exit_code=2)
         return
-    readable = True
-    try:
-        result = subprocess.run(
-            ["sudo", "-n", "-u", owner, "head", "-c", "1", str(token_path)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        readable = result.returncode == 0
-    except Exception:
-        readable = False
-    if not readable:
+    if not os.access(token_path, os.R_OK):
         with log_path.open("a", encoding="utf-8") as fp:
             fp.write(f"GitLab token not readable by user {owner} at {token_path} (check perms/group)\n")
         try:
@@ -175,14 +165,6 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
         return
     log_fp = None
     cmd = [
-        "sudo",
-        "-u",
-        owner,
-        "env",
-        f"JOB_DIR={job_root}",
-        f"AUTOBUILD_JOBS_ROOT={get_jobs_root()}",
-        f"AUTOBUILD_JOB_OWNER={owner}",
-        f"AUTOBUILD_TOKEN_ROOT={token_root}",
         "/opt/autobuild/runner/run_job.sh",
         str(job_id),
     ]
@@ -191,6 +173,7 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
     env["AUTOBUILD_JOBS_ROOT"] = str(get_jobs_root())
     env["AUTO_BUILD_JOB_ID"] = str(job_id)
     env["AUTOBUILD_JOB_OWNER"] = owner
+    env["AUTOBUILD_TOKEN_ROOT"] = str(token_root)
     try:
         run_clone = bool(spec.get("run_clone", True))
         run_edit = bool(spec.get("run_edit", False))
