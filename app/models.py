@@ -11,4 +11,5 @@ class SystemSettings(Base):
     delete_days_age = Column(Integer, default=30)
     gitlab_host = Column(String, default="https://gitlab.com")
     gitlab_token = Column(String, nullable=True)
+    gitlab_username = Column(String, nullable=True)
     disk_min_free_gb = Column(Integer, default=5)

@@ -537,6 +537,14 @@ async def create_job(
     debug_ctx = debug_ctx_raw
     debug_ctx["workspaces_root"] = str(WORKSPACES_ROOT)
     debug_ctx["codebases_count"] = len(codebases)
+    settings = None
+    missing_creds = False
+    try:
+        with SessionLocal() as session:
+            settings = get_system_settings(session)
+        missing_creds = not (settings and settings.gitlab_token and settings.gitlab_username)
+    except Exception:
+        missing_creds = True
     if cb_error and not debug_ctx.get("last_error"):
         debug_ctx["last_error"] = cb_error
     ignored_fields: List[str] = []
@@ -558,6 +566,7 @@ async def create_job(
             debug_context=debug_ctx,
             user=user,
             token_ok=None,
+            missing_creds=missing_creds,
         )
     try:
         form = await request.form()
@@ -756,12 +765,12 @@ async def create_job(
         usage = shutil.disk_usage(get_jobs_root())
         free_gb = usage.free / (1024 ** 3)
         required_gb = settings.disk_min_free_gb if settings else 0
-        if settings and free_gb < required_gb:
-            msg = f"Server disk is too full (Free: {free_gb:.1f} GB, Required: {required_gb} GB). Please prune old jobs."
-            debug_ctx["last_error"] = debug_ctx.get("last_error") or msg
-            return render_page(
-                request,
-                "new_job.html",
+    if settings and free_gb < required_gb:
+        msg = f"Server disk is too full (Free: {free_gb:.1f} GB, Required: {required_gb} GB). Please prune old jobs."
+        debug_ctx["last_error"] = debug_ctx.get("last_error") or msg
+        return render_page(
+            request,
+            "new_job.html",
                 current_page="new",
                 status_code=400,
                 error=msg,
@@ -794,6 +803,28 @@ async def create_job(
             current_page="new",
             status_code=500,
             error="Failed to create job",
+            recipes=recipes,
+            presets_root=str(PRESETS_ROOT),
+            recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+            codebases=codebases,
+            codebases_count=len(codebases),
+            workspaces_root=str(WORKSPACES_ROOT),
+            last_error=debug_ctx.get("last_error"),
+            debug_context=debug_ctx,
+            user=user,
+            token_ok=None,
+            recipe_id=recipe_id_val,
+            note=note,
+            codebase_id=codebase_id,
+        )
+    if not (settings and settings.gitlab_token and settings.gitlab_username):
+        debug_ctx["last_error"] = debug_ctx.get("last_error") or "GitLab username and token are required. Please set them in Settings."
+        return render_page(
+            request,
+            "new_job.html",
+            current_page="new",
+            status_code=400,
+            error="GitLab username and token are required. Please set them in Settings.",
             recipes=recipes,
             presets_root=str(PRESETS_ROOT),
             recipes_count=debug_ctx.get("recipes_count", len(recipes)),

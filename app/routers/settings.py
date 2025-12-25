@@ -53,6 +53,7 @@ async def update_settings(
     prune_days: int = Form(...),
     delete_days: int = Form(...),
     gitlab_token: str = Form(""),
+    gitlab_username: str = Form(""),
     disk_min: int = Form(...),
 ):
     redirect = _require_login(request)
@@ -73,6 +74,7 @@ async def update_settings(
         prune_days_age=prune_days,
         delete_days_age=delete_days,
         gitlab_token=gitlab_token,
+        gitlab_username=gitlab_username,
         disk_min_free_gb=disk_min,
     )
     content = (

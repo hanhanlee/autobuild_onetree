@@ -37,6 +37,11 @@
                     <input type="text" class="form-control" id="gitlab_token" name="gitlab_token" value="{{ settings.gitlab_token or '' }}" placeholder="Personal access token">
                 </div>
                 <div class="mb-3">
+                    <label class="form-label" for="gitlab_username">GitLab Username</label>
+                    <input type="text" class="form-control" id="gitlab_username" name="gitlab_username" value="{{ settings.gitlab_username or '' }}" placeholder="e.g., johndoe">
+                    <div class="form-text">Required for job creation.</div>
+                </div>
+                <div class="mb-3">
                     <label class="form-label" for="disk_min">Disk Threshold (GB)</label>
                     <input type="number" min="0" class="form-control" id="disk_min" name="disk_min" value="{{ settings.disk_min_free_gb }}">
                     <div class="form-text">Minimum free disk space to keep before new jobs are scheduled.</div>

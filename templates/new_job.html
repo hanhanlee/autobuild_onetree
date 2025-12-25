@@ -3,6 +3,12 @@
 {% block content %}
 <h1>Create Job</h1>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
+{% if missing_creds %}
+<div class="alert alert-danger d-flex align-items-center" role="alert" style="max-width:840px;">
+  <i class="bi bi-exclamation-octagon-fill me-2"></i>
+  <div>GitLab username and token are required. Please save them in Settings before creating a job.</div>
+</div>
+{% endif %}
 <p><a href="/projects" style="margin-right:1rem;">Create Recipe (Project Template v1)</a> | <a href="/settings">Settings</a></p>
 <div class="card">
     <form method="post" action="/new" style="display:grid;grid-template-columns:1fr;gap:0.85rem;max-width:840px;">
