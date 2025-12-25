@@ -356,10 +356,23 @@ run_cmds_file() {
     return 0
   fi
   echo "[RUN] ${label}: ${path}"
-  ( cd "${WORK_DIR}" && while IFS= read -r line || [[ -n "${line}" ]]; do
+  (
+    cd "${WORK_DIR}" || exit 1
+    # Clear positional args once to avoid leaking into sourced scripts (e.g., oe-init-build-env)
+    set --
+    echo "[DEBUG] ${label}: starting in PWD=$(pwd)"
+    if [[ "$label" == *"Clone"* ]]; then
+      echo "[CLEAN] Removing existing subdirectories in ${WORK_DIR} (clone stage)"
+      find . -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} +
+    fi
+    cmd_idx=0
+    while IFS= read -r line || [[ -n "${line}" ]]; do
       [[ -z "${line}" ]] && continue
+      cmd_idx=$((cmd_idx+1))
+      echo "[cmd #${cmd_idx}] PWD=$(pwd)"
       echo "+ ${line}"
       eval "${line}"
+      echo "[cmd #${cmd_idx}] DONE, PWD=$(pwd)"
     done < "${path}"
   )
 }
