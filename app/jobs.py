@@ -11,7 +11,7 @@ from typing import Dict, Optional
 from urllib.parse import urlparse
 
 from .auth import normalize_token_perms
-from .config import get_jobs_root, get_token_root
+from .config import get_git_host, get_jobs_root, get_token_root
 from .crud_settings import get_system_settings
 from .database import SessionLocal
 from .db import get_connection, update_job_status
@@ -29,11 +29,17 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def setup_job_git_env(job_dir: Path, settings) -> Dict[str, str]:
+def setup_job_git_env(job_dir: Path, settings, fallback_token: Optional[str] = None) -> Dict[str, str]:
     """Write per-job git credentials/config and return env overrides."""
-    if not settings or not getattr(settings, "gitlab_token", None):
+    token_val = None
+    if settings and getattr(settings, "gitlab_token", None):
+        token_val = str(getattr(settings, "gitlab_token")).strip()
+    if not token_val and fallback_token:
+        token_val = str(fallback_token).strip()
+    if not token_val:
         return {}
-    host = getattr(settings, "gitlab_host", "") or ""
+    host = getattr(settings, "gitlab_host", "") if settings else ""
+    host = host or str(get_git_host() or "")
     parsed = urlparse(host)
     if parsed.scheme and parsed.netloc:
         host = parsed.netloc
@@ -43,7 +49,7 @@ def setup_job_git_env(job_dir: Path, settings) -> Dict[str, str]:
 
     creds_path = job_dir / ".git-credentials"
     creds_path.parent.mkdir(parents=True, exist_ok=True)
-    creds_path.write_text(f"https://oauth2:{settings.gitlab_token}@{host}\n", encoding="utf-8")
+    creds_path.write_text(f"https://oauth2:{token_val}@{host}\n", encoding="utf-8")
 
     config_path = job_dir / ".config" / "git" / "config"
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -140,9 +146,11 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
     owner = owner or os.environ.get("USER") or "autobuild"
     token_root = str(get_token_root())
     token_path = Path(token_root) / f"{owner}.token"
+    token_value = None
     if token_path.exists():
         try:
             normalize_token_perms(Path(token_root), token_path, create_root=False)
+            token_value = token_path.read_text(encoding="utf-8").strip()
         except Exception:
             logger.warning("Failed to normalize token perms for %s", token_path)
     else:
@@ -195,7 +203,7 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
     try:
         with SessionLocal() as session:
             settings = get_system_settings(session)
-        env.update(setup_job_git_env(job_root, settings))
+        env.update(setup_job_git_env(job_root, settings, fallback_token=token_value))
     except Exception:
         logger.warning("Failed to inject per-job git credentials", exc_info=True)
     logger.info("Starting runner for job %s (owner=%s) log=%s cmd=%s", job_id, owner, log_path, cmd)
