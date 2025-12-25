@@ -78,6 +78,8 @@ PATCHES_FILE="${JOB_DIR}/patches.json"
 # Git credential environment: force HOME and XDG so the per-job credentials are picked up
 export HOME="${JOB_DIR}"
 export XDG_CONFIG_HOME="${JOB_DIR}/.config"
+# Fail fast if Git would prompt for credentials
+export GIT_TERMINAL_PROMPT=0
 mkdir -p "${HOME}" "${XDG_CONFIG_HOME}"
 git config --global credential.helper "store --file=${JOB_DIR}/.git-credentials"
 git config --global credential.useHttpPath false
