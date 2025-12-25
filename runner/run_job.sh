@@ -218,4 +218,48 @@ MODIFY_CMDS="${WORK_DIR}/modify_commands.txt"
 BUILD_CMDS="${WORK_DIR}/build_commands.txt"
 FILE_EDITS_JSON="${WORK_DIR}/file_edits.json"
 
-python3 - "${SPEC_PATH}" "${RAW
+# Ensure work dir exists
+mkdir -p "${WORK_DIR}"
+
+run_script() {
+  local path="$1"
+  local label="$2"
+  if [[ -f "${path}" ]]; then
+    echo "[RUN] ${label}: ${path}"
+    bash "${path}"
+  else
+    echo "[SKIP] ${label}: ${path} (missing)"
+  fi
+}
+
+run_cmds_file() {
+  local path="$1"
+  local label="$2"
+  if [[ ! -f "${path}" ]]; then
+    echo "[SKIP] ${label}: ${path} (missing)"
+    return 0
+  fi
+  echo "[RUN] ${label}: ${path}"
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ -z "${line}" ]] && continue
+    echo "+ ${line}"
+    eval "${line}"
+  done < "${path}"
+}
+
+# Apply patches if provided
+if [[ -s "${PATCHES_FILE}" ]]; then
+  echo "[Patch] Applying patches from ${PATCHES_FILE}"
+  if ! (cd "${WORK_DIR}" && python3 "${SCRIPT_DIR}/patcher.py" "${PATCHES_FILE}"); then
+    echo "[Patch] Warning: patch application failed"
+  fi
+fi
+
+run_script "${META_SH}" "Meta script"
+run_cmds_file "${CLONE_CMDS}" "Clone commands"
+run_cmds_file "${INIT_CMDS}" "Init commands"
+run_cmds_file "${MODIFY_CMDS}" "Modify commands"
+run_cmds_file "${BUILD_CMDS}" "Build commands"
+
+echo "Job ${JOB_ID} main steps completed."
+exit 0
