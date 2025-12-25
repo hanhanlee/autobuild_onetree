@@ -91,6 +91,15 @@ if ! mkdir -p "${LOG_DIR}" "${ARTIFACT_DIR}" "${WORK_DIR}"; then
     exit 1
 fi
 
+# Single-run guard per job: prevent duplicate runner instances
+LOCK_FILE="${JOB_DIR}/runner.lock"
+exec 9>"${LOCK_FILE}"
+if ! flock -n 9; then
+    echo "[LOCK] Another runner instance is already active for job ${JOB_ID}. Exiting."
+    exit 0
+fi
+echo "[LOCK] Acquired runner lock for job ${JOB_ID} (pid $$)"
+
 touch "${LOG_FILE}"
 
 write_status() {
