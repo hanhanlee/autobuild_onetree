@@ -221,6 +221,60 @@ FILE_EDITS_JSON="${WORK_DIR}/file_edits.json"
 # Ensure work dir exists
 mkdir -p "${WORK_DIR}"
 
+# Generate command files from raw_recipe.yaml (clone/init/build) and meta stub
+python3 - "${RAW_RECIPE}" "${WORK_DIR}" <<'PY'
+import sys
+import os
+import yaml
+
+raw_path, work_dir = sys.argv[1:3]
+try:
+    with open(raw_path, encoding="utf-8") as fh:
+        data = yaml.safe_load(fh)
+except Exception as exc:
+    print(f"[generate] Failed to load recipe YAML: {exc}")
+    sys.exit(0)
+
+def clean_lines(raw):
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for item in raw:
+        if item is None:
+            continue
+        text = str(item).strip()
+        if text:
+            out.append(text)
+    return out
+
+def write_file(filename, lines):
+    path = os.path.join(work_dir, filename)
+    if lines:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        print(f"[generate] wrote {filename} ({len(lines)} lines)")
+    else:
+        # Touch empty file so runner doesn't warn about missing files
+        open(path, "w", encoding="utf-8").close()
+        print(f"[generate] created empty {filename} (no lines)")
+
+for block, fname in (
+    ("clone_block", "clone_commands.txt"),
+    ("init_block", "init_commands.txt"),
+    ("build_block", "build_commands.txt"),
+):
+    blk = data.get(block) if isinstance(data, dict) else None
+    lines = clean_lines(blk.get("lines") if isinstance(blk, dict) else None)
+    write_file(fname, lines)
+
+# Optional meta.sh: change directory to workdir if provided
+meta_lines = []
+workdir = data.get("workdir") if isinstance(data, dict) else None
+if isinstance(workdir, str) and workdir.strip():
+    meta_lines.append(f"cd {workdir.strip()}")
+write_file("meta.sh", meta_lines)
+PY
+
 run_script() {
   local path="$1"
   local label="$2"
