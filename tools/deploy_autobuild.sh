@@ -2,8 +2,10 @@
 set -e
 
 # =================CONFIGURATION=================
-# 您的開發目錄 (當前目錄)
-SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# [關鍵修正] 取得腳本所在目錄 (tools)，然後往上一層 (..) 找到專案根目錄
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SRC_DIR="$(dirname "$SCRIPT_DIR")"
+
 # 伺服器部署目標目錄
 DEST_DIR="/opt/autobuild"
 # 服務名稱
@@ -20,14 +22,14 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Autobuild Deployment Tool ===${NC}"
-echo -e "Source: ${SRC_DIR}"
-echo -e "Target: ${DEST_DIR}"
+echo -e "Script Location: ${SCRIPT_DIR}"
+echo -e "Project Root (Source): ${SRC_DIR}"
+echo -e "Deploy Target: ${DEST_DIR}"
 echo ""
 
 # 檢查是否為 Root 執行，如果不是，自動加 sudo 重跑自己
 if [[ $EUID -ne 0 ]]; then
-   echo -e "${YELLOW}此腳本需要管理員權限，正在嘗試自動提權...${NC}"
-   # "$0" 代表腳本自己，"$@" 代表傳進來的所有參數
+   echo -e "${YELLOW}Need root privileges. Elevating with sudo...${NC}"
    exec sudo "$0" "$@"
 fi
 
@@ -50,9 +52,15 @@ sync_code() {
         mkdir -p "$DEST_DIR"
     fi
 
-    # --- 關鍵修復：這裡就是之前遺漏的 Rsync 步驟 ---
-    # --delete: 刪除目標目錄中有，但來源目錄中沒有的檔案 (保持乾淨)
-    # --exclude: 排除不必要的檔案
+    # 再次檢查路徑是否正確 (避免同步錯誤)
+    if [ ! -d "$SRC_DIR/app" ]; then
+        echo -e "${RED}Error: Cannot find 'app' directory in $SRC_DIR.${NC}"
+        echo -e "${RED}Are you running this script from the 'tools' directory?${NC}"
+        exit 1
+    fi
+
+    # --- Rsync 同步 ---
+    # --delete: 確保伺服器跟開發環境完全一致
     rsync -av --delete \
         --exclude 'venv' \
         --exclude 'workspace' \
@@ -71,21 +79,20 @@ sync_code() {
 fix_permissions() {
     echo -e "${YELLOW}[2/3] Fixing ownership and permissions...${NC}"
     
-    # 1. 確保 /opt/autobuild 程式碼權限正確
+    # 1. 確保程式碼權限
     chown -R "${TARGET_USER}:${TARGET_GROUP}" "$DEST_DIR"
-    chmod -R 755 "$DEST_DIR"
+    # 設定目錄權限 755, 檔案 644
+    find "$DEST_DIR" -type d -exec chmod 755 {} \;
+    find "$DEST_DIR" -type f -exec chmod 644 {} \;
+    # 特別確保執行腳本有 x 權限
+    chmod +x "$DEST_DIR/runner/run_job.sh"
 
-    # 2. 確保 /work/autobuild_workspace 資料硬碟權限正確
+    # 2. 確保資料硬碟權限
     if [ -d "/work/autobuild_workspace" ]; then
         echo "Fixing /work/autobuild_workspace permissions..."
-        # 擁有者設為 autobuild:scm-bmc
         chown -R "${TARGET_USER}:${TARGET_GROUP}" "/work/autobuild_workspace"
-        
-        # 設定目錄為 2775 (SGID + 群組可寫)
-        # 這是為了解決您遇到的 "Permission denied" 問題
+        # 關鍵：設定 SGID 與群組可寫
         find "/work/autobuild_workspace" -type d -exec chmod 2775 {} \;
-        
-        # 設定檔案為 664 (群組可讀寫)
         find "/work/autobuild_workspace" -type f -exec chmod 664 {} \;
     fi
 
@@ -98,7 +105,6 @@ restart_service() {
     systemctl daemon-reload
     systemctl restart "$SERVICE_NAME"
     
-    # 檢查服務狀態
     if systemctl is-active --quiet "$SERVICE_NAME"; then
         echo -e "${GREEN}Service '$SERVICE_NAME' is RUNNING.${NC}"
     else
@@ -117,12 +123,12 @@ while true; do
             sync_code
             fix_permissions
             restart_service
-            echo -e "${GREEN}✅ Full deployment completed successfully!${NC}"
+            echo -e "${GREEN}✅ Full deployment completed!${NC}"
             break
             ;;
         2)
             sync_code
-            fix_permissions # Sync 後通常需要修權限，比較保險
+            fix_permissions
             echo -e "${GREEN}✅ Code synced.${NC}"
             break
             ;;
