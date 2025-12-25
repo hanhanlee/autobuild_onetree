@@ -329,7 +329,7 @@ run_script() {
   local label="$2"
   if [[ -f "${path}" ]]; then
     echo "[RUN] ${label}: ${path}"
-    bash "${path}"
+    (cd "${WORK_DIR}" && bash "${path}")
   else
     echo "[SKIP] ${label}: ${path} (missing)"
   fi
@@ -343,11 +343,12 @@ run_cmds_file() {
     return 0
   fi
   echo "[RUN] ${label}: ${path}"
-  while IFS= read -r line || [[ -n "${line}" ]]; do
-    [[ -z "${line}" ]] && continue
-    echo "+ ${line}"
-    eval "${line}"
-  done < "${path}"
+  ( cd "${WORK_DIR}" && while IFS= read -r line || [[ -n "${line}" ]]; do
+      [[ -z "${line}" ]] && continue
+      echo "+ ${line}"
+      eval "${line}"
+    done < "${path}"
+  )
 }
 
 # Apply patches if provided
