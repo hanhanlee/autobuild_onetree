@@ -1,32 +1,33 @@
 #!/usr/bin/env bash
-# [DEBUG] ?«æ??¿æ? pipefailï¼Œé¿??id ?‡ä»¤?ºéŒ¯å°±ç›´?¥é€€?ºï??‘å€‘é?è¦ç??°å??´ç??µéŒ¯è¨Šæ¯
+# [DEBUG] Keeping pipefail disabled to avoid premature exit while collecting diagnostics; enable if you need stricter handling
 set -eu
 # set -euo pipefail
 
-# 1. [?œéµä¿®æ­£] è¨­å? umask ??002ï¼Œç¢ºä¿ç¾¤çµ„å¯å¯?umask 002
+# 1. Set umask to 002 to keep group-writable files/dirs
 
 # ================= [DEBUG DIAGNOSIS START] =================
-# ?™æ®µä»?¢¼?ªè?è²¬å°?ºæ??è?è¨Šï?å®Œå…¨ä¸å½±?¿å??¢ç?æ¥­å??è¼¯
+# This section only prints diagnostics and does not affect job flow
 echo "================= [DEBUG INFO] ================="
 echo "Timestamp: $(date)"
 
-# 1. æª¢æŸ¥?·è?èº«å?
+# 1. Check current user identity
 echo "[1] Current User Identity:"
 id
 echo "Effective User: $(whoami)"
 
-# 2. æª¢æŸ¥?°å?è®Šæ•¸
+# 2. Check job parameters
 echo "[2] Job Parameters:"
 echo "JOB_ID (Arg 1): ${1:-<missing>}"
 echo "AUTOBUILD_JOBS_ROOT: ${AUTOBUILD_JOBS_ROOT:-<unset>}"
 
-# 3. æ¨¡æ“¬è¨ˆç?è·¯å? (?‡ä??¹é?è¼¯ä???
+# 3. Compute job paths (with sensible defaults)
 _JOB_ID="${1:-}"
 _JOBS_ROOT="${AUTOBUILD_JOBS_ROOT:-${AUTO_BUILD_JOBS_ROOT:-/opt/autobuild/workspace/jobs}}"
 _JOB_DIR="${_JOBS_ROOT}/${_JOB_ID}"
 _WORK_DIR="${_JOB_DIR}/work"
 
-# 4. æª¢æŸ¥?¶ç›®?„æ???if [ -d "${_JOB_DIR}" ]; then
+# 4. Inspect job directory if present
+if [ -d "${_JOB_DIR}" ]; then
     echo "[3] Permissions of JOB_DIR (${_JOB_DIR}):"
     ls -ld "${_JOB_DIR}"
 else
@@ -35,7 +36,7 @@ else
     ls -ld "${_JOBS_ROOT}"
 fi
 
-# 5. ?¾å ´å¯«å…¥æ¸¬è©¦ (Touch Test)
+# 5. Touch test to verify write permissions
 if [ -d "${_JOB_DIR}" ]; then
     echo "[4] Try to write to JOB_DIR:"
     if touch "${_JOB_DIR}/debug_write_test" 2>/dev/null; then
@@ -46,7 +47,7 @@ if [ -d "${_JOB_DIR}" ]; then
     fi
 fi
 
-# 6. æª¢æŸ¥?›è?é»?(?’é™¤ Systemd ReadOnlyPaths å¹²æ“¾)
+# 6. Check /work mount info (ignoring systemd ReadOnlyPaths)
 echo "[5] Mount info for /work:"
 grep "/work" /proc/self/mounts || echo "/work not found in mounts"
 
@@ -54,7 +55,7 @@ echo "================= [DEBUG INFO END] ================="
 # ================= [DEBUG DIAGNOSIS END] =================
 
 
-# --- ä»¥ä??ºæ‚¨?Ÿæœ¬?„ä»£ç¢?(å®Œå…¨ä¿ç?ï¼Œåª??mkdir ?•å?å¼·éŒ¯èª¤é¡¯ç¤? ---
+# --- Base script; only mkdir failures should hard-error ---
 
 if [[ $# -lt 1 ]]; then
   echo "Usage: $0 <job_id>" >&2
@@ -74,7 +75,8 @@ WORKSPACES_ROOT="${AUTOBUILD_WORKSPACE_ROOT:-${AUTO_BUILD_WORKSPACE_ROOT:-/opt/a
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCHES_FILE="${JOB_DIR}/patches.json"
 
-# [DEBUG] ?¨é€™è£¡? å…¥?¯èª¤?•æ?ï¼Œå???mkdir å¤±æ?ï¼Œå°?ºæ›´è©³ç´°?„å???if ! mkdir -p "${LOG_DIR}" "${ARTIFACT_DIR}" "${WORK_DIR}"; then
+# [DEBUG] If mkdir fails, print more detail before exiting
+if ! mkdir -p "${LOG_DIR}" "${ARTIFACT_DIR}" "${WORK_DIR}"; then
     echo "CRITICAL ERROR: Failed to create directories!"
     echo "Target: ${LOG_DIR}, ${ARTIFACT_DIR}, ${WORK_DIR}"
     echo "Check permissions of ${JOB_DIR}"
