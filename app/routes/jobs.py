@@ -759,18 +759,19 @@ async def create_job(
             codebase_id=codebase_id,
         )
 
+    settings = None
     try:
         with SessionLocal() as session:
             settings = get_system_settings(session)
         usage = shutil.disk_usage(get_jobs_root())
         free_gb = usage.free / (1024 ** 3)
         required_gb = settings.disk_min_free_gb if settings else 0
-    if settings and free_gb < required_gb:
-        msg = f"Server disk is too full (Free: {free_gb:.1f} GB, Required: {required_gb} GB). Please prune old jobs."
-        debug_ctx["last_error"] = debug_ctx.get("last_error") or msg
-        return render_page(
-            request,
-            "new_job.html",
+        if settings and free_gb < required_gb:
+            msg = f"Server disk is too full (Free: {free_gb:.1f} GB, Required: {required_gb} GB). Please prune old jobs."
+            debug_ctx["last_error"] = debug_ctx.get("last_error") or msg
+            return render_page(
+                request,
+                "new_job.html",
                 current_page="new",
                 status_code=400,
                 error=msg,
