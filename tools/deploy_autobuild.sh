@@ -74,6 +74,15 @@ sync_code() {
         "$SRC_DIR/" "$DEST_DIR/"
     
     echo -e "${GREEN}Code sync complete.${NC}"
+
+    echo -e "${YELLOW}Auto-fixing line endings and heredoc delimiters in shell scripts...${NC}"
+    find "$DEST_DIR" -type f -name "*.sh" | while read -r shfile; do
+        # Normalize CRLF to LF
+        sed -i 's/\r$//' "$shfile"
+        # Remove leading whitespace before heredoc delimiters (PY/EOF) so they start at column 1
+        sed -i -E 's/^[[:space:]]+(PY|EOF)$/\1/' "$shfile"
+    done
+    echo -e "${GREEN}Shell script normalization complete.${NC}"
 }
 
 fix_permissions() {
