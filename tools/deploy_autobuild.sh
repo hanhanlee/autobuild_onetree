@@ -24,10 +24,11 @@ echo -e "Source: ${SRC_DIR}"
 echo -e "Target: ${DEST_DIR}"
 echo ""
 
-# 檢查是否為 Root 執行
+# 檢查是否為 Root 執行，如果不是，自動加 sudo 重跑自己
 if [[ $EUID -ne 0 ]]; then
-   echo -e "${RED}Error: This script must be run as root (sudo).${NC}"
-   exit 1
+   echo -e "${YELLOW}此腳本需要管理員權限，正在嘗試自動提權...${NC}"
+   # "$0" 代表腳本自己，"$@" 代表傳進來的所有參數
+   exec sudo "$0" "$@"
 fi
 
 show_menu() {
