@@ -112,7 +112,7 @@
               <td><span class="badge {{ badge_class }} text-uppercase">{{ j.status }}</span></td>
               <td>{{ j.created_by or j.owner }}</td>
               <td>{% if j.note %}{{ j.note }}{% else %}-{% endif %}</td>
-              <td>{{ j.created_at or '-' }}</td>
+              <td>{{ j.local_created_at or j.created_at or '-' }}</td>
               <td>{{ j.duration or '-' }}</td>
               <td>{% if is_pruned %}Pruned{% elif state.disk_usage_clean or state.disk_usage %}{{ state.disk_usage_clean or state.disk_usage }}{% else %}-{% endif %}</td>
               <td>{% if j.exit_code is not none %}{{ j.exit_code }}{% else %}-{% endif %}</td>

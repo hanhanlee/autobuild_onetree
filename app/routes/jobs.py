@@ -4,7 +4,7 @@ import logging
 import os
 import re
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import quote_plus
@@ -297,6 +297,7 @@ async def jobs_page(request: Request):
     redirect = _require_login(request)
     if redirect:
         return redirect
+    taipei_tz = timezone(timedelta(hours=8))
     user = _current_user(request)
     recent = db.list_recent_jobs(limit=50)
     disk_usage = None
@@ -309,6 +310,14 @@ async def jobs_page(request: Request):
         jid = job.get("id")
         if jid is None:
             continue
+        raw_created = _parse_iso_dt(job.get("created_at"))
+        if raw_created and raw_created.tzinfo is None:
+            raw_created = raw_created.replace(tzinfo=timezone.utc)
+        if raw_created:
+            local_created = raw_created.astimezone(taipei_tz)
+            job["local_created_at"] = local_created.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            job["local_created_at"] = "-"
         state = _load_job_state(int(jid))
         job_states[int(jid)] = {
             "disk_usage": state.get("disk_usage"),
