@@ -75,6 +75,13 @@ WORKSPACES_ROOT="${AUTOBUILD_WORKSPACE_ROOT:-${AUTO_BUILD_WORKSPACE_ROOT:-/opt/a
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATCHES_FILE="${JOB_DIR}/patches.json"
 
+# Git credential environment: force HOME and XDG so the per-job credentials are picked up
+export HOME="${JOB_DIR}"
+export XDG_CONFIG_HOME="${JOB_DIR}/.config"
+mkdir -p "${HOME}" "${XDG_CONFIG_HOME}"
+git config --global credential.helper "store --file=${JOB_DIR}/.git-credentials"
+git config --global credential.useHttpPath true
+
 # [DEBUG] If mkdir fails, print more detail before exiting
 if ! mkdir -p "${LOG_DIR}" "${ARTIFACT_DIR}" "${WORK_DIR}"; then
     echo "CRITICAL ERROR: Failed to create directories!"
