@@ -80,7 +80,7 @@ export HOME="${JOB_DIR}"
 export XDG_CONFIG_HOME="${JOB_DIR}/.config"
 mkdir -p "${HOME}" "${XDG_CONFIG_HOME}"
 git config --global credential.helper "store --file=${JOB_DIR}/.git-credentials"
-git config --global credential.useHttpPath true
+git config --global credential.useHttpPath false
 
 # [DEBUG] If mkdir fails, print more detail before exiting
 if ! mkdir -p "${LOG_DIR}" "${ARTIFACT_DIR}" "${WORK_DIR}"; then
