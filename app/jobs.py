@@ -31,31 +31,35 @@ def now_iso() -> str:
 
 def setup_job_git_env(job_dir: Path, settings, fallback_token: Optional[str] = None, fallback_username: Optional[str] = None) -> Dict[str, str]:
     """Write per-job git credentials/config and return env overrides."""
-    token_val = None
-    if settings and getattr(settings, "gitlab_token", None):
-        token_val = str(getattr(settings, "gitlab_token")).strip()
-    if not token_val and fallback_token:
-        token_val = str(fallback_token).strip()
-    if not token_val:
+    entries = []
+
+    def add_entry(host_raw: Optional[str], username: Optional[str], token: Optional[str]) -> None:
+        if not (host_raw and username and token):
+            return
+        host = str(host_raw).strip()
+        parsed = urlparse(host)
+        if parsed.scheme and parsed.netloc:
+            host = parsed.netloc
+        host = host.strip().rstrip("/")
+        if not host:
+            return
+        entries.append(f"https://{username.strip()}:{token.strip()}@{host}")
+
+    if settings:
+        add_entry("https://git.ami.com", getattr(settings, "gitlab_username_primary", None), getattr(settings, "gitlab_token_primary", None))
+        add_entry("https://git.ami.com.tw", getattr(settings, "gitlab_username_secondary", None), getattr(settings, "gitlab_token_secondary", None))
+        add_entry(getattr(settings, "gitlab_host", None), getattr(settings, "gitlab_username", None), getattr(settings, "gitlab_token", None))
+
+    # Fallback using service env/token if nothing else
+    if not entries and fallback_token:
+        add_entry(get_git_host(), fallback_username or "oauth2", fallback_token)
+
+    if not entries:
         return {}
-    username_val = None
-    if settings and getattr(settings, "gitlab_username", None):
-        username_val = str(getattr(settings, "gitlab_username")).strip()
-    if not username_val and fallback_username:
-        username_val = str(fallback_username).strip()
-    username_val = username_val or "oauth2"
-    host = getattr(settings, "gitlab_host", "") if settings else ""
-    host = host or str(get_git_host() or "")
-    parsed = urlparse(host)
-    if parsed.scheme and parsed.netloc:
-        host = parsed.netloc
-    host = host.strip().rstrip("/")
-    if not host:
-        host = "gitlab.com"
 
     creds_path = job_dir / ".git-credentials"
     creds_path.parent.mkdir(parents=True, exist_ok=True)
-    creds_path.write_text(f"https://{username_val}:{token_val}@{host}\n", encoding="utf-8")
+    creds_path.write_text("\n".join(entries) + "\n", encoding="utf-8")
 
     config_path = job_dir / ".config" / "git" / "config"
     config_path.parent.mkdir(parents=True, exist_ok=True)

@@ -12,4 +12,8 @@ class SystemSettings(Base):
     gitlab_host = Column(String, default="https://gitlab.com")
     gitlab_token = Column(String, nullable=True)
     gitlab_username = Column(String, nullable=True)
+    gitlab_username_primary = Column(String, nullable=True)
+    gitlab_token_primary = Column(String, nullable=True)
+    gitlab_username_secondary = Column(String, nullable=True)
+    gitlab_token_secondary = Column(String, nullable=True)
     disk_min_free_gb = Column(Integer, default=5)

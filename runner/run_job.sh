@@ -221,19 +221,21 @@ FILE_EDITS_JSON="${WORK_DIR}/file_edits.json"
 # Ensure work dir exists
 mkdir -p "${WORK_DIR}"
 
-# Generate command files from raw_recipe.yaml (clone/init/build) and meta stub
-python3 - "${RAW_RECIPE}" "${WORK_DIR}" <<'PY'
+# Generate command files from raw_recipe.yaml (clone/init/build), meta stub, and file_edits.json
+python3 - "${RAW_RECIPE}" "${WORK_DIR}" "${SPEC_PATH}" <<'PY'
 import sys
 import os
+import json
 import yaml
 
-raw_path, work_dir = sys.argv[1:3]
-try:
-    with open(raw_path, encoding="utf-8") as fh:
-        data = yaml.safe_load(fh)
-except Exception as exc:
-    print(f"[generate] Failed to load recipe YAML: {exc}")
-    sys.exit(0)
+raw_path, work_dir, spec_path = sys.argv[1:4]
+
+def fail(msg: str, exc: Exception | None = None) -> "NoReturn":
+    if exc:
+        print(f"[generate] {msg}: {exc}", file=sys.stderr)
+    else:
+        print(f"[generate] {msg}", file=sys.stderr)
+    sys.exit(1)
 
 def clean_lines(raw):
     if not isinstance(raw, list):
@@ -247,16 +249,27 @@ def clean_lines(raw):
             out.append(text)
     return out
 
-def write_file(filename, lines):
+def write_file(filename, content):
     path = os.path.join(work_dir, filename)
-    if lines:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines) + "\n")
-        print(f"[generate] wrote {filename} ({len(lines)} lines)")
+    os.makedirs(work_dir, exist_ok=True)
+    if isinstance(content, list):
+        if content:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("\n".join(content) + "\n")
+            print(f"[generate] wrote {filename} ({len(content)} lines)")
+        else:
+            open(path, "w", encoding="utf-8").close()
+            print(f"[generate] created empty {filename} (no lines)")
     else:
-        # Touch empty file so runner doesn't warn about missing files
-        open(path, "w", encoding="utf-8").close()
-        print(f"[generate] created empty {filename} (no lines)")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(content, f, indent=2)
+        print(f"[generate] wrote {filename} (json)")
+
+try:
+    with open(raw_path, encoding="utf-8") as fh:
+        data = yaml.safe_load(fh)
+except Exception as exc:
+    fail("Failed to load recipe YAML", exc)
 
 for block, fname in (
     ("clone_block", "clone_commands.txt"),
@@ -273,6 +286,35 @@ workdir = data.get("workdir") if isinstance(data, dict) else None
 if isinstance(workdir, str) and workdir.strip():
     meta_lines.append(f"cd {workdir.strip()}")
 write_file("meta.sh", meta_lines)
+
+# Generate file_edits.json from job spec (file_patches)
+file_edits = []
+try:
+    with open(spec_path, encoding="utf-8") as sp:
+        spec = json.load(sp)
+    patches = spec.get("file_patches") if isinstance(spec, dict) else []
+    if isinstance(patches, list):
+        for item in patches:
+            if not isinstance(item, dict):
+                continue
+            path_val = str(item.get("path") or "").strip()
+            action = str(item.get("action") or "").strip()
+            content = item.get("content")
+            find = item.get("find")
+            if not path_val:
+                continue
+            file_edits.append(
+                {
+                    "path": path_val,
+                    "action": action,
+                    "content": content,
+                    "find": find,
+                }
+            )
+except Exception as exc:
+    fail("Failed to load job spec for file edits", exc)
+
+write_file("file_edits.json", file_edits)
 PY
 
 run_script() {

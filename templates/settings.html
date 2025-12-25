@@ -39,7 +39,30 @@
                 <div class="mb-3">
                     <label class="form-label" for="gitlab_username">GitLab Username</label>
                     <input type="text" class="form-control" id="gitlab_username" name="gitlab_username" value="{{ settings.gitlab_username or '' }}" placeholder="e.g., johndoe">
-                    <div class="form-text">Required for job creation.</div>
+                    <div class="form-text">Legacy fallback; use the dedicated host fields below.</div>
+                </div>
+                <div class="border rounded p-3 mb-3">
+                    <h6 class="fw-semibold mb-2">GitLab ami.com</h6>
+                    <div class="mb-2">
+                        <label class="form-label" for="gitlab_username_primary">Username (ami.com)</label>
+                        <input type="text" class="form-control" id="gitlab_username_primary" name="gitlab_username_primary" value="{{ settings.gitlab_username_primary or '' }}" placeholder="e.g., johndoe">
+                    </div>
+                    <div>
+                        <label class="form-label" for="gitlab_token_primary">Token (ami.com)</label>
+                        <input type="text" class="form-control" id="gitlab_token_primary" name="gitlab_token_primary" value="{{ settings.gitlab_token_primary or '' }}" placeholder="PAT for git.ami.com">
+                    </div>
+                </div>
+                <div class="border rounded p-3 mb-3">
+                    <h6 class="fw-semibold mb-2">GitLab ami.com.tw</h6>
+                    <div class="mb-2">
+                        <label class="form-label" for="gitlab_username_secondary">Username (ami.com.tw)</label>
+                        <input type="text" class="form-control" id="gitlab_username_secondary" name="gitlab_username_secondary" value="{{ settings.gitlab_username_secondary or '' }}" placeholder="e.g., johndoe">
+                    </div>
+                    <div>
+                        <label class="form-label" for="gitlab_token_secondary">Token (ami.com.tw)</label>
+                        <input type="text" class="form-control" id="gitlab_token_secondary" name="gitlab_token_secondary" value="{{ settings.gitlab_token_secondary or '' }}" placeholder="PAT for git.ami.com.tw">
+                    </div>
+                    <div class="form-text">At least one host (ami.com or ami.com.tw) must have username + token.</div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="disk_min">Disk Threshold (GB)</label>

@@ -14,6 +14,10 @@ def _ensure_settings_columns(db: Session) -> None:
         if "gitlab_username" not in cols:
             db.execute(text("ALTER TABLE system_settings ADD COLUMN gitlab_username TEXT"))
             db.commit()
+        for col in ("gitlab_username_primary", "gitlab_token_primary", "gitlab_username_secondary", "gitlab_token_secondary"):
+            if col not in cols:
+                db.execute(text(f"ALTER TABLE system_settings ADD COLUMN {col} TEXT"))
+                db.commit()
     except Exception:
         # Best-effort; caller will fail if the column truly cannot be added.
         pass
@@ -39,6 +43,10 @@ def update_system_settings(
     delete_days_age: int,
     gitlab_token: Optional[str],
     gitlab_username: Optional[str],
+    gitlab_username_primary: Optional[str],
+    gitlab_token_primary: Optional[str],
+    gitlab_username_secondary: Optional[str],
+    gitlab_token_secondary: Optional[str],
     disk_min_free_gb: int,
     gitlab_host: Optional[str] = None,
 ) -> SystemSettings:
@@ -51,6 +59,10 @@ def update_system_settings(
         settings.gitlab_host = gitlab_host.strip()
     settings.gitlab_token = (gitlab_token or "").strip() or None
     settings.gitlab_username = (gitlab_username or "").strip() or None
+    settings.gitlab_username_primary = (gitlab_username_primary or "").strip() or None
+    settings.gitlab_token_primary = (gitlab_token_primary or "").strip() or None
+    settings.gitlab_username_secondary = (gitlab_username_secondary or "").strip() or None
+    settings.gitlab_token_secondary = (gitlab_token_secondary or "").strip() or None
     db.add(settings)
     db.commit()
     db.refresh(settings)
