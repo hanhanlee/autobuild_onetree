@@ -217,6 +217,22 @@
       console.log("[jobs] checkbox change; tracked ids:", window.selectedJobIds.size);
     });
 
+    document.addEventListener("change", (event) => {
+      const master = event.target.closest('input[type="checkbox"][data-select-all="jobs"]');
+      if (!master) return;
+      const checked = master.checked;
+      document.querySelectorAll('#jobs-table-body input[type="checkbox"][data-job-id]').forEach((cb) => {
+        const jid = String(cb.getAttribute("data-job-id") || "");
+        cb.checked = checked;
+        if (checked) {
+          window.selectedJobIds.add(jid);
+        } else {
+          window.selectedJobIds.delete(jid);
+        }
+      });
+      console.log("[jobs] select-all change; checked:", checked, "tracked ids:", window.selectedJobIds.size);
+    });
+
     document.addEventListener("htmx:afterSwap", () => {
       // Always resync after any swap; selectors limit work to the jobs table.
       requestAnimationFrame(syncCheckboxState);
