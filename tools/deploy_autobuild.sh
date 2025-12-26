@@ -57,12 +57,13 @@ update_source_code() {
 
 show_menu() {
     echo "Please select an action:"
-    echo "1) 🚀 Update & Deploy (Pull + Sync + Pip + Restart)"
-    echo "2) 🔄 Sync Code Only (No Restart)"
-    echo "3) 🧹 Fix Permissions Only (Code & Data)"
-    echo "4) 📦 Install/Update Python Requirements"
-    echo "5) 🔁 Restart Service Only"
-    echo "6) 📜 View Service Logs"
+    echo "1) 🚀 Full Deploy (All Steps + Pip Install)"
+    echo "2) ⚡ Fast Deploy (Pull + Sync + Fix + Restart)"
+    echo "3) 📂 Sync Code Only (No Restart)"
+    echo "4) 🧹 Fix Permissions Only (Code & Data)"
+    echo "5) 📦 Install/Update Python Requirements"
+    echo "6) 🔁 Restart Service Only"
+    echo "7) 📜 View Service Logs"
     echo "q) Quit"
     echo -n "Select option: "
 }
@@ -167,31 +168,39 @@ while true; do
             check_dependencies
             fix_permissions
             restart_service
-            echo -e "${GREEN}🚀 Update & Deploy completed!${NC}"
+            echo -e "${GREEN}🚀 Full Deploy completed!${NC}"
             break
             ;;
         2)
+            update_source_code
             sync_code
             fix_permissions
-            echo -e "${GREEN}🔄 Code synced.${NC}"
+            restart_service
+            echo -e "${GREEN}⚡ Fast Deploy completed!${NC}"
             break
             ;;
         3)
+            sync_code
+            fix_permissions
+            echo -e "${GREEN}📂 Code synced.${NC}"
+            break
+            ;;
+        4)
             fix_permissions
             echo -e "${GREEN}🧹 Permissions repaired.${NC}"
             break
             ;;
-        4)
+        5)
             check_dependencies
             echo -e "${GREEN}📦 Python requirements installed/updated.${NC}"
             break
             ;;
-        5)
+        6)
             restart_service
             echo -e "${GREEN}🔁 Service restarted.${NC}"
             break
             ;;
-        6)
+        7)
             journalctl -u "$SERVICE_NAME" -n 50 -f
             break
             ;;
