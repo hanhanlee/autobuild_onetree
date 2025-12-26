@@ -273,6 +273,7 @@ async def new_job_page(request: Request):
     if cb_error and not debug_ctx.get("last_error"):
         debug_ctx["last_error"] = cb_error
     error_msg = debug_ctx.get("last_error")
+    recent_jobs = db.list_recent_jobs(limit=20)
     return render_page(
         request,
         "new_job.html",
@@ -285,6 +286,7 @@ async def new_job_page(request: Request):
         codebases=codebases,
         codebases_count=len(codebases),
         workspaces_root=str(WORKSPACES_ROOT),
+        recent_jobs=recent_jobs,
         status_code=200,
         user=user,
         token_ok=None,

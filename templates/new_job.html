@@ -75,45 +75,45 @@
             <div class="col-lg-6">
               <label class="form-label fw-semibold d-block">Pipeline Stages</label>
               <div class="btn-group w-100" role="group">
-                <input type="checkbox" class="btn-check" id="check-clone" name="do_clone" autocomplete="off" checked>
+                <input type="checkbox" class="btn-check" id="check-clone" name="do_clone" autocomplete="off" checked onchange="toggleSection('section-clone', this.checked)">
                 <label class="btn btn-outline-primary" for="check-clone">1. Clone</label>
 
-                <input type="checkbox" class="btn-check" id="check-edit" name="do_edit" autocomplete="off">
+                <input type="checkbox" class="btn-check" id="check-edit" name="do_edit" autocomplete="off" onchange="toggleSection('section-edit', this.checked)">
                 <label class="btn btn-outline-primary" for="check-edit">2. Edit/Patch</label>
 
-                <input type="checkbox" class="btn-check" id="check-init" name="do_init" autocomplete="off" checked>
+                <input type="checkbox" class="btn-check" id="check-init" name="do_init" autocomplete="off" checked onchange="toggleSection('section-init', this.checked)">
                 <label class="btn btn-outline-primary" for="check-init">3. Init</label>
 
-                <input type="checkbox" class="btn-check" id="check-build" name="do_build" autocomplete="off" checked>
+                <input type="checkbox" class="btn-check" id="check-build" name="do_build" autocomplete="off" checked onchange="toggleSection('section-build', this.checked)">
                 <label class="btn btn-outline-primary" for="check-build">4. Build</label>
               </div>
               <div class="mt-3">
-                <label class="form-label fw-semibold" for="codebase-select">Codebase (optional unless build/edit only)</label>
-                {% if codebases_count is defined %}
-                <div class="text-muted small mb-1">workspaces_root: {{ workspaces_root }}, codebases_count: {{ codebases_count }}</div>
-                {% endif %}
-                <select id="codebase-select" name="codebase_id" class="form-select">
-                  <option value="" {% if not codebase_id %}selected{% endif %}>-- Select a codebase --</option>
-                  {% for cb in codebases or [] %}
-                      <option value="{{ cb.id }}" {% if codebase_id==cb.id %}selected{% endif %}>{{ cb.label or cb.id }}</option>
-                  {% endfor %}
-                </select>
-                <div class="text-muted small mt-1">Build/Edit stages that require existing sources should set a codebase with codebase.json under workspaces_root.</div>
+                <label class="form-label fw-semibold" for="base_job_id">Base Job (Reuse Artifacts)</label>
+                <div class="input-group mb-2">
+                  <input type="number" class="form-control" id="base_job_id" name="base_job_id" placeholder="Job ID (e.g. 57)" value="">
+                  <select class="form-select" id="recent_jobs_select" aria-label="Select from Recent Jobs">
+                    <option value="">Select from Recent Jobs</option>
+                    {% for j in recent_jobs or [] %}
+                      <option value="{{ j.id }}">#{{ j.id }} — {{ j.recipe_id or 'unknown' }} ({{ j.status }})</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="text-muted small mt-1">Enter a job ID or pick from recent jobs to reuse artifacts.</div>
               </div>
             </div>
           </div>
 
           <div class="mt-4">
             <div class="row g-3">
-              <div class="col-md-6">
+              <div class="col-md-6" id="section-clone">
                 <label class="form-label fw-semibold">Clone Commands</label>
                 <textarea class="form-control font-monospace" name="clone_script" rows="4" placeholder="git clone ..." readonly></textarea>
               </div>
-              <div class="col-md-6">
+              <div class="col-md-6" id="section-init">
                 <label class="form-label fw-semibold">Initialization Commands</label>
                 <textarea class="form-control font-monospace" name="init_script" rows="4" placeholder="source oe-init-build-env" readonly></textarea>
               </div>
-              <div class="col-12">
+              <div class="col-12" id="section-build">
                 <label class="form-label fw-semibold">Build Commands</label>
                 <textarea class="form-control font-monospace" name="build_script" rows="3" placeholder="bitbake ..." required readonly></textarea>
               </div>
@@ -126,21 +126,12 @@
         <div class="card-body">
           <h5 class="card-title border-bottom pb-2 mb-4 text-dark">Recipe &amp; Metadata</h5>
 
-          <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-3" id="section-edit">
             <span class="fw-semibold text-dark">File Patches</span>
             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addPatchRow()"><i class="bi bi-plus-lg"></i> Add Patch</button>
           </div>
           <div id="patch-container" class="mb-3"></div>
           <div class="text-muted small mb-4">Apply automated file patches (append/replace) after cloning.</div>
-
-          <div class="mb-3">
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#advanced-options" aria-expanded="false">Advanced Options</button>
-          </div>
-          <div class="collapse" id="advanced-options">
-            <div class="card card-body border-0 p-0 mb-3">
-              <div class="text-muted small">Use these fields for specialized overrides if needed.</div>
-            </div>
-          </div>
 
           <div class="mb-0">
             <label class="form-label fw-semibold" for="note">Note (optional)</label>
@@ -278,6 +269,16 @@ document.addEventListener("DOMContentLoaded", function () {
             toggleSection(sectionId, checkbox.checked);
         }
     });
+
+    const recentSelect = document.getElementById("recent_jobs_select");
+    const baseInput = document.getElementById("base_job_id");
+    if (recentSelect && baseInput) {
+        recentSelect.addEventListener("change", () => {
+            if (recentSelect.value) {
+                baseInput.value = recentSelect.value;
+            }
+        });
+    }
 
     updateRecipeInfo();
 });
