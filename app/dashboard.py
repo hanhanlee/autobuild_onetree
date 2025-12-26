@@ -82,21 +82,27 @@ def get_volume_last_7_days() -> List[Tuple[str, int]]:
     with get_connection() as conn:
         cur = conn.execute(
             """
-            SELECT date(substr(created_at,1,10)) AS day, COUNT(*) AS total
+            SELECT date(substr(created_at,1,10)) AS day,
+                   SUM(CASE WHEN lower(status)='success' THEN 1 ELSE 0 END) AS success_count,
+                   SUM(CASE WHEN lower(status)='failed' THEN 1 ELSE 0 END) AS failed_count
               FROM jobs
              WHERE date(substr(created_at,1,10)) >= date('now','-6 day')
              GROUP BY day
              ORDER BY day
             """
         )
-        rows = {row["day"]: row["total"] for row in cur.fetchall()}
+        rows = {row["day"]: {"success": row["success_count"], "failed": row["failed_count"]} for row in cur.fetchall()}
     today = datetime.utcnow().date()
-    series: List[Tuple[str, int]] = []
+    dates: List[str] = []
+    success_counts: List[int] = []
+    failed_counts: List[int] = []
     for i in range(6, -1, -1):
         day = today - timedelta(days=i)
         key = day.isoformat()
-        series.append((key, int(rows.get(key, 0))))
-    return series
+        dates.append(key)
+        success_counts.append(int(rows.get(key, {}).get("success", 0)))
+        failed_counts.append(int(rows.get(key, {}).get("failed", 0)))
+    return [dates, success_counts, failed_counts]
 
 
 def get_sensors_data() -> List[Dict[str, object]]:
@@ -114,13 +120,6 @@ def get_sensors_data() -> List[Dict[str, object]]:
     except Exception:
         return []
 
-    targets = {
-        "tctl": "CPU Tctl",
-        "composite": "NVMe Composite",
-        "vrm": "VRM",
-        "soc": "SoC",
-        "dimm": "DIMM",
-    }
     results: List[Dict[str, object]] = []
 
     def add_item(label: str, value: float, unit: str) -> None:
@@ -132,24 +131,18 @@ def get_sensors_data() -> List[Dict[str, object]]:
         for sensor_name, sensor_vals in chip_data.items():
             if not isinstance(sensor_vals, dict):
                 continue
-            label = sensor_vals.get("temp1_label") or sensor_vals.get("temp2_label") or sensor_vals.get("fan1_label") or sensor_name
-            label_lower = str(label or "").lower()
-            # Temperatures
-            for key, display in targets.items():
-                if key in label_lower:
-                    val = sensor_vals.get("temp1_input") or sensor_vals.get("temp2_input") or sensor_vals.get("temp_input")
-                    if isinstance(val, (int, float)):
-                        add_item(display, float(val), "°C")
-            # Fan RPM
-            if "fan" in label_lower or "rpm" in label_lower:
-                val = sensor_vals.get("fan1_input") or sensor_vals.get("fan2_input") or sensor_vals.get("fan_input")
-                if isinstance(val, (int, float)):
-                    add_item(label or "Fan", float(val), "RPM")
-            # NVMe composite sometimes has temp1_label == "Composite"
-            if "composite" in label_lower:
-                val = sensor_vals.get("temp1_input") or sensor_vals.get("temp_input")
-                if isinstance(val, (int, float)):
-                    add_item("NVMe Composite", float(val), "°C")
+            label = sensor_vals.get("temp1_label") or sensor_vals.get("temp2_label") or sensor_vals.get("fan1_label") or sensor_vals.get("fan2_label") or sensor_name
+            for key, val in sensor_vals.items():
+                if not key.endswith("_input"):
+                    continue
+                if not isinstance(val, (int, float)):
+                    continue
+                unit = ""
+                if key.startswith("temp"):
+                    unit = "°C"
+                elif key.startswith("fan"):
+                    unit = "RPM"
+                add_item(label or key, float(val), unit)
 
     # Deduplicate by label keeping first occurrence
     seen = set()
@@ -165,16 +158,15 @@ def get_sensors_data() -> List[Dict[str, object]]:
 def get_dashboard_context() -> Dict[str, object]:
     jobs_live = get_live_jobs()
     jobs_today = get_jobs_today()
-    volume = get_volume_last_7_days()
+    dates, success_counts, failed_counts = get_volume_last_7_days()
     disk_usage = get_disk_usage(str(get_workspace_root()))
     sensors = get_sensors_data()
-    labels = [d for d, _ in volume]
-    counts = [c for _, c in volume]
     return {
         "live_jobs": jobs_live,
         "jobs_today": jobs_today,
-        "volume_labels": labels,
-        "volume_counts": counts,
+        "volume_labels": dates,
+        "volume_success": success_counts,
+        "volume_failed": failed_counts,
         "disk_usage": disk_usage,
         "sensors": sensors,
     }

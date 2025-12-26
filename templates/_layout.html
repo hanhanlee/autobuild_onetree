@@ -45,6 +45,7 @@
             <div class="brand">Autobuild</div>
             <nav>
                 <ul class="nav">
+                    <li><a href="/" class="{% if current_page=='dashboard' %}active{% endif %}"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
                     <li><a href="/new" class="{% if current_page=='new' %}active{% endif %}">Create Job</a></li>
                     <li><a href="/jobs" class="{% if current_page=='jobs' %}active{% endif %}">Jobs</a></li>
                     <li><a href="/projects" class="{% if request.url.path.startswith('/projects') %}active{% endif %}">Project Templates</a></li>
