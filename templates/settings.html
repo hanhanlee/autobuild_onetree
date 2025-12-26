@@ -11,70 +11,99 @@
 <div id="settings-response" class="mb-3"></div>
 
 <form class="row g-3" hx-post="/settings/update" hx-target="#settings-response">
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title">Retention</h5>
-                <p class="card-text text-muted">Control how long logs and artifacts stay available.</p>
-                <div class="mb-3">
-                    <label class="form-label" for="prune_days">Prune Days</label>
-                    <input type="number" min="0" class="form-control" id="prune_days" name="prune_days" value="{{ settings.prune_days_age }}">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="delete_days">Delete Days</label>
-                    <input type="number" min="0" class="form-control" id="delete_days" name="delete_days" value="{{ settings.delete_days_age }}">
-                </div>
-            </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-3">
+          <i class="bi bi-shield-check text-primary me-2 fs-4"></i>
+          <div>
+            <h5 class="card-title mb-0">System Policies</h5>
+            <small class="text-muted">Retention and disk safety thresholds.</small>
+          </div>
         </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title">GitLab & Storage</h5>
-                <p class="card-text text-muted">Centralize the token and guardrails for job execution.</p>
-                <div class="mb-3">
-                    <label class="form-label" for="gitlab_token">GitLab Token</label>
-                    <input type="text" class="form-control" id="gitlab_token" name="gitlab_token" value="{{ settings.gitlab_token or '' }}" placeholder="Personal access token">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="gitlab_username">GitLab Username</label>
-                    <input type="text" class="form-control" id="gitlab_username" name="gitlab_username" value="{{ settings.gitlab_username or '' }}" placeholder="e.g., johndoe">
-                    <div class="form-text">Legacy fallback; use the dedicated host fields below.</div>
-                </div>
-                <div class="border rounded p-3 mb-3">
-                    <h6 class="fw-semibold mb-2">GitLab ami.com</h6>
-                    <div class="mb-2">
-                        <label class="form-label" for="gitlab_username_primary">Username (ami.com)</label>
-                        <input type="text" class="form-control" id="gitlab_username_primary" name="gitlab_username_primary" value="{{ settings.gitlab_username_primary or '' }}" placeholder="e.g., johndoe">
-                    </div>
-                    <div>
-                        <label class="form-label" for="gitlab_token_primary">Token (ami.com)</label>
-                        <input type="text" class="form-control" id="gitlab_token_primary" name="gitlab_token_primary" value="{{ settings.gitlab_token_primary or '' }}" placeholder="PAT for git.ami.com">
-                    </div>
-                </div>
-                <div class="border rounded p-3 mb-3">
-                    <h6 class="fw-semibold mb-2">GitLab ami.com.tw</h6>
-                    <div class="mb-2">
-                        <label class="form-label" for="gitlab_username_secondary">Username (ami.com.tw)</label>
-                        <input type="text" class="form-control" id="gitlab_username_secondary" name="gitlab_username_secondary" value="{{ settings.gitlab_username_secondary or '' }}" placeholder="e.g., johndoe">
-                    </div>
-                    <div>
-                        <label class="form-label" for="gitlab_token_secondary">Token (ami.com.tw)</label>
-                        <input type="text" class="form-control" id="gitlab_token_secondary" name="gitlab_token_secondary" value="{{ settings.gitlab_token_secondary or '' }}" placeholder="PAT for git.ami.com.tw">
-                    </div>
-                    <div class="form-text">At least one host (ami.com or ami.com.tw) must have username + token.</div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label" for="disk_min">Disk Threshold (GB)</label>
-                    <input type="number" min="0" class="form-control" id="disk_min" name="disk_min" value="{{ settings.disk_min_free_gb }}">
-                    <div class="form-text">Minimum free disk space to keep before new jobs are scheduled.</div>
-                </div>
-            </div>
+        <div class="mb-3">
+          <label class="form-label" for="prune_days">Prune Days</label>
+          <input type="number" min="0" class="form-control" id="prune_days" name="prune_days" value="{{ settings.prune_days_age }}">
         </div>
+        <div class="mb-3">
+          <label class="form-label" for="delete_days">Delete Days</label>
+          <input type="number" min="0" class="form-control" id="delete_days" name="delete_days" value="{{ settings.delete_days_age }}">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="disk_min">Disk Threshold (GB)</label>
+          <input type="number" min="0" class="form-control" id="disk_min" name="disk_min" value="{{ settings.disk_min_free_gb }}">
+          <div class="form-text">Minimum free disk space to keep before new jobs are scheduled.</div>
+        </div>
+      </div>
     </div>
-    <div class="col-12 d-flex justify-content-between align-items-center mt-2">
-        <small class="text-muted">Changes apply instantly and are stored centrally.</small>
-        <button type="submit" class="btn btn-primary">Save Settings</button>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-3">
+          <i class="bi bi-git text-danger me-2 fs-4"></i>
+          <div>
+            <h5 class="card-title mb-0">GitLab Credentials</h5>
+            <small class="text-muted">Per-host tokens for ami.com and ami.com.tw</small>
+          </div>
+        </div>
+
+        <div class="border rounded p-3 mb-3">
+          <h6 class="fw-semibold mb-2">GitLab ami.com</h6>
+          <div class="mb-2">
+            <label class="form-label" for="gitlab_username_primary">Username (ami.com)</label>
+            <input type="text" class="form-control" id="gitlab_username_primary" name="gitlab_username_primary" value="{{ settings.gitlab_username_primary or '' }}" placeholder="e.g., johndoe">
+          </div>
+          <div class="mb-2">
+            <label class="form-label" for="gitlab_token_primary">Token (ami.com)</label>
+            <div class="input-group">
+              <input type="password" class="form-control" id="gitlab_token_primary" name="gitlab_token_primary" value="{{ settings.gitlab_token_primary or '' }}" placeholder="PAT for git.ami.com">
+              <button class="btn btn-outline-secondary toggle-visibility" type="button" data-target="gitlab_token_primary"><i class="bi bi-eye"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="border rounded p-3 mb-3">
+          <h6 class="fw-semibold mb-2">GitLab ami.com.tw</h6>
+          <div class="mb-2">
+            <label class="form-label" for="gitlab_username_secondary">Username (ami.com.tw)</label>
+            <input type="text" class="form-control" id="gitlab_username_secondary" name="gitlab_username_secondary" value="{{ settings.gitlab_username_secondary or '' }}" placeholder="e.g., johndoe">
+          </div>
+          <div class="mb-2">
+            <label class="form-label" for="gitlab_token_secondary">Token (ami.com.tw)</label>
+            <div class="input-group">
+              <input type="password" class="form-control" id="gitlab_token_secondary" name="gitlab_token_secondary" value="{{ settings.gitlab_token_secondary or '' }}" placeholder="PAT for git.ami.com.tw">
+              <button class="btn btn-outline-secondary toggle-visibility" type="button" data-target="gitlab_token_secondary"><i class="bi bi-eye"></i></button>
+            </div>
+          </div>
+          <div class="form-text">At least one host (ami.com or ami.com.tw) must have username + token.</div>
+        </div>
+      </div>
     </div>
+  </div>
+
+  <div class="col-12 d-flex justify-content-between align-items-center mt-2">
+    <small class="text-muted">Changes apply instantly and are stored centrally.</small>
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+  </div>
 </form>
+
+<script>
+  (function() {
+    document.querySelectorAll(".toggle-visibility").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const targetId = btn.getAttribute("data-target");
+        const input = document.getElementById(targetId);
+        if (!input) return;
+        const isHidden = input.getAttribute("type") === "password";
+        input.setAttribute("type", isHidden ? "text" : "password");
+        const icon = btn.querySelector("i");
+        if (icon) {
+          icon.className = isHidden ? "bi bi-eye-slash" : "bi bi-eye";
+        }
+      });
+    });
+  })();
+</script>
 {% endblock %}
