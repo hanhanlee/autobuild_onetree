@@ -99,8 +99,8 @@ fix_permissions() {
     if [ -d "/work/autobuild_workspace" ]; then
         echo "Fixing /work/autobuild_workspace permissions..."
         chown -R "${TARGET_USER}:${TARGET_GROUP}" "/work/autobuild_workspace"
-        find "/work/autobuild_workspace" -type d -exec chmod 2775 {} \;
-        find "/work/autobuild_workspace" -type f -exec chmod 664 {} \;
+        find "/work/autobuild_workspace" -type d -exec chmod 2775 {} +
+        find "/work/autobuild_workspace" -type f -exec chmod 664 {} +
     fi
 
     echo -e "${GREEN}Permissions fixed.${NC}"
