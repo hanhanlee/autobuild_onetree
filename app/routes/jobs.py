@@ -273,7 +273,7 @@ async def new_job_page(request: Request):
     if cb_error and not debug_ctx.get("last_error"):
         debug_ctx["last_error"] = cb_error
     error_msg = debug_ctx.get("last_error")
-    recent_jobs = db.list_recent_jobs(limit=20)
+    recent_jobs = db.list_recent_jobs(limit=50)
     return render_page(
         request,
         "new_job.html",
@@ -579,6 +579,7 @@ async def create_job(
     user = _current_user(request)
     recipes, debug_ctx_raw = _list_recipes_from_presets()
     codebases, cb_error = _list_codebases()
+    recent_jobs = db.list_recent_jobs(limit=50)
     debug_ctx = debug_ctx_raw
     debug_ctx["workspaces_root"] = str(WORKSPACES_ROOT)
     debug_ctx["codebases_count"] = len(codebases)
@@ -637,9 +638,13 @@ async def create_job(
     recipe_id_val = str(form.get("recipe_id") or "").strip()
     note = str(form.get("note") or "").strip()
     codebase_id = str(form.get("codebase_id") or "").strip()
+    base_job_id_raw = str(form.get("base_job_id") or "").strip()
+    base_job_path: Optional[str] = None
     repo_url = str(form.get("repo_url") or "").strip()
     branch = str(form.get("branch") or "").strip()
     build_cmd = str(form.get("build_cmd") or "").strip()
+    base_job_id_raw = (str(form.get("base_job_id") or "").strip()) or ""
+    base_job_path = None
 
     def _attr(obj, key: str):
         if obj is None:
@@ -676,6 +681,36 @@ async def create_job(
     do_edit = _flag("do_edit", False)
     do_init = _flag("do_init", True)
     do_build = _flag("do_build", True)
+    base_job_id = None
+    if base_job_id_raw:
+        try:
+            base_job_id_int = int(base_job_id_raw)
+            resolved = jobs.resolve_base_job_path(base_job_id_int)
+            base_job_id = base_job_id_int
+            base_job_path = str(resolved)
+            codebase_id = base_job_path
+        except ValueError as exc:
+            debug_ctx["last_error"] = debug_ctx.get("last_error") or str(exc)
+            return render_page(
+                request,
+                "new_job.html",
+                current_page="new",
+                status_code=400,
+                error=str(exc),
+                recipes=recipes,
+                presets_root=str(PRESETS_ROOT),
+                recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+                codebases=codebases,
+                codebases_count=len(codebases),
+                workspaces_root=str(WORKSPACES_ROOT),
+                last_error=debug_ctx.get("last_error"),
+                debug_context=debug_ctx,
+                codebase_id=codebase_id,
+                recent_jobs=db.list_recent_jobs(limit=50),
+                base_job_id=base_job_id_raw,
+                user=user,
+                token_ok=None,
+            )
 
     patch_paths = form.getlist("patch_paths") if hasattr(form, "getlist") else []
     patch_actions = form.getlist("patch_actions") if hasattr(form, "getlist") else []
@@ -694,6 +729,7 @@ async def create_job(
         "recipe_id",
         "note",
         "codebase_id",
+        "base_job_id",
         "do_clone",
         "do_edit",
         "do_init",
@@ -898,6 +934,8 @@ async def create_job(
         "status": jobs.STATUS_PENDING,
         "mode": "full",
         "codebase_id": codebase_id,
+        "base_job_id": base_job_id,
+        "base_job_path": base_job_path,
         "run_clone": do_clone,
         "run_edit": do_edit,
         "run_init": do_init,
@@ -917,6 +955,8 @@ async def create_job(
         "note": note,
         "mode": "full",
         "codebase_id": codebase_id,
+        "base_job_id": base_job_id,
+        "base_job_path": base_job_path,
         "run_clone": do_clone,
         "run_edit": do_edit,
         "run_init": do_init,

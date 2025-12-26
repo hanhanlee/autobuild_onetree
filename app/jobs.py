@@ -419,6 +419,18 @@ def _find_runner_pids(job_id: int) -> Set[int]:
     return pids
 
 
+def resolve_base_job_path(base_job_id: int) -> Path:
+    base_dir = job_dir(base_job_id) / "work"
+    if not base_dir.exists() or not base_dir.is_dir():
+        raise ValueError(f"Job {base_job_id} work directory not found")
+    subdirs = [p for p in base_dir.iterdir() if p.is_dir()]
+    if len(subdirs) == 0:
+        raise ValueError(f"No source directory found in Job {base_job_id} work folder.")
+    if len(subdirs) > 1:
+        raise ValueError(f"Ambiguous source: Multiple directories found in Job {base_job_id} work folder.")
+    return subdirs[0]
+
+
 def stop_job(job_id: int) -> bool:
     spec = load_job_spec(job_id) or {}
     pids: Set[int] = set()

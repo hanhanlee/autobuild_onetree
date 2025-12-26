@@ -88,17 +88,12 @@
                 <label class="btn btn-outline-primary" for="check-build">4. Build</label>
               </div>
               <div class="mt-3">
-                <label class="form-label fw-semibold" for="codebase-select">Target Codebase (Existing Workspace)</label>
-                {% if codebases_count is defined %}
-                <div class="text-muted small mb-1">workspaces_root: {{ workspaces_root }}, codebases_count: {{ codebases_count }}</div>
-                {% endif %}
-                <select id="codebase-select" name="codebase_id" class="form-select">
-                  <option value="" {% if not codebase_id %}selected{% endif %}>-- Select a codebase --</option>
-                  {% for cb in codebases or [] %}
-                      <option value="{{ cb.id }}" {% if codebase_id==cb.id %}selected{% endif %}>{{ cb.label or cb.id }}</option>
-                  {% endfor %}
-                </select>
-                <div class="text-muted small mt-1">Choose an existing workspace to reuse sources/artifacts.</div>
+                <label class="form-label fw-semibold" for="base_job_id">Base Job ID (Reuse Artifacts)</label>
+                <div class="input-group">
+                  <input type="number" class="form-control" id="base_job_id" name="base_job_id" placeholder="Job ID (e.g. 57)" value="{{ base_job_id or '' }}">
+                  <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#baseJobModal">Browse Jobs</button>
+                </div>
+                <div class="text-muted small mt-1">Select a previous job to reuse its workspace/artifacts.</div>
               </div>
             </div>
           </div>
@@ -272,6 +267,21 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    document.querySelectorAll(".select-base-job").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const jobId = btn.getAttribute("data-job-id");
+            const input = document.getElementById("base_job_id");
+            if (input && jobId) {
+                input.value = jobId;
+            }
+            const modalEl = document.getElementById("baseJobModal");
+            if (modalEl) {
+                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                modal.hide();
+            }
+        });
+    });
+
     updateRecipeInfo();
 });
 
@@ -286,6 +296,48 @@ function toggleFind(select) {
     if (findInput) findInput.classList.toggle("d-none", select.value !== "replace");
 }
 </script>
+
+<div class="modal fade" id="baseJobModal" tabindex="-1" aria-labelledby="baseJobModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="baseJobModalLabel">Select Base Job</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>ID</th>
+                <th>Status</th>
+                <th>Recipe</th>
+                <th>Created At</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for j in recent_jobs or [] %}
+              <tr>
+                <td>#{{ j.id }}</td>
+                <td>{{ j.status }}</td>
+                <td>{{ j.recipe_id or '-' }}</td>
+                <td>{{ j.created_at or '-' }}</td>
+                <td><button type="button" class="btn btn-sm btn-primary select-base-job" data-job-id="{{ j.id }}">Select</button></td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-center text-muted py-3">No recent jobs available.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <template id="tpl-patch-row">
     <div class="row g-2 mb-2 patch-row align-items-center">
