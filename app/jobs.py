@@ -300,6 +300,8 @@ async def poll_job(job_id: int, proc: Optional[subprocess.Popen] = None, interva
                 exit_code = data.get("exit_code")
                 finished_at = data.get("finished_at")
                 if status in (STATUS_SUCCESS, STATUS_FAILED):
+                    if status == STATUS_SUCCESS:
+                        collect_artifacts(job_id)
                     update_job_status(job_id, status, finished_at=finished_at, exit_code=exit_code)
                     return
             except Exception:
@@ -310,6 +312,8 @@ async def poll_job(job_id: int, proc: Optional[subprocess.Popen] = None, interva
             except ValueError:
                 exit_code = -1
             status = STATUS_SUCCESS if exit_code == 0 else STATUS_FAILED
+            if status == STATUS_SUCCESS:
+                collect_artifacts(job_id)
             update_job_status(job_id, status, finished_at=now_iso(), exit_code=exit_code)
             return
         elif proc is not None and proc.poll() is not None:
@@ -341,6 +345,43 @@ def list_artifacts(job_id: int) -> Dict[str, Dict[str, Optional[str]]]:
                 "mtime": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
             }
     return artifacts
+
+
+def _copy_unique(src: Path, dest_dir: Path) -> None:
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    target = dest_dir / src.name
+    if target.exists():
+        stem, suffix = src.stem, src.suffix
+        counter = 1
+        while target.exists():
+            target = dest_dir / f"{stem}_{counter}{suffix}"
+            counter += 1
+    shutil.copy2(src, target)
+
+
+def collect_artifacts(job_id: int) -> None:
+    """
+    Collect build artifacts into the job's artifacts directory.
+    Looks for *.static.mtd and *.static.mtd.tar under the job directory (recursively).
+    """
+    base_dir = job_dir(job_id)
+    artifacts_dir = base_dir / "artifacts"
+    if not base_dir.exists():
+        return
+    patterns = ["*.static.mtd", "*.static.mtd.tar"]
+    found_any = False
+    for pattern in patterns:
+        for path in base_dir.rglob(pattern):
+            try:
+                if artifacts_dir in path.parents:
+                    continue
+                if path.is_file():
+                    _copy_unique(path, artifacts_dir)
+                    found_any = True
+            except Exception:
+                logger.debug("Failed to copy artifact %s for job %s", path, job_id, exc_info=True)
+    if found_any:
+        logger.info("Collected artifacts for job %s into %s", job_id, artifacts_dir)
 
 
 def write_job_spec(job_id: int, spec: Dict[str, object]) -> None:
