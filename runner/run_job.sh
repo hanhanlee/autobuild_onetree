@@ -378,54 +378,61 @@ run_cmds_file() {
   popd >/dev/null || true
 }
 
-# Apply patches if provided
-if [[ -s "${PATCHES_FILE}" ]]; then
-  echo "[Patch] Applying patches from ${PATCHES_FILE}"
-  if ! (cd "${WORK_DIR}" && python3 "${SCRIPT_DIR}/patcher.py" "${PATCHES_FILE}"); then
-    echo "[Patch] Warning: patch application failed"
-  fi
+# Stage 1: Clone
+if [[ "${RUN_CLONE}" == "1" ]]; then
+  echo "=== [Stage 1] Clone ==="
+  run_cmds_file "${CLONE_CMDS}" "Clone commands"
+else
+  echo "=== [Stage 1] Skipped (Clone) ==="
 fi
 
-run_script "${META_SH}" "Meta script"
-echo "================= [GIT AUTH DEBUG START] ================="
-echo "Current User: $(whoami)"
-echo "HOME: $HOME"
-echo "JOB_DIR: $JOB_DIR"
-echo "XDG_CONFIG_HOME: ${XDG_CONFIG_HOME:-<unset>}"
-echo "Checking .git-credentials..."
-if [ -f "${JOB_DIR}/.git-credentials" ]; then
-    echo "FOUND: ${JOB_DIR}/.git-credentials"
-    echo "Content (Masked):"
-    sed -E 's/:([^:@]{0,64})@/:***@/' "${JOB_DIR}/.git-credentials"
+# Stage 2: Edit/Patch
+if [[ "${RUN_EDIT}" == "1" ]]; then
+  echo "=== [Stage 2] Edit/Patch ==="
+  if [[ -s "${PATCHES_FILE}" ]]; then
+    echo "[Patch] Applying patches from ${PATCHES_FILE}"
+    if ! (cd "${WORK_DIR}" && python3 "${SCRIPT_DIR}/patcher.py" "${PATCHES_FILE}"); then
+      echo "[Patch] Failed!"
+      exit 1
+    fi
+  fi
+  run_cmds_file "${MODIFY_CMDS}" "Modify commands"
 else
-    echo "CRITICAL ERROR: .git-credentials NOT FOUND at ${JOB_DIR}/.git-credentials"
+  echo "=== [Stage 2] Skipped (Edit/Patch) ==="
 fi
-echo "Effective Git Config:"
-git config --list --show-origin
-echo "Directory listing for JOB_DIR:"
-ls -ld "${JOB_DIR}"
-ls -la "${JOB_DIR}"
-echo "================= [GIT AUTH DEBUG END] ================="
-run_cmds_file "${CLONE_CMDS}" "Clone commands"
-run_cmds_file "${INIT_CMDS}" "Init commands"
-# Inject shared Yocto cache settings so downloads/sstate use the shared mount
-if [[ -f "/work/site.conf" ]]; then
-  local_conf_path="$(find "${WORK_DIR}" -maxdepth 4 -name "local.conf" -print -quit 2>/dev/null || true)"
-  if [[ -n "${local_conf_path}" ]]; then
-    conf_dir="$(dirname "${local_conf_path}")"
-    if cp "/work/site.conf" "${conf_dir}/site.conf"; then
-      echo "[Config] Injected /work/site.conf to ${conf_dir}"
+
+# Stage 3: Init
+if [[ "${RUN_INIT}" == "1" ]]; then
+  echo "=== [Stage 3] Init ==="
+  run_script "${META_SH}" "Meta script"
+  run_cmds_file "${INIT_CMDS}" "Init commands"
+  # Inject shared Yocto cache settings so downloads/sstate use the shared mount
+  if [[ -f "/work/site.conf" ]]; then
+    local_conf_path="$(find "${WORK_DIR}" -maxdepth 4 -name "local.conf" -print -quit 2>/dev/null || true)"
+    if [[ -n "${local_conf_path}" ]]; then
+      conf_dir="$(dirname "${local_conf_path}")"
+      if cp "/work/site.conf" "${conf_dir}/site.conf"; then
+        echo "[Config] Injected /work/site.conf to ${conf_dir}"
+      else
+        echo "[Config] Failed to copy /work/site.conf to ${conf_dir}" >&2
+      fi
     else
-      echo "[Config] Failed to copy /work/site.conf to ${conf_dir}" >&2
+      echo "[Config] local.conf not found under ${WORK_DIR}; skipping shared site.conf injection"
     fi
   else
-    echo "[Config] local.conf not found under ${WORK_DIR}; skipping shared site.conf injection"
+    echo "[Config] Shared site.conf missing at /work/site.conf; skipping injection"
   fi
 else
-  echo "[Config] Shared site.conf missing at /work/site.conf; skipping injection"
+  echo "=== [Stage 3] Skipped (Init) ==="
 fi
-run_cmds_file "${MODIFY_CMDS}" "Modify commands"
-run_cmds_file "${BUILD_CMDS}" "Build commands"
+
+# Stage 4: Build
+if [[ "${RUN_BUILD}" == "1" ]]; then
+  echo "=== [Stage 4] Build ==="
+  run_cmds_file "${BUILD_CMDS}" "Build commands"
+else
+  echo "=== [Stage 4] Skipped (Build) ==="
+fi
 
 echo "Job ${JOB_ID} main steps completed."
 exit 0

@@ -239,14 +239,10 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
         run_edit = False
         run_init = True
         run_build = True
-    if not run_clone:
-        env["SKIP_CLONE"] = "1"
-    if run_edit:
-        env["RUN_EDIT"] = "1"
-    if not run_init:
-        env["SKIP_INIT"] = "1"
-    if not run_build:
-        env["SKIP_BUILD"] = "1"
+    env["RUN_CLONE"] = "1" if run_clone else "0"
+    env["RUN_EDIT"] = "1" if run_edit else "0"
+    env["RUN_INIT"] = "1" if run_init else "0"
+    env["RUN_BUILD"] = "1" if run_build else "0"
     try:
         with SessionLocal() as session:
             settings = get_system_settings(session)
