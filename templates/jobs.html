@@ -152,6 +152,18 @@
     // Persist user-selected job checkboxes across HTMX swaps
     window.selectedJobIds = window.selectedJobIds || new Set();
 
+    function seedSelectedFromDom() {
+      document.querySelectorAll('#jobs-table-body input[type="checkbox"][data-job-id]').forEach((cb) => {
+        if (cb.checked) {
+          const jid = String(cb.getAttribute("data-job-id") || "");
+          if (jid) {
+            window.selectedJobIds.add(jid);
+          }
+        }
+      });
+      console.log("[jobs] seedSelectedFromDom; tracked ids:", window.selectedJobIds.size);
+    }
+
     function syncCheckboxState() {
       const checkboxes = document.querySelectorAll('#jobs-table-body input[type="checkbox"][data-job-id]');
       let restored = 0;
@@ -184,6 +196,7 @@
     });
 
     // Initial sync on page load
+    seedSelectedFromDom();
     syncCheckboxState();
 
     function showCopyNotice(message) {
