@@ -114,7 +114,11 @@ check_dependencies() {
     if [ ! -f "$SRC_DIR/requirements.txt" ]; then
         echo -e "${YELLOW}requirements.txt not found in $SRC_DIR; skipping pip install.${NC}"
     else
-        sudo -u "$TARGET_USER" bash -c "source \"$DEST_DIR/venv/bin/activate\" && pip install --upgrade pip && pip install --upgrade -r \"$SRC_DIR/requirements.txt\""
+        local req_src="$SRC_DIR/requirements.txt"
+        local req_copy="$DEST_DIR/requirements.txt"
+        cp "$req_src" "$req_copy"
+        chown "${TARGET_USER}:${TARGET_GROUP}" "$req_copy"
+        sudo -u "$TARGET_USER" bash -c "source \"$DEST_DIR/venv/bin/activate\" && pip install --upgrade pip && pip install --upgrade -r \"$req_copy\""
     fi
 
     chown -R "${TARGET_USER}:${TARGET_GROUP}" "$DEST_DIR/venv"
