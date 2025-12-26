@@ -408,6 +408,22 @@ ls -la "${JOB_DIR}"
 echo "================= [GIT AUTH DEBUG END] ================="
 run_cmds_file "${CLONE_CMDS}" "Clone commands"
 run_cmds_file "${INIT_CMDS}" "Init commands"
+# Inject shared Yocto cache settings so downloads/sstate use the shared mount
+if [[ -f "/work/site.conf" ]]; then
+  local_conf_path="$(find "${WORK_DIR}" -maxdepth 4 -name "local.conf" -print -quit 2>/dev/null || true)"
+  if [[ -n "${local_conf_path}" ]]; then
+    conf_dir="$(dirname "${local_conf_path}")"
+    if cp "/work/site.conf" "${conf_dir}/site.conf"; then
+      echo "[Config] Injected /work/site.conf to ${conf_dir}"
+    else
+      echo "[Config] Failed to copy /work/site.conf to ${conf_dir}" >&2
+    fi
+  else
+    echo "[Config] local.conf not found under ${WORK_DIR}; skipping shared site.conf injection"
+  fi
+else
+  echo "[Config] Shared site.conf missing at /work/site.conf; skipping injection"
+fi
 run_cmds_file "${MODIFY_CMDS}" "Modify commands"
 run_cmds_file "${BUILD_CMDS}" "Build commands"
 
