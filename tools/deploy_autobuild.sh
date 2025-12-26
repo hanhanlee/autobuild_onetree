@@ -2,20 +2,15 @@
 set -e
 
 # =================CONFIGURATION=================
-# [關鍵修正] 取得腳本所在目錄 (tools)，然後往上一層 (..) 找到專案根目錄
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="$(dirname "$SCRIPT_DIR")"
-
-# 伺服器部署目標目錄
 DEST_DIR="/opt/autobuild"
-# 服務名稱
 SERVICE_NAME="autobuild"
-# 使用者與群組
 TARGET_USER="autobuild"
 TARGET_GROUP="scm-bmc"
 # ===============================================
 
-# 顏色定義
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -27,19 +22,47 @@ echo -e "Project Root (Source): ${SRC_DIR}"
 echo -e "Deploy Target: ${DEST_DIR}"
 echo ""
 
-# 檢查是否為 Root 執行，如果不是，自動加 sudo 重跑自己
+# Elevate to root if needed
 if [[ $EUID -ne 0 ]]; then
    echo -e "${YELLOW}Need root privileges. Elevating with sudo...${NC}"
    exec sudo "$0" "$@"
 fi
 
+require_cmd() {
+    local cmd="$1"
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo -e "${RED}Missing required command: ${cmd}. Please install it and retry.${NC}"
+        exit 1
+    fi
+}
+
+require_cmd git
+require_cmd python3
+
+update_source_code() {
+    echo -e "${YELLOW}[0/3] Updating source code (git pull)...${NC}"
+    if [ ! -d "$SRC_DIR/.git" ]; then
+        echo -e "${RED}No git repository found at $SRC_DIR. Skipping git pull.${NC}"
+        return
+    fi
+    local git_user="${SUDO_USER:-}"
+    local git_cmd=("git" "-C" "$SRC_DIR" "pull" "--ff-only")
+    if [ -n "$git_user" ]; then
+        sudo -u "$git_user" "${git_cmd[@]}"
+    else
+        "${git_cmd[@]}"
+    fi
+    echo -e "${GREEN}Source updated.${NC}"
+}
+
 show_menu() {
     echo "Please select an action:"
-    echo "1) 🚀 Full Deploy (Sync Code + Fix Permissions + Restart Service)"
-    echo "2) 📂 Sync Code Only (No Restart)"
-    echo "3) 🔧 Fix Permissions Only (Code & Data)"
-    echo "4) 🔄 Restart Service Only"
-    echo "5) 📜 View Service Logs"
+    echo "1) 🚀 Update & Deploy (Pull + Sync + Pip + Restart)"
+    echo "2) 🔄 Sync Code Only (No Restart)"
+    echo "3) 🧹 Fix Permissions Only (Code & Data)"
+    echo "4) 📦 Install/Update Python Requirements"
+    echo "5) 🔁 Restart Service Only"
+    echo "6) 📜 View Service Logs"
     echo "q) Quit"
     echo -n "Select option: "
 }
@@ -47,20 +70,16 @@ show_menu() {
 sync_code() {
     echo -e "${YELLOW}[1/3] Syncing code using rsync...${NC}"
     
-    # 確保目標目錄存在
     if [ ! -d "$DEST_DIR" ]; then
         mkdir -p "$DEST_DIR"
     fi
 
-    # 再次檢查路徑是否正確 (避免同步錯誤)
     if [ ! -d "$SRC_DIR/app" ]; then
         echo -e "${RED}Error: Cannot find 'app' directory in $SRC_DIR.${NC}"
         echo -e "${RED}Are you running this script from the 'tools' directory?${NC}"
         exit 1
     fi
 
-    # --- Rsync 同步 ---
-    # --delete: 確保伺服器跟開發環境完全一致
     rsync -av --delete \
         --exclude 'venv' \
         --exclude 'workspace' \
@@ -77,25 +96,37 @@ sync_code() {
 
     echo -e "${YELLOW}Auto-fixing line endings and heredoc delimiters in shell scripts...${NC}"
     find "$DEST_DIR" -type f -name "*.sh" | while read -r shfile; do
-        # Normalize CRLF to LF
         sed -i 's/\r$//' "$shfile"
-        # Remove leading whitespace before heredoc delimiters (PY/EOF) so they start at column 1
         sed -i -E 's/^[[:space:]]+(PY|EOF)$/\1/' "$shfile"
     done
     echo -e "${GREEN}Shell script normalization complete.${NC}"
 }
 
+check_dependencies() {
+    echo -e "${YELLOW}[Deps] Ensuring virtual environment and Python packages...${NC}"
+    mkdir -p "$DEST_DIR"
+    chown "${TARGET_USER}:${TARGET_GROUP}" "$DEST_DIR"
+
+    if [ ! -d "$DEST_DIR/venv" ]; then
+        sudo -u "$TARGET_USER" python3 -m venv "$DEST_DIR/venv"
+    fi
+
+    if [ ! -f "$SRC_DIR/requirements.txt" ]; then
+        echo -e "${YELLOW}requirements.txt not found in $SRC_DIR; skipping pip install.${NC}"
+    else
+        sudo -u "$TARGET_USER" bash -c "source \"$DEST_DIR/venv/bin/activate\" && pip install --upgrade pip && pip install --upgrade -r \"$SRC_DIR/requirements.txt\""
+    fi
+
+    chown -R "${TARGET_USER}:${TARGET_GROUP}" "$DEST_DIR/venv"
+    echo -e "${GREEN}Python dependencies are up to date.${NC}"
+}
+
 fix_permissions() {
     echo -e "${YELLOW}[2/3] Fixing ownership...${NC}"
     
-    # 1. 修正 /opt/autobuild 的擁有者
-    # 我們只改擁有者，不要去動 chmod 644，這樣會保留您在地端的 +x 設定
     chown -R "${TARGET_USER}:${TARGET_GROUP}" "$DEST_DIR"
-    
-    # 2. 保險起見，強制賦予執行腳本 x 權限 (雙重保險)
     chmod +x "$DEST_DIR/runner/run_job.sh"
 
-    # 3. 確保 /work 資料硬碟權限正確 (這是為了之前的 Group Write 問題)
     if [ -d "/work/autobuild_workspace" ]; then
         echo "Fixing /work/autobuild_workspace permissions..."
         chown -R "${TARGET_USER}:${TARGET_GROUP}" "/work/autobuild_workspace"
@@ -120,36 +151,43 @@ restart_service() {
     fi
 }
 
-# --- 主程式 ---
+# --- Main loop ---
 
 while true; do
     show_menu
     read -r opt
     case $opt in
         1)
+            update_source_code
             sync_code
+            check_dependencies
             fix_permissions
             restart_service
-            echo -e "${GREEN}✅ Full deployment completed!${NC}"
+            echo -e "${GREEN}🚀 Update & Deploy completed!${NC}"
             break
             ;;
         2)
             sync_code
             fix_permissions
-            echo -e "${GREEN}✅ Code synced.${NC}"
+            echo -e "${GREEN}🔄 Code synced.${NC}"
             break
             ;;
         3)
             fix_permissions
-            echo -e "${GREEN}✅ Permissions repaired.${NC}"
+            echo -e "${GREEN}🧹 Permissions repaired.${NC}"
             break
             ;;
         4)
-            restart_service
-            echo -e "${GREEN}✅ Service restarted.${NC}"
+            check_dependencies
+            echo -e "${GREEN}📦 Python requirements installed/updated.${NC}"
             break
             ;;
         5)
+            restart_service
+            echo -e "${GREEN}🔁 Service restarted.${NC}"
+            break
+            ;;
+        6)
             journalctl -u "$SERVICE_NAME" -n 50 -f
             break
             ;;
