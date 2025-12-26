@@ -80,7 +80,7 @@
               <th>Duration</th>
               <th>Size</th>
               <th>Exit Code</th>
-              <th style="width:190px;">Actions</th>
+              <th style="width:240px;">Actions</th>
             </tr>
           </thead>
           <tbody id="jobs-table-body" hx-get="/jobs" hx-trigger="every 5s" hx-select="#jobs-table-body" hx-swap="outerHTML">
@@ -119,6 +119,16 @@
               <td class="d-flex gap-1">
                 <a href="/jobs/{{ j.id }}" class="btn btn-sm btn-outline-primary" title="View details"><i class="bi bi-eye"></i></a>
                 <button type="button" class="btn btn-sm btn-outline-secondary" title="Copy workspace path" data-copy-path="{{ state.workspace_path or '' }}"><i class="bi bi-clipboard"></i></button>
+                {% if st in ['running', 'pending'] %}
+                <button type="submit" formaction="/jobs/{{ j.id }}/stop" formmethod="post" class="btn btn-sm btn-outline-warning" title="Stop job"><i class="bi bi-stop-circle"></i></button>
+                {% else %}
+                <button type="button" class="btn btn-sm btn-outline-warning disabled" title="Stop available for running jobs"><i class="bi bi-stop-circle"></i></button>
+                {% endif %}
+                {% if st in ['success', 'failed'] %}
+                <button type="submit" formaction="/jobs/{{ j.id }}/retry" formmethod="post" class="btn btn-sm btn-outline-success" title="Retry job in place"><i class="bi bi-arrow-repeat"></i></button>
+                {% else %}
+                <button type="button" class="btn btn-sm btn-outline-success disabled" title="Retry after job finishes"><i class="bi bi-arrow-repeat"></i></button>
+                {% endif %}
                 {% if st in ['success', 'failed'] and not is_pruned and not is_pinned %}
                 <button type="submit" formaction="/jobs/{{ j.id }}/prune" formmethod="post" class="btn btn-sm btn-outline-secondary" title="Prune workspace"><i class="bi bi-eraser"></i></button>
                 {% else %}

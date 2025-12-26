@@ -418,6 +418,38 @@ async def prune_job(request: Request, job_id: int):
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
 
 
+@router.post("/jobs/{job_id}/stop")
+async def stop_job(request: Request, job_id: int):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    job = db.get_job(job_id)
+    if not job:
+        return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+    status_val = (job.get("status") or "").lower()
+    if status_val not in {"running", "pending"}:
+        return RedirectResponse(url=f"/jobs/{job_id}?error=not_running", status_code=303)
+    if not jobs.stop_job(job_id):
+        return RedirectResponse(url=f"/jobs/{job_id}?error=stop_failed", status_code=303)
+    return RedirectResponse(url=f"/jobs/{job_id}?success=stopped", status_code=303)
+
+
+@router.post("/jobs/{job_id}/retry")
+async def retry_job(request: Request, job_id: int):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    job = db.get_job(job_id)
+    if not job:
+        return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+    status_val = (job.get("status") or "").lower()
+    if status_val in {"running", "pending"}:
+        return RedirectResponse(url=f"/jobs/{job_id}?error=job_running", status_code=303)
+    if not jobs.retry_job(job_id, owner=job.get("created_by") or job.get("owner")):
+        return RedirectResponse(url=f"/jobs/{job_id}?error=retry_failed", status_code=303)
+    return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
+
+
 
 @router.post("/jobs/{job_id}/delete")
 async def delete_job(request: Request, job_id: int):
