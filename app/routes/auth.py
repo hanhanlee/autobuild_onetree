@@ -41,7 +41,17 @@ async def index(request: Request):
     user = _current_user(request)
     if not user:
         return _prg("/login")
-    return _prg("/new")
+    from ..dashboard import get_dashboard_context
+
+    ctx = get_dashboard_context()
+    return render_page(
+        request,
+        "dashboard.html",
+        current_page="dashboard",
+        user=user,
+        token_ok=None,
+        **ctx,
+    )
 
 
 @router.get("/login")
