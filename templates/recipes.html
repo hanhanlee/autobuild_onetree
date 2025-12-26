@@ -45,9 +45,9 @@
                     <td style="padding:0.4rem 0.25rem;">{{ file.size if file.size is not none else "?" }} bytes</td>
                     <td style="padding:0.4rem 0.25rem;display:flex;gap:0.5rem;align-items:center;">
                         <a href="/recipes/edit?rid={{ file.rid }}">Edit</a>
-                        <form method="post" action="/recipes/archive" style="margin:0;">
+                        <form method="post" action="/recipes/delete" style="margin:0;">
                             <input type="hidden" name="rid" value="{{ file.rid }}">
-                            <button type="submit" onclick="return confirm('Are you sure?');">Archive</button>
+                            <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to PERMANENTLY delete this recipe? This cannot be undone.');">Delete</button>
                         </form>
                     </td>
                 </tr>

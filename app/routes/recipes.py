@@ -421,6 +421,30 @@ async def recipe_archive(request: Request):
     return RedirectResponse(url=f"/recipes?platform={platform}", status_code=303)
 
 
+@router.post("/recipes/delete")
+async def recipe_delete(request: Request):
+    user = _current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    presets_root = get_presets_root()
+    try:
+        form = await request.form()
+    except Exception:
+        return RedirectResponse(url="/recipes?error=invalid_form", status_code=303)
+    rid_raw = str(form.get("rid") or "")
+    try:
+        rid_value, platform, filename, target_path = _validate_rid(rid_raw, require_exists=True)
+    except ValueError as exc:
+        return RedirectResponse(url=f"/recipes?error={quote_plus(str(exc))}", status_code=303)
+    try:
+        target_path.unlink()
+    except FileNotFoundError:
+        return RedirectResponse(url="/recipes?error=not_found", status_code=303)
+    except Exception as exc:
+        return RedirectResponse(url=f"/recipes?error={quote_plus(f'Failed to delete recipe: {exc}')}", status_code=303)
+    return RedirectResponse(url=f"/recipes?platform={platform}", status_code=303)
+
+
 @router.post("/recipes/copy")
 async def recipe_copy(request: Request):
     user = _current_user(request)
