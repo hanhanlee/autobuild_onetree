@@ -125,12 +125,12 @@ def log_file(job_id: int) -> Path:
     return job_dir(job_id) / "logs" / "build.log"
 
 
-def _schedule_poll_job(job_id: int) -> None:
+def _schedule_poll_job(job_id: int, proc: Optional[subprocess.Popen] = None) -> None:
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(poll_job(job_id))
+        loop.create_task(poll_job(job_id, proc=proc))
     except RuntimeError:
-        threading.Thread(target=lambda: asyncio.run(poll_job(job_id)), daemon=True).start()
+        threading.Thread(target=lambda: asyncio.run(poll_job(job_id, proc=proc)), daemon=True).start()
 
 
 def load_job_spec(job_id: int) -> Optional[Dict[str, object]]:
@@ -288,10 +288,10 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
                 log_fp.close()
             except Exception:
                 pass
-    _schedule_poll_job(job_id)
+    _schedule_poll_job(job_id, proc=proc)
 
 
-async def poll_job(job_id: int, interval: float = 2.0) -> None:
+async def poll_job(job_id: int, proc: Optional[subprocess.Popen] = None, interval: float = 2.0) -> None:
     while True:
         if status_file(job_id).exists():
             try:
@@ -311,6 +311,18 @@ async def poll_job(job_id: int, interval: float = 2.0) -> None:
                 exit_code = -1
             status = STATUS_SUCCESS if exit_code == 0 else STATUS_FAILED
             update_job_status(job_id, status, finished_at=now_iso(), exit_code=exit_code)
+            return
+        elif proc is not None and proc.poll() is not None:
+            exit_code = proc.returncode
+            logger.warning("Runner process for job %s exited early with code %s", job_id, exit_code)
+            try:
+                log_path = log_file(job_id)
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                with log_path.open("a", encoding="utf-8") as fp:
+                    fp.write(f"[job {job_id}] Runner exited unexpectedly with code {exit_code} at {now_iso()}\n")
+            except Exception:
+                logger.debug("Failed to append unexpected-exit note for job %s", job_id, exc_info=True)
+            update_job_status(job_id, STATUS_FAILED, finished_at=now_iso(), exit_code=exit_code)
             return
         await asyncio.sleep(interval)
 
