@@ -93,7 +93,7 @@
             {% set badge_class = 'bg-secondary' %}
             {% if st == 'success' %}{% set badge_class = 'bg-success' %}{% elif st == 'failed' %}{% set badge_class = 'bg-danger' %}{% elif st == 'running' %}{% set badge_class = 'bg-primary progress-bar-striped progress-bar-animated' %}{% elif st == 'pending' %}{% set badge_class = 'bg-warning text-dark' %}{% endif %}
             <tr class="{% if is_pinned %}border-start border-4 border-warning bg-warning bg-opacity-10{% endif %}">
-              <td><input type="checkbox" name="job_ids" value="{{ j.id }}" {% if is_pinned %}disabled{% endif %}></td>
+              <td><input type="checkbox" name="job_ids" value="{{ j.id }}" data-job-id="{{ j.id }}" {% if is_pinned %}disabled{% endif %}></td>
               <td>
                 <a href="/jobs/{{ j.id }}" class="fw-semibold text-primary text-decoration-underline">{{ j.id }}</a>
                 <form method="post" action="/jobs/{{ j.id }}/pin" class="d-inline">
@@ -149,6 +149,38 @@
 
 <script>
   (() => {
+    // Persist user-selected job checkboxes across HTMX swaps
+    window.selectedJobIds = window.selectedJobIds || new Set();
+
+    function syncCheckboxState() {
+      document.querySelectorAll('#jobs-table-body input[type="checkbox"][data-job-id]').forEach((cb) => {
+        const jid = cb.getAttribute("data-job-id");
+        cb.checked = window.selectedJobIds.has(jid);
+      });
+    }
+
+    document.addEventListener("change", (event) => {
+      const cb = event.target.closest('#jobs-table-body input[type="checkbox"][data-job-id]');
+      if (!cb) return;
+      const jid = cb.getAttribute("data-job-id");
+      if (!jid) return;
+      if (cb.checked) {
+        window.selectedJobIds.add(jid);
+      } else {
+        window.selectedJobIds.delete(jid);
+      }
+    });
+
+    document.addEventListener("htmx:afterSwap", (event) => {
+      const target = event.target;
+      if (target && target.id === "jobs-table-body") {
+        syncCheckboxState();
+      }
+    });
+
+    // Initial sync on page load
+    syncCheckboxState();
+
     function showCopyNotice(message) {
       const toast = document.createElement("div");
       toast.textContent = message;
