@@ -297,9 +297,18 @@ async def jobs_page(request: Request):
     redirect = _require_login(request)
     if redirect:
         return redirect
+    raw_status = (request.query_params.get("filter_status") or "all").lower()
+    raw_time = (request.query_params.get("filter_time") or "all").lower()
+    status_filter = None if raw_status in {"", "all"} else raw_status
+    days_filter: Optional[int] = None
+    if raw_time not in {"", "all"}:
+        try:
+            days_filter = int(raw_time)
+        except Exception:
+            days_filter = None
     taipei_tz = timezone(timedelta(hours=8))
     user = _current_user(request)
-    recent = db.list_recent_jobs(limit=50)
+    recent = db.list_recent_jobs(limit=50, status=status_filter, days=days_filter)
     disk_usage = None
     try:
         disk_usage = get_disk_usage(str(WORKSPACES_ROOT))
@@ -333,6 +342,8 @@ async def jobs_page(request: Request):
         jobs=recent,
         disk_usage=disk_usage,
         job_states=job_states,
+        filter_status=raw_status,
+        filter_time=raw_time,
         status_code=200,
         user=user,
         token_ok=None,

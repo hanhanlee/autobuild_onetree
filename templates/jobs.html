@@ -3,6 +3,33 @@
 {% block content %}
 <h1 class="mb-3">Jobs</h1>
 
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <form id="jobs-filters" class="row g-3 align-items-center" hx-get="/jobs" hx-target="#jobs-table-body" hx-select="#jobs-table-body" hx-trigger="change">
+      <div class="col-md-3 col-sm-6">
+        <label for="filter_status" class="form-label mb-1 text-muted small">Status</label>
+        <select class="form-select" id="filter_status" name="filter_status">
+          {% set selected_status = (filter_status or 'all')|lower %}
+          <option value="all" {% if selected_status == 'all' %}selected{% endif %}>All Statuses</option>
+          <option value="success" {% if selected_status == 'success' %}selected{% endif %}>Success</option>
+          <option value="failed" {% if selected_status == 'failed' %}selected{% endif %}>Failed</option>
+          <option value="running" {% if selected_status == 'running' %}selected{% endif %}>Running</option>
+          <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Pending</option>
+        </select>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <label for="filter_time" class="form-label mb-1 text-muted small">Time</label>
+        {% set selected_time = (filter_time or 'all')|lower %}
+        <select class="form-select" id="filter_time" name="filter_time">
+          <option value="all" {% if selected_time == 'all' %}selected{% endif %}>All Time</option>
+          <option value="1" {% if selected_time == '1' %}selected{% endif %}>Today</option>
+          <option value="7" {% if selected_time == '7' %}selected{% endif %}>Last 7 Days</option>
+        </select>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="row g-3 mb-3">
   <div class="col-md-4">
     <div class="card shadow-sm">
@@ -83,7 +110,7 @@
               <th style="width:240px;">Actions</th>
             </tr>
           </thead>
-          <tbody id="jobs-table-body" hx-get="/jobs" hx-trigger="every 5s" hx-select="#jobs-table-body" hx-swap="outerHTML">
+          <tbody id="jobs-table-body" hx-get="/jobs" hx-trigger="every 5s" hx-select="#jobs-table-body" hx-swap="outerHTML" hx-include="#jobs-filters">
             {% for j in jobs %}
             {% set states = job_states or {} %}
             {% set state = states.get(j.id, {}) %}

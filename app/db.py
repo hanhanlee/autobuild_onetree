@@ -100,27 +100,37 @@ def list_jobs(limit: int = 100) -> Dict[int, Dict[str, Any]]:
         return {row["id"]: row_to_dict(row) for row in rows}
 
 
-def list_recent_jobs(limit: int = 50) -> List[Dict[str, Any]]:
+def list_recent_jobs(limit: int = 50, status: Optional[str] = None, days: Optional[int] = None) -> List[Dict[str, Any]]:
+    sql = """
+        SELECT id,
+               owner,
+               created_by,
+               recipe_id,
+               note,
+               status,
+               created_at,
+               started_at,
+               finished_at,
+               exit_code,
+               pinned
+          FROM jobs
+    """
+    clauses = []
+    params: List[Any] = []
+    if status:
+        clauses.append("LOWER(status) = LOWER(?)")
+        params.append(status)
+    if days is not None and days > 0:
+        clauses.append("datetime(substr(created_at,1,19)) >= datetime('now', ?)")
+        params.append(f"-{int(days)} days")
+    where = ""
+    if clauses:
+        where = " WHERE " + " AND ".join(clauses)
+    order_limit = " ORDER BY COALESCE(created_at, '') DESC, id DESC LIMIT ?"
+    params.append(limit)
+    query = sql + where + order_limit
     with get_connection() as conn:
-        cur = conn.execute(
-            """
-            SELECT id,
-                   owner,
-                   created_by,
-                   recipe_id,
-                   note,
-                   status,
-                   created_at,
-                   started_at,
-                   finished_at,
-                   exit_code,
-                   pinned
-              FROM jobs
-             ORDER BY COALESCE(created_at, '') DESC, id DESC
-             LIMIT ?
-            """,
-            (limit,),
-        )
+        cur = conn.execute(query, tuple(params))
         rows = cur.fetchall()
         return [row_to_dict(row) for row in rows]
 
