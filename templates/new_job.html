@@ -1,99 +1,168 @@
 {% extends "_layout.html" %}
 {% block title %}Create Job{% endblock %}
 {% block content %}
-<h1>Create Job</h1>
-{% if error %}<p class="error">{{ error }}</p>{% endif %}
-{% if missing_creds %}
-<div class="alert alert-danger d-flex align-items-center" role="alert" style="max-width:840px;">
-  <i class="bi bi-exclamation-octagon-fill me-2"></i>
-  <div>GitLab username and token are required. Please save them in Settings before creating a job.</div>
-</div>
-{% endif %}
-<p><a href="/projects" style="margin-right:1rem;">Create Recipe (Project Template v1)</a> | <a href="/settings">Settings</a></p>
-<div class="card">
-    <form method="post" action="/new" style="display:grid;grid-template-columns:1fr;gap:0.85rem;max-width:840px;">
-        <div style="display:flex;flex-direction:column;gap:0.35rem;">
-            <label for="recipe-select" style="font-weight:600;">Recipe Template</label>
-            {% if recipes_count is defined %}
-            <div class="status" style="color:#666;font-size:0.9rem;">presets_root: {{ presets_root }}, recipes_count: {{ recipes_count }}</div>
-            {% endif %}
-            <select id="recipe-select" name="recipe_id" required>
+<div class="bg-light py-2 px-1 rounded">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h2 class="mb-0 text-dark">Create Job</h2>
+      <small class="text-muted">Configure source, target, and recipe for a new build.</small>
+    </div>
+  </div>
+
+  {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+  {% if missing_creds %}
+  <div class="alert alert-danger d-flex align-items-center" role="alert">
+    <i class="bi bi-exclamation-octagon-fill me-2"></i>
+    <div>GitLab username and token are required. Please save them in Settings before creating a job.</div>
+  </div>
+  {% endif %}
+
+  <form method="post" action="/new" class="row g-3">
+    <div class="col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <h6 class="text-muted text-uppercase small mb-3">Steps</h6>
+          <div class="d-flex flex-column gap-3">
+            <div class="d-flex align-items-start">
+              <span class="badge bg-primary rounded-circle me-2">1</span>
+              <div>
+                <div class="fw-semibold text-dark">Source &amp; Target</div>
+                <small class="text-muted">Select recipe, pipeline stages</small>
+              </div>
+            </div>
+            <div class="d-flex align-items-start">
+              <span class="badge bg-secondary rounded-circle me-2">2</span>
+              <div>
+                <div class="fw-semibold text-dark">Recipe &amp; Metadata</div>
+                <small class="text-muted">Patches and notes</small>
+              </div>
+            </div>
+            <div class="d-flex align-items-start">
+              <span class="badge bg-secondary rounded-circle me-2">3</span>
+              <div>
+                <div class="fw-semibold text-dark">Confirm &amp; Submit</div>
+                <small class="text-muted">Review and create job</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-9">
+      <div class="card mb-3">
+        <div class="card-body">
+          <h5 class="card-title border-bottom pb-2 mb-4 text-dark">Source &amp; Target</h5>
+
+          <div class="row g-3">
+            <div class="col-lg-6">
+              <label class="form-label fw-semibold" for="recipe-select">Recipe Template</label>
+              {% if recipes_count is defined %}
+              <div class="text-muted small mb-1">presets_root: {{ presets_root }}, recipes_count: {{ recipes_count }}</div>
+              {% endif %}
+              <select id="recipe-select" name="recipe_id" class="form-select" required>
                 <option value="" disabled {% if not recipe_id %}selected{% endif %}>Select a recipe...</option>
                 {% for r in recipes or [] %}
-                    <option value="{{ r.id }}" {% if recipe_id==r.id %}selected{% endif %}>{{ r.id }}{% if r.description %} ({{ r.description }}){% endif %}</option>
+                  <option value="{{ r.id }}" {% if recipe_id==r.id %}selected{% endif %}>{{ r.id }}{% if r.description %} ({{ r.description }}){% endif %}</option>
                 {% endfor %}
-            </select>
-            {% if (recipes or [])|length == 0 %}
-            <div class="status" style="color:#a15c00;font-size:0.95rem;">No recipes found. Create one via /projects (Project Template v1) and ensure it is saved under presets_root/&lt;platform&gt;/&lt;project&gt;.yaml</div>
-            {% endif %}
-            <input id="recipe-filter" value="" placeholder="Filter recipes (e.g. 2600)" autocomplete="off">
-            <div style="color:#555;font-size:0.9rem;">Type part of a platform or project name to filter the dropdown; selection comes from the dropdown.</div>
-        </div>
-
-        <div class="card" style="padding:0.85rem;border:1px solid #d0d7de;background:#f8fafc;">
-            <label class="form-label fw-bold d-block">Pipeline Stages</label>
-            <div class="btn-group w-100" role="group">
-                <input type="checkbox" class="btn-check" id="check-clone" name="do_clone" autocomplete="off" checked onchange="toggleSection('section-clone', this.checked)">
+              </select>
+              <input id="recipe-filter" class="form-control mt-2" value="" placeholder="Filter recipes (e.g. 2600)" autocomplete="off">
+              <div class="text-muted small mt-1">Type to filter the dropdown; selection comes from the list.</div>
+              {% if (recipes or [])|length == 0 %}
+              <div class="text-warning small mt-1">No recipes found. Create one via /projects and ensure it is saved under presets_root/&lt;platform&gt;/&lt;project&gt;.yaml</div>
+              {% endif %}
+            </div>
+            <div class="col-lg-6">
+              <label class="form-label fw-semibold d-block">Pipeline Stages</label>
+              <div class="btn-group w-100" role="group">
+                <input type="checkbox" class="btn-check" id="check-clone" name="do_clone" autocomplete="off" checked>
                 <label class="btn btn-outline-primary" for="check-clone">1. Clone</label>
 
-                <input type="checkbox" class="btn-check" id="check-edit" name="do_edit" autocomplete="off" onchange="toggleSection('section-edit', this.checked)">
-                <label class="btn btn-outline-warning" for="check-edit">2. Edit/Patch</label>
+                <input type="checkbox" class="btn-check" id="check-edit" name="do_edit" autocomplete="off">
+                <label class="btn btn-outline-primary" for="check-edit">2. Edit/Patch</label>
 
                 <input type="checkbox" class="btn-check" id="check-init" name="do_init" autocomplete="off" checked>
-                <label class="btn btn-outline-info" for="check-init">3. Init</label>
+                <label class="btn btn-outline-primary" for="check-init">3. Init</label>
 
-                <input type="checkbox" class="btn-check" id="check-build" name="do_build" autocomplete="off" checked onchange="toggleSection('section-build', this.checked)">
-                <label class="btn btn-outline-success" for="check-build">4. Build</label>
+                <input type="checkbox" class="btn-check" id="check-build" name="do_build" autocomplete="off" checked>
+                <label class="btn btn-outline-primary" for="check-build">4. Build</label>
+              </div>
+              <div class="mt-3">
+                <label class="form-label fw-semibold" for="codebase-select">Codebase (optional unless build/edit only)</label>
+                {% if codebases_count is defined %}
+                <div class="text-muted small mb-1">workspaces_root: {{ workspaces_root }}, codebases_count: {{ codebases_count }}</div>
+                {% endif %}
+                <select id="codebase-select" name="codebase_id" class="form-select">
+                  <option value="" {% if not codebase_id %}selected{% endif %}>-- Select a codebase --</option>
+                  {% for cb in codebases or [] %}
+                      <option value="{{ cb.id }}" {% if codebase_id==cb.id %}selected{% endif %}>{{ cb.label or cb.id }}</option>
+                  {% endfor %}
+                </select>
+                <div class="text-muted small mt-1">Build/Edit stages that require existing sources should set a codebase with codebase.json under workspaces_root.</div>
+              </div>
             </div>
-        </div>
+          </div>
 
-        <div id="section-clone" class="card p-3 mb-1 bg-light border-primary">
-            <label class="form-label text-primary fw-bold">Clone Commands</label>
-            <textarea class="form-control font-monospace" name="clone_script" rows="4" placeholder="git clone ..." readonly></textarea>
-        </div>
-
-        <div id="section-edit" class="d-none card p-3 mb-1 border-warning">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <label class="form-label text-warning fw-bold mb-0">File Patches</label>
-                <button type="button" class="btn btn-sm btn-outline-warning" onclick="addPatchRow()">
-                    <i class="bi bi-plus-lg"></i> Add Patch
-                </button>
+          <div class="mt-4">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Clone Commands</label>
+                <textarea class="form-control font-monospace" name="clone_script" rows="4" placeholder="git clone ..." readonly></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Initialization Commands</label>
+                <textarea class="form-control font-monospace" name="init_script" rows="4" placeholder="source oe-init-build-env" readonly></textarea>
+              </div>
+              <div class="col-12">
+                <label class="form-label fw-semibold">Build Commands</label>
+                <textarea class="form-control font-monospace" name="build_script" rows="3" placeholder="bitbake ..." required readonly></textarea>
+              </div>
             </div>
-            <div id="patch-container"></div>
-            <div class="form-text text-muted">Apply automated file patches (append/replace) after cloning.</div>
+          </div>
         </div>
+      </div>
 
-        <div id="section-init" class="card p-3 mb-1 bg-light border-info">
-            <label class="form-label text-info fw-bold">Initialization Commands</label>
-            <div class="input-group">
-                <textarea class="form-control font-monospace" name="init_script" rows="3" placeholder="source oe-init-build-env" readonly></textarea>
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title border-bottom pb-2 mb-4 text-dark">Recipe &amp; Metadata</h5>
+
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="fw-semibold text-dark">File Patches</span>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addPatchRow()"><i class="bi bi-plus-lg"></i> Add Patch</button>
+          </div>
+          <div id="patch-container" class="mb-3"></div>
+          <div class="text-muted small mb-4">Apply automated file patches (append/replace) after cloning.</div>
+
+          <div class="mb-3">
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#advanced-options" aria-expanded="false">Advanced Options</button>
+          </div>
+          <div class="collapse" id="advanced-options">
+            <div class="card card-body border-0 p-0 mb-3">
+              <div class="text-muted small">Use these fields for specialized overrides if needed.</div>
             </div>
-        </div>
+          </div>
 
-        <div id="section-build" class="card p-3 mb-1 bg-light border-success">
-            <label class="form-label text-success fw-bold">Build Commands</label>
-            <textarea class="form-control font-monospace" name="build_script" rows="2" placeholder="bitbake ..." required readonly></textarea>
+          <div class="mb-0">
+            <label class="form-label fw-semibold" for="note">Note (optional)</label>
+            <textarea class="form-control" id="note" name="note" rows="3" placeholder="Optional note for this job">{{ note or '' }}</textarea>
+          </div>
         </div>
+      </div>
 
-        <div style="display:flex;flex-direction:column;gap:0.35rem;">
-            <label for="codebase-select" style="font-weight:600;">Codebase (optional unless build/edit only)</label>
-            {% if codebases_count is defined %}
-            <div class="status" style="color:#666;font-size:0.9rem;">workspaces_root: {{ workspaces_root }}, codebases_count: {{ codebases_count }}</div>
-            {% endif %}
-            <select id="codebase-select" name="codebase_id">
-                <option value="" {% if not codebase_id %}selected{% endif %}>-- Select a codebase --</option>
-                {% for cb in codebases or [] %}
-                    <option value="{{ cb.id }}" {% if codebase_id==cb.id %}selected{% endif %}>{{ cb.label or cb.id }}</option>
-                {% endfor %}
-            </select>
-            <div style="color:#555;font-size:0.9rem;">Build/Edit stages that require existing sources should set a codebase with codebase.json under workspaces_root.</div>
+      <div class="mt-3 position-sticky" style="bottom: 0; z-index: 2;">
+        <div class="card">
+          <div class="card-body d-flex justify-content-between align-items-center">
+            <div class="text-muted">Review selections and start the job.</div>
+            <button type="submit" class="btn btn-primary btn-lg">
+              <i class="bi bi-play-fill me-1"></i> Create Job
+            </button>
+          </div>
         </div>
-        <label>Note (optional)
-            <textarea name="note" rows="3" placeholder="Optional note for this job">{{ note or '' }}</textarea>
-        </label>
-        <button type="submit">Submit</button>
-    </form>
+      </div>
+    </div>
+  </form>
 </div>
+
 <script>
 // 1. Data Injection (Backend -> Frontend)
 const recipesData = {};
@@ -122,7 +191,6 @@ const recipesData = {};
     };
 }
 {% endfor %}
-console.log("Recipes Data Loaded:", recipesData);
 
 // 2. Visibility Logic
 function toggleSection(id, show) {
@@ -140,7 +208,6 @@ function updateRecipeInfo() {
 
     const rId = String(select.value);
     const data = recipesData[rId];
-    console.log("Selected Recipe:", rId, data);
 
     const fields = [
         { name: "clone_script", key: "clone_script" },
@@ -150,7 +217,7 @@ function updateRecipeInfo() {
 
     if (data) {
         fields.forEach((f) => {
-            const input = document.querySelector(`textarea[name="${f.name}"]`);
+            const input = document.querySelector(`textarea[name=\"${f.name}\"]`);
             if (input) {
                 input.value = data[f.key] || "";
                 input.readOnly = true;
@@ -159,7 +226,7 @@ function updateRecipeInfo() {
         });
     } else {
         fields.forEach((f) => {
-            const input = document.querySelector(`textarea[name="${f.name}"]`);
+            const input = document.querySelector(`textarea[name=\"${f.name}\"]`);
             if (input) {
                 input.value = "";
                 input.readOnly = false;
@@ -177,8 +244,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const filterInput = document.getElementById("recipe-filter");
     if (filterInput && select) {
         const fuzzyMatch = (query, text) => {
-            const q = (query || "").toLowerCase().replace(/\s+/g, "");
-            const t = (text || "").toLowerCase().replace(/\s+/g, "");
+            const q = (query || "").toLowerCase().replace(/\\s+/g, "");
+            const t = (text || "").toLowerCase().replace(/\\s+/g, "");
             return !q || t.includes(q);
         };
         filterInput.addEventListener("input", () => {
