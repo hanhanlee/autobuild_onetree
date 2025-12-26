@@ -156,19 +156,19 @@
       const checkboxes = document.querySelectorAll('#jobs-table-body input[type="checkbox"][data-job-id]');
       let restored = 0;
       checkboxes.forEach((cb) => {
-        const jid = cb.getAttribute("data-job-id");
+        const jid = String(cb.getAttribute("data-job-id") || "");
         if (window.selectedJobIds.has(jid)) {
           cb.checked = true;
           restored += 1;
         }
       });
-      console.log("[jobs] syncCheckboxState run; tracked ids:", window.selectedJobIds.size, "restored:", restored);
+      console.log("[jobs] syncCheckboxState run; tracked ids:", window.selectedJobIds.size, "checkboxes:", checkboxes.length, "restored:", restored);
     }
 
     document.addEventListener("change", (event) => {
       const cb = event.target.closest('#jobs-table-body input[type="checkbox"][data-job-id]');
       if (!cb) return;
-      const jid = cb.getAttribute("data-job-id");
+      const jid = String(cb.getAttribute("data-job-id") || "");
       if (!jid) return;
       if (cb.checked) {
         window.selectedJobIds.add(jid);
@@ -180,7 +180,7 @@
 
     document.addEventListener("htmx:afterSwap", () => {
       // Always resync after any swap; selectors limit work to the jobs table.
-      syncCheckboxState();
+      requestAnimationFrame(syncCheckboxState);
     });
 
     // Initial sync on page load
