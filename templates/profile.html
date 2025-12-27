@@ -39,6 +39,11 @@
             <label class="form-label fw-semibold" for="git_username_secondary">GitLab Username (ami.com.tw)</label>
             <input type="text" class="form-control" id="git_username_secondary" name="git_username_secondary" value="{{ git_username_secondary or '' }}" placeholder="GitLab username for ami.com.tw">
           </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold" for="email">Notification Email</label>
+            <input type="email" class="form-control" id="email" name="email" value="{{ email or '' }}" placeholder="you@example.com">
+            <div class="form-text">Job completion notifications will be sent here.</div>
+          </div>
           <div class="col-12 d-flex justify-content-between align-items-center">
             <small class="text-muted">Tokens are stored per-user in the workspace and used for your jobs only.</small>
             <button type="submit" class="btn btn-primary">Save Tokens</button>

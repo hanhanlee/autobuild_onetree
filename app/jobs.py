@@ -15,7 +15,8 @@ from urllib.parse import urlparse
 
 from .auth import load_user_tokens
 from .config import get_git_host, get_jobs_root, get_token_root
-from .db import get_connection, update_job_status
+from .db import get_connection, update_job_status, get_job
+from .email import send_job_notification
 
 logger = logging.getLogger(__name__)
 
@@ -85,15 +86,15 @@ def setup_job_git_env(job_dir: Path, settings, fallback_token: Optional[str] = N
     return {"XDG_CONFIG_HOME": str(job_dir / ".config")}
 
 
-def create_job(created_by: str, recipe_id: str, raw_recipe_yaml: str, note: str, created_at: Optional[str] = None) -> int:
+def create_job(created_by: str, recipe_id: str, raw_recipe_yaml: str, note: str, created_at: Optional[str] = None, cc_emails: str = "") -> int:
     created_at = created_at or now_iso()
     with get_connection() as conn:
         cur = conn.execute(
             """
-            INSERT INTO jobs (owner, repo_url, ref, machine, target, status, created_at, recipe_id, raw_recipe_yaml, note, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO jobs (owner, repo_url, ref, machine, target, status, created_at, recipe_id, raw_recipe_yaml, note, created_by, cc_emails)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (created_by, "", "", "", "", STATUS_PENDING, created_at, recipe_id, raw_recipe_yaml, note or "", created_by),
+            (created_by, "", "", "", "", STATUS_PENDING, created_at, recipe_id, raw_recipe_yaml, note or "", created_by, cc_emails or ""),
         )
         conn.commit()
         job_id = cur.lastrowid
@@ -291,6 +292,21 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
     _schedule_poll_job(job_id, proc=proc)
 
 
+def _notify_job_status(job_id: int, status: str) -> None:
+    try:
+        job = get_job(job_id)
+    except Exception:
+        job = None
+    if not job:
+        return
+    owner = job.get("owner") or job.get("created_by")
+    profile = load_user_tokens(owner or "")
+    try:
+        send_job_notification(job, status, profile)
+    except Exception:
+        return
+
+
 async def poll_job(job_id: int, proc: Optional[subprocess.Popen] = None, interval: float = 2.0) -> None:
     while True:
         if status_file(job_id).exists():
@@ -303,6 +319,7 @@ async def poll_job(job_id: int, proc: Optional[subprocess.Popen] = None, interva
                     if status == STATUS_SUCCESS:
                         collect_artifacts(job_id)
                     update_job_status(job_id, status, finished_at=finished_at, exit_code=exit_code)
+                    _notify_job_status(job_id, status)
                     return
             except Exception:
                 logger.debug("Failed to read status for job %s", job_id, exc_info=True)
@@ -315,6 +332,7 @@ async def poll_job(job_id: int, proc: Optional[subprocess.Popen] = None, interva
             if status == STATUS_SUCCESS:
                 collect_artifacts(job_id)
             update_job_status(job_id, status, finished_at=now_iso(), exit_code=exit_code)
+            _notify_job_status(job_id, status)
             return
         elif proc is not None and proc.poll() is not None:
             exit_code = proc.returncode
@@ -327,6 +345,7 @@ async def poll_job(job_id: int, proc: Optional[subprocess.Popen] = None, interva
             except Exception:
                 logger.debug("Failed to append unexpected-exit note for job %s", job_id, exc_info=True)
             update_job_status(job_id, STATUS_FAILED, finished_at=now_iso(), exit_code=exit_code)
+            _notify_job_status(job_id, STATUS_FAILED)
             return
         await asyncio.sleep(interval)
 

@@ -640,6 +640,7 @@ async def create_job(
     repo_url = str(form.get("repo_url") or "").strip()
     branch = str(form.get("branch") or "").strip()
     build_cmd = str(form.get("build_cmd") or "").strip()
+    cc_emails = str(form.get("cc_emails") or "").strip()
     base_job_id_raw = (str(form.get("base_job_id") or "").strip()) or ""
     base_job_path = None
 
@@ -738,6 +739,7 @@ async def create_job(
         "patch_actions",
         "patch_finds",
         "patch_contents",
+        "cc_emails",
     }
     extras = [k for k in form.keys() if k not in allowed_fields]
     if extras:
@@ -872,7 +874,7 @@ async def create_job(
 
     created_at = jobs.now_iso()
     try:
-        job_id = jobs.create_job(user, recipe_id_val, recipe_yaml, note, created_at=created_at)
+        job_id = jobs.create_job(user, recipe_id_val, recipe_yaml, note, created_at=created_at, cc_emails=cc_emails)
     except Exception as exc:
         logger.error("Failed to create job for user %s recipe %s: %s", user, recipe_id_val, exc)
         debug_ctx["last_error"] = debug_ctx.get("last_error") or "Failed to create job"
@@ -937,6 +939,7 @@ async def create_job(
         "repo_url": repo_url,
         "branch": branch,
         "build_cmd": build_cmd,
+        "cc_emails": cc_emails,
     }
     spec = {
         "schema_version": 2,
@@ -958,6 +961,7 @@ async def create_job(
         "repo_url": repo_url,
         "branch": branch,
         "build_cmd": build_cmd,
+        "cc_emails": cc_emails,
         "snapshot": snapshot,
     }
     patches = []

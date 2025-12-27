@@ -143,6 +143,11 @@
             <label class="form-label fw-semibold" for="note">Note (optional)</label>
             <textarea class="form-control" id="note" name="note" rows="3" placeholder="Optional note for this job">{{ note or '' }}</textarea>
           </div>
+          <div class="mb-0 mt-3">
+            <label class="form-label fw-semibold" for="cc_emails">CC Notification To (comma separated)</label>
+            <input type="text" class="form-control" id="cc_emails" name="cc_emails" value="{{ cc_emails or '' }}">
+            <div class="text-muted small">Emails to notify on job completion, comma separated.</div>
+          </div>
         </div>
       </div>
 

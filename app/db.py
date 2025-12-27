@@ -31,6 +31,7 @@ def _migrate_jobs_table(conn: sqlite3.Connection) -> None:
     _add_column(conn, "jobs", "note", "TEXT DEFAULT ''")
     _add_column(conn, "jobs", "created_by", "TEXT DEFAULT ''")
     _add_column(conn, "jobs", "pinned", "INTEGER DEFAULT 0")
+    _add_column(conn, "jobs", "cc_emails", "TEXT DEFAULT ''")
     conn.commit()
     # Backfill created_by from owner when possible for legacy rows.
     if _has_column(conn, "jobs", "created_by") and _has_column(conn, "jobs", "owner"):
