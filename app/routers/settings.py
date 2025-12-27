@@ -35,7 +35,13 @@ async def settings_page(request: Request, db: Session = Depends(get_db)):
     if redirect:
         return redirect
     settings = get_system_settings(db)
-    token_ok = bool(settings.gitlab_token)
+    token_ok = any(
+        [
+            (settings.gitlab_token_primary or "").strip(),
+            (settings.gitlab_token_secondary or "").strip(),
+            (settings.gitlab_token or "").strip(),
+        ]
+    )
     return render_page(
         request,
         "settings.html",

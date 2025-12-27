@@ -66,6 +66,18 @@
         {% endif %}
         <main class="content">
             <div class="container-fluid p-4">
+                {% if token_ok is defined and token_ok is not none and not token_ok %}
+                <div class="alert alert-warning d-flex align-items-center justify-content-between gap-3" role="alert">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <div>
+                            <div class="fw-semibold">System-wide Git Credentials are not configured. Builds will fail.</div>
+                            <div class="small mb-0 text-muted">Add GitLab tokens in Settings to enable cloning and fetching.</div>
+                        </div>
+                    </div>
+                    <a class="btn btn-sm btn-outline-dark" href="/settings">Setup Now</a>
+                </div>
+                {% endif %}
                 {% block content %}{% endblock %}
             </div>
         </main>
