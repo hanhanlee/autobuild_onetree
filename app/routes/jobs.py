@@ -13,7 +13,7 @@ from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 
 from .. import db, jobs
-from ..auth import username_auth
+from ..auth import username_auth, has_gitlab_token
 from ..crud_settings import get_system_settings
 from ..database import SessionLocal
 from ..config import get_jobs_root, get_presets_root, get_workspace_root
@@ -899,17 +899,14 @@ async def create_job(
             note=note,
             codebase_id=codebase_id,
         )
-    have_primary = settings and settings.gitlab_username_primary and settings.gitlab_token_primary
-    have_secondary = settings and settings.gitlab_username_secondary and settings.gitlab_token_secondary
-    have_legacy = settings and settings.gitlab_username and settings.gitlab_token
-    if not (have_primary or have_secondary or have_legacy):
-        debug_ctx["last_error"] = debug_ctx.get("last_error") or "GitLab credentials for ami.com or ami.com.tw are required. Please set them in Settings."
+    if not has_gitlab_token(user):
+        debug_ctx["last_error"] = debug_ctx.get("last_error") or "GitLab credentials are required for this user. Please set them in My Profile."
         return render_page(
             request,
             "new_job.html",
             current_page="new",
             status_code=400,
-            error="GitLab credentials for ami.com or ami.com.tw are required. Please set them in Settings.",
+            error="GitLab credentials are required for this user. Please set them in My Profile.",
             recipes=recipes,
             presets_root=str(PRESETS_ROOT),
             recipes_count=debug_ctx.get("recipes_count", len(recipes)),
