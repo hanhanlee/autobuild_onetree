@@ -1,3 +1,7 @@
+import asyncio
+from contextlib import suppress
+from typing import Optional
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -5,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import db, models, projects
 from .config import get_secret_key
 from .database import engine
+from .housekeeping import run_periodic_housekeeping
 from .routers import settings as settings_routes
 from .routes import profile as profile_routes
 from .routes import auth as auth_routes
@@ -28,6 +33,26 @@ app.include_router(recipes_routes.router)
 app.include_router(jobs_routes.router)
 app.include_router(codebases_routes.router)
 app.include_router(settings_routes.router)
+
+housekeeping_task: Optional[asyncio.Task] = None
+
+
+@app.on_event("startup")
+async def _start_housekeeping() -> None:
+    global housekeeping_task
+    if housekeeping_task is None:
+        housekeeping_task = asyncio.create_task(run_periodic_housekeeping())
+
+
+@app.on_event("shutdown")
+async def _stop_housekeeping() -> None:
+    global housekeeping_task
+    if housekeeping_task:
+        housekeeping_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await housekeeping_task
+        housekeeping_task = None
+
 
 db.ensure_db()
 models.Base.metadata.create_all(bind=engine)

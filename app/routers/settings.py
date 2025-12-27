@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
-from .. import auth
 from ..crud_settings import get_system_settings, update_system_settings
 from ..database import SessionLocal
 from ..web import render_page
@@ -36,12 +35,11 @@ async def settings_page(request: Request, db: Session = Depends(get_db)):
     if redirect:
         return redirect
     settings = get_system_settings(db)
-    token_ok = auth.has_gitlab_token(_current_user(request))
     return render_page(
         request,
         "settings.html",
         current_page="settings",
-        token_ok=token_ok,
+        token_ok=None,
         settings=settings,
         status_code=200,
     )
@@ -75,12 +73,6 @@ async def update_settings(
         db,
         prune_days_age=prune_days,
         delete_days_age=delete_days,
-        gitlab_token=current.gitlab_token,
-        gitlab_username=current.gitlab_username,
-        gitlab_username_primary=current.gitlab_username_primary,
-        gitlab_token_primary=current.gitlab_token_primary,
-        gitlab_username_secondary=current.gitlab_username_secondary,
-        gitlab_token_secondary=current.gitlab_token_secondary,
         disk_min_free_gb=disk_min,
         gitlab_host=gitlab_host_val,
     )
