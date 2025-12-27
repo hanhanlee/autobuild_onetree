@@ -6,6 +6,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
+from dotenv import load_dotenv
+
 from . import db, models, projects
 from .config import get_secret_key
 from .database import engine
@@ -22,6 +24,8 @@ from .routes import token as token_routes
 
 
 app = FastAPI()
+# Load environment variables from .env at startup
+load_dotenv()
 app.add_middleware(SessionMiddleware, secret_key=get_secret_key(), session_cookie="autobuild_session")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(auth_routes.router)
