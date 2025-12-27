@@ -1,10 +1,9 @@
 import json
 import subprocess
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 
-from .config import get_jobs_root, get_workspace_root
+from .config import get_workspace_root
 from .db import get_connection
 from .system import get_disk_usage
 
@@ -60,12 +59,6 @@ def get_live_jobs(limit: int = 100) -> List[Dict[str, object]]:
     return live
 
 
-def _date_key(value: Optional[str]) -> Optional[str]:
-    if not value:
-        return None
-    return (value or "")[:10]
-
-
 def get_jobs_today() -> int:
     with get_connection() as conn:
         cur = conn.execute(
@@ -78,31 +71,32 @@ def get_jobs_today() -> int:
         return int(row[0]) if row else 0
 
 
-def get_volume_last_7_days() -> List[Tuple[str, int]]:
+def get_recent_jobs(limit: int = 5) -> List[Dict[str, object]]:
     with get_connection() as conn:
         cur = conn.execute(
             """
-            SELECT date(substr(created_at,1,10)) AS day,
-                   SUM(CASE WHEN lower(status)='success' THEN 1 ELSE 0 END) AS success_count,
-                   SUM(CASE WHEN lower(status)='failed' THEN 1 ELSE 0 END) AS failed_count
+            SELECT id,
+                   recipe_id,
+                   target,
+                   status,
+                   created_at,
+                   started_at,
+                   finished_at
               FROM jobs
-             WHERE date(substr(created_at,1,10)) >= date('now','-6 day')
-             GROUP BY day
-             ORDER BY day
-            """
+             ORDER BY COALESCE(finished_at, started_at, created_at, '') DESC, id DESC
+             LIMIT ?
+            """,
+            (limit,),
         )
-        rows = {row["day"]: {"success": row["success_count"], "failed": row["failed_count"]} for row in cur.fetchall()}
-    today = datetime.utcnow().date()
-    dates: List[str] = []
-    success_counts: List[int] = []
-    failed_counts: List[int] = []
-    for i in range(6, -1, -1):
-        day = today - timedelta(days=i)
-        key = day.isoformat()
-        dates.append(key)
-        success_counts.append(int(rows.get(key, {}).get("success", 0)))
-        failed_counts.append(int(rows.get(key, {}).get("failed", 0)))
-    return [dates, success_counts, failed_counts]
+        rows = cur.fetchall()
+    recent: List[Dict[str, object]] = []
+    for row in rows:
+        item = dict(row)
+        ts = item.get("finished_at") or item.get("started_at") or item.get("created_at")
+        item["timestamp"] = ts or "-"
+        item["time_ago"] = _time_ago(ts)
+        recent.append(item)
+    return recent
 
 
 def get_sensors_data() -> List[Dict[str, object]]:
@@ -158,15 +152,13 @@ def get_sensors_data() -> List[Dict[str, object]]:
 def get_dashboard_context() -> Dict[str, object]:
     jobs_live = get_live_jobs()
     jobs_today = get_jobs_today()
-    dates, success_counts, failed_counts = get_volume_last_7_days()
+    recent_jobs = get_recent_jobs()
     disk_usage = get_disk_usage(str(get_workspace_root()))
     sensors = get_sensors_data()
     return {
         "live_jobs": jobs_live,
         "jobs_today": jobs_today,
-        "volume_labels": dates,
-        "volume_success": success_counts,
-        "volume_failed": failed_counts,
+        "recent_jobs": recent_jobs,
         "disk_usage": disk_usage,
         "sensors": sensors,
     }

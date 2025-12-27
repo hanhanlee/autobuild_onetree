@@ -69,11 +69,41 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-2">
-          <h6 class="mb-0">7-Day Volume</h6>
-          <i class="bi bi-bar-chart-line text-primary"></i>
+          <h6 class="mb-0">Recent Activity</h6>
+          <i class="bi bi-clock-history text-primary"></i>
         </div>
-        <div style="height: 200px;">
-          <canvas id="volumeChart"></canvas>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>ID</th>
+                <th>Recipe / Target</th>
+                <th>Status</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for j in recent_jobs %}
+              {% set st = (j.status or '')|lower %}
+              {% set badge_class = 'bg-secondary' %}
+              {% if st == 'success' %}{% set badge_class = 'bg-success' %}{% elif st == 'failed' %}{% set badge_class = 'bg-danger' %}{% elif st == 'running' %}{% set badge_class = 'bg-primary' %}{% elif st == 'pending' %}{% set badge_class = 'bg-warning text-dark' %}{% endif %}
+              <tr>
+                <td><a href="/jobs/{{ j.id }}" class="text-primary text-decoration-underline fw-semibold">{{ j.id }}</a></td>
+                <td>
+                  <div class="fw-semibold">{{ j.recipe_id or '-' }}</div>
+                  <div class="text-muted small">{{ j.target or '-' }}</div>
+                </td>
+                <td><span class="badge {{ badge_class }} text-uppercase">{{ j.status }}</span></td>
+                <td>
+                  <div class="fw-semibold">{{ j.time_ago }}</div>
+                  <div class="text-muted small">{{ j.timestamp }}</div>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" class="text-center text-muted py-3">No recent jobs.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -132,34 +162,4 @@
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-  (function() {
-    const labels = {{ volume_labels|tojson }};
-    const success = {{ volume_success|tojson }};
-    const failed = {{ volume_failed|tojson }};
-    const ctx = document.getElementById('volumeChart');
-    if (ctx && Array.isArray(labels)) {
-      new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            { label: 'Success', data: success, backgroundColor: '#198754', stack: 'jobs', borderRadius: 4 },
-            { label: 'Failed', data: failed, backgroundColor: '#dc3545', stack: 'jobs', borderRadius: 4 }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: { stacked: true, grid: { display: false } },
-            y: { stacked: true, beginAtZero: true, grid: { color: '#eee' } }
-          },
-          plugins: { legend: { display: true } }
-        }
-      });
-    }
-  })();
-</script>
 {% endblock %}
