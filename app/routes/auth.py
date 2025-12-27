@@ -55,9 +55,11 @@ async def index(request: Request):
 
 
 @router.get("/login")
-async def login_page(request: Request, error: Optional[str] = None):
+async def login_page(request: Request, error: Optional[str] = None, message: Optional[str] = None):
     error_msg = error or request.query_params.get("error")
-    return render_page(request, "login.html", current_page="", error=error_msg, status_code=200 if not error_msg else 401)
+    info_msg = message or request.query_params.get("message")
+    status = 200 if not error_msg else 401
+    return render_page(request, "login.html", current_page="", error=error_msg, message=info_msg, status_code=status)
 
 
 @router.post("/login")
@@ -72,6 +74,13 @@ async def login_post(request: Request, username: str = Form(...)):
         request.session.pop("user", None)
         return _prg("/login/token")
     return _prg("/login?error=Unauthorized+user+%28check+Linux+account%2Fgroup%29")
+
+
+@router.get("/logout")
+async def logout(request: Request):
+    request.session.pop("user", None)
+    request.session.pop("pending_user", None)
+    return _prg("/login?message=You+have+been+logged+out.")
 
 
 @router.get("/login/token")
