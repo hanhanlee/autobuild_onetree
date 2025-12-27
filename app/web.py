@@ -5,8 +5,10 @@ from fastapi.templating import Jinja2Templates
 
 from . import auth
 from .config import get_git_host
+from .version import __version__ as APP_VERSION
 
 templates = Jinja2Templates(directory="templates")
+templates.env.globals["app_version"] = APP_VERSION
 
 
 def render_page(
