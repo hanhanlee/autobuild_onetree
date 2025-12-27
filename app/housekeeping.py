@@ -98,7 +98,7 @@ def run_housekeeping_once() -> None:
         if delete_cutoff and created <= delete_cutoff and not row["pinned"]:
             _delete_job(job_id)
             continue
-        if prune_cutoff and created <= prune_cutoff and not _job_is_pruned(job_id):
+        if prune_cutoff and created <= prune_cutoff and not row["pinned"] and not _job_is_pruned(job_id):
             _prune_workspace(job_id)
 
 

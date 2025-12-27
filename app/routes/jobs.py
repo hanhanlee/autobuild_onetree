@@ -584,13 +584,11 @@ async def create_job(
     debug_ctx["workspaces_root"] = str(WORKSPACES_ROOT)
     debug_ctx["codebases_count"] = len(codebases)
     settings = None
-    missing_creds = False
     try:
         with SessionLocal() as session:
             settings = get_system_settings(session)
-        missing_creds = not (settings and settings.gitlab_token and settings.gitlab_username)
     except Exception:
-        missing_creds = True
+        settings = None
     if cb_error and not debug_ctx.get("last_error"):
         debug_ctx["last_error"] = cb_error
     ignored_fields: List[str] = []
@@ -612,7 +610,6 @@ async def create_job(
             debug_context=debug_ctx,
             user=user,
             token_ok=None,
-            missing_creds=missing_creds,
         )
     try:
         form = await request.form()
