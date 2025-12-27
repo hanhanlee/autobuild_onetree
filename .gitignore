@@ -1,4 +1,9 @@
-﻿__pycache__/
+__pycache__/
 *.pyc
-diff.txt
+venv/
+.DS_Store
+.idea/
+.vscode/
+.env
 README_New.md
+diff.txt

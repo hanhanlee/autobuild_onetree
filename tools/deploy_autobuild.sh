@@ -91,6 +91,7 @@ sync_code() {
         --exclude '.vscode' \
         --exclude '*.pyc' \
         --exclude 'deploy_autobuild.sh' \
+        --exclude '.env' \
         "$SRC_DIR/" "$DEST_DIR/"
     
     echo -e "${GREEN}Code sync complete.${NC}"
@@ -137,6 +138,10 @@ fix_permissions() {
         chown -R "${TARGET_USER}:${TARGET_GROUP}" "/work/autobuild_workspace"
         find "/work/autobuild_workspace" -type d -exec chmod 2775 {} +
         find "/work/autobuild_workspace" -type f -exec chmod 664 {} +
+    fi
+
+    if [ ! -f "$DEST_DIR/.env" ]; then
+        echo -e "${YELLOW}⚠️  .env file missing in production! Please create $DEST_DIR/.env manually.${NC}"
     fi
 
     echo -e "${GREEN}Permissions fixed.${NC}"

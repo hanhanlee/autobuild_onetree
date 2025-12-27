@@ -10,7 +10,14 @@
           {% set st = (job.status or '')|lower %}
           {% set badge_class = 'bg-secondary' %}
           {% if st == 'success' %}{% set badge_class = 'bg-success' %}{% elif st == 'failed' %}{% set badge_class = 'bg-danger' %}{% elif st == 'running' %}{% set badge_class = 'bg-primary progress-bar-striped progress-bar-animated' %}{% elif st == 'pending' %}{% set badge_class = 'bg-warning text-dark' %}{% endif %}
-          <span class="badge {{ badge_class }} text-uppercase px-3 py-2">{{ job.status }}</span>
+          <span class="badge {{ badge_class }} text-uppercase px-3 py-2 job-status-badge"
+            {% if st in ['pending','running'] %}
+              hx-get="/jobs/{{ job.id }}"
+              hx-trigger="every 2s"
+              hx-swap="outerHTML"
+              hx-select=".job-status-badge"
+            {% endif %}
+          >{{ job.status }}</span>
         </div>
         <div class="d-flex align-items-center gap-2">
           <a href="/new" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus-circle"></i> New Job</a>
