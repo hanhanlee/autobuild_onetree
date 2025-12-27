@@ -293,6 +293,11 @@ try:
 except Exception as exc:
     fail("Failed to load recipe YAML", exc)
 
+workdir = data.get("workdir") if isinstance(data, dict) else None
+workdir_cmd = None
+if isinstance(workdir, str) and workdir.strip():
+    workdir_cmd = f"cd {workdir.strip()}"
+
 for block, fname in (
     ("clone_block", "clone_commands.txt"),
     ("init_block", "init_commands.txt"),
@@ -300,11 +305,12 @@ for block, fname in (
 ):
     blk = data.get(block) if isinstance(data, dict) else None
     lines = clean_lines(blk.get("lines") if isinstance(blk, dict) else None)
+    if workdir_cmd and block in {"init_block", "build_block"}:
+        lines = [workdir_cmd] + lines
     write_file(fname, lines)
 
 # Optional meta.sh: change directory to workdir if provided
 meta_lines = []
-workdir = data.get("workdir") if isinstance(data, dict) else None
 if isinstance(workdir, str) and workdir.strip():
     meta_lines.append(f"cd {workdir.strip()}")
 write_file("meta.sh", meta_lines)

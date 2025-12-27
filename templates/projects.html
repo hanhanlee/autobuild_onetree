@@ -42,7 +42,8 @@
             </div>
             <div class="col-md-12">
               <label class="form-label fw-semibold">Workdir</label>
-              <input type="text" name="workdir" value="{{ workdir or '' }}" class="form-control" placeholder="Optional workdir (e.g. onetree)">
+              <input type="text" name="workdir" value="{{ workdir or '' }}" class="form-control" placeholder="Optional. If set, Init/Build run inside this folder automatically.">
+              <div class="form-text text-muted">Set a relative path (e.g., <code>onetree</code>) to auto-enter it before Init/Build.</div>
             </div>
           </div>
         </div>
@@ -57,11 +58,11 @@
           </div>
           <div class="mb-3">
             <label class="form-label fw-semibold">Init Commands (one per line)</label>
-            <textarea name="init_lines" rows="4" class="form-control font-monospace" placeholder="source env script&#10;export VAR=...">{{ init_lines or '' }}</textarea>
+            <textarea name="init_lines" rows="4" class="form-control font-monospace" placeholder="source env script&#10;export VAR=... (runs inside workdir if set)">{{ init_lines or '' }}</textarea>
           </div>
           <div>
             <label class="form-label fw-semibold">Build Commands (one per line)</label>
-            <textarea name="build_lines" rows="4" class="form-control font-monospace" placeholder="bitbake ...">{{ build_lines or '' }}</textarea>
+            <textarea name="build_lines" rows="4" class="form-control font-monospace" placeholder="bitbake ... (runs inside workdir if set)">{{ build_lines or '' }}</textarea>
           </div>
         </div>
       </div>

@@ -98,6 +98,14 @@
             </div>
           </div>
 
+          <div class="alert alert-info small mt-3 d-flex align-items-start gap-2">
+            <i class="bi bi-folder2-open mt-1"></i>
+            <div>
+              <div class="fw-semibold">Execution context: <code id="workdir-hint">workspace root</code></div>
+              <div id="workdir-hint-desc" class="text-muted">Init and Build run at the workspace root unless the recipe defines a Workdir.</div>
+            </div>
+          </div>
+
           <div class="mt-4">
             <div class="row g-3">
               <div class="col-md-6" id="section-clone">
@@ -113,6 +121,7 @@
                 <textarea class="form-control font-monospace" name="build_script" rows="3" placeholder="bitbake ..." required readonly></textarea>
               </div>
             </div>
+            <div class="text-muted small mt-2">When a recipe defines a Workdir, Init and Build commands start inside it automatically.</div>
           </div>
         </div>
       </div>
@@ -176,6 +185,7 @@ const recipesData = {};
         clone_script: {{ (clone_val or '')|tojson }},
         init_script:  {{ (init_val  or '')|tojson }},
         build_script: {{ (build_val or '')|tojson }},
+        workdir: {{ (r.workdir or '')|tojson }},
     };
 }
 {% endfor %}
@@ -186,6 +196,20 @@ function toggleSection(id, show) {
     if (el) {
         if (show) el.classList.remove("d-none");
         else el.classList.add("d-none");
+    }
+}
+
+function updateWorkdirHint(data) {
+    const hintEl = document.getElementById("workdir-hint");
+    const descEl = document.getElementById("workdir-hint-desc");
+    if (!hintEl || !descEl) return;
+    const wd = (data && data.workdir && String(data.workdir).trim()) || "";
+    if (wd) {
+        hintEl.textContent = wd;
+        descEl.textContent = "Init and Build commands run inside this directory automatically.";
+    } else {
+        hintEl.textContent = "workspace root";
+        descEl.textContent = "Init and Build run at the workspace root unless Workdir is set in the recipe.";
     }
 }
 
@@ -222,6 +246,8 @@ function updateRecipeInfo() {
             }
         });
     }
+
+    updateWorkdirHint(data);
 }
 
 // 4. Initialization
