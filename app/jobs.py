@@ -9,13 +9,12 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Callable, Dict, List, Optional, Set
 from urllib.parse import urlparse
 
-from .auth import normalize_token_perms
+from .auth import load_user_tokens
 from .config import get_git_host, get_jobs_root, get_token_root
-from .crud_settings import get_system_settings
-from .database import SessionLocal
 from .db import get_connection, update_job_status
 
 logger = logging.getLogger(__name__)
@@ -192,49 +191,19 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
                 owner = None
     owner = owner or os.environ.get("USER") or "autobuild"
     token_root = str(get_token_root())
-    token_value = None
-    settings = None
-    has_global_token = False
-    try:
-        with SessionLocal() as session:
-            settings = get_system_settings(session)
-        if settings:
-            has_global_token = any(
-                [
-                    (getattr(settings, "gitlab_token_primary", None) or "").strip(),
-                    (getattr(settings, "gitlab_token_secondary", None) or "").strip(),
-                    (getattr(settings, "gitlab_token", None) or "").strip(),
-                ]
-            )
-    except Exception:
-        logger.warning("Failed to load system settings for git credentials", exc_info=True)
-
-    if not has_global_token:
+    token_data = load_user_tokens(owner)
+    primary_token = (token_data.get("primary") or "").strip() if isinstance(token_data, dict) else ""
+    secondary_token = (token_data.get("secondary") or "").strip() if isinstance(token_data, dict) else ""
+    if not primary_token and not secondary_token:
         token_path = Path(token_root) / f"{owner}.token"
-        if token_path.exists():
-            try:
-                normalize_token_perms(Path(token_root), token_path, create_root=False)
-                token_value = token_path.read_text(encoding="utf-8").strip()
-            except Exception:
-                logger.warning("Failed to normalize token perms for %s", token_path)
-        else:
-            with log_path.open("a", encoding="utf-8") as fp:
-                fp.write(f"GitLab token missing for user {owner} at {token_path}\n")
-            try:
-                os.chmod(log_path, 0o664)
-            except PermissionError:
-                pass
-            update_job_status(job_id, STATUS_FAILED, finished_at=now_iso(), exit_code=2)
-            return
-        if not os.access(token_path, os.R_OK):
-            with log_path.open("a", encoding="utf-8") as fp:
-                fp.write(f"GitLab token not readable by user {owner} at {token_path} (check perms/group)\n")
-            try:
-                os.chmod(log_path, 0o664)
-            except PermissionError:
-                pass
-            update_job_status(job_id, STATUS_FAILED, finished_at=now_iso(), exit_code=2)
-            return
+        with log_path.open("a", encoding="utf-8") as fp:
+            fp.write(f"GitLab token missing for user {owner} at {token_path}\n")
+        try:
+            os.chmod(log_path, 0o664)
+        except PermissionError:
+            pass
+        update_job_status(job_id, STATUS_FAILED, finished_at=now_iso(), exit_code=2)
+        return
     log_fp = None
     cmd = [
         "/opt/autobuild/runner/run_job.sh",
@@ -261,7 +230,15 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
     env["RUN_INIT"] = "1" if run_init else "0"
     env["RUN_BUILD"] = "1" if run_build else "0"
     try:
-        env.update(setup_job_git_env(job_root, settings, fallback_token=token_value, fallback_username=owner))
+        settings = SimpleNamespace(
+            gitlab_username_primary=owner,
+            gitlab_token_primary=primary_token,
+            gitlab_username_secondary=owner,
+            gitlab_token_secondary=secondary_token,
+            gitlab_username=owner,
+            gitlab_token=primary_token or secondary_token,
+        )
+        env.update(setup_job_git_env(job_root, settings, fallback_token=primary_token or secondary_token, fallback_username=owner))
     except Exception:
         logger.warning("Failed to inject per-job git credentials", exc_info=True)
     logger.info("Starting runner for job %s (owner=%s) log=%s cmd=%s", job_id, owner, log_path, cmd)

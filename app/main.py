@@ -6,6 +6,7 @@ from . import db, models, projects
 from .config import get_secret_key
 from .database import engine
 from .routers import settings as settings_routes
+from .routes import profile as profile_routes
 from .routes import auth as auth_routes
 from .routes import codebases as codebases_routes
 from .routes import jobs as jobs_routes
@@ -19,6 +20,7 @@ app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=get_secret_key(), session_cookie="autobuild_session")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(auth_routes.router)
+app.include_router(profile_routes.router)
 app.include_router(presets_routes.router)
 app.include_router(projects_routes.router)
 app.include_router(token_routes.router)

@@ -55,7 +55,9 @@
             </nav>
             <div class="footer">
                 <div class="d-flex align-items-center justify-content-between gap-2">
-                    <span class="badge bg-light text-dark text-uppercase">{{ user or '-' }}</span>
+                    <a href="/profile" class="text-decoration-none">
+                        <span class="badge bg-light text-dark text-uppercase">{{ user or '-' }}</span>
+                    </a>
                     <a href="/logout" class="text-decoration-none text-danger d-flex align-items-center gap-1" title="Switch Account">
                         <i class="bi bi-box-arrow-right"></i><span>Sign Out</span>
                     </a>
@@ -71,11 +73,11 @@
                     <div class="d-flex align-items-center gap-2">
                         <i class="bi bi-exclamation-triangle-fill"></i>
                         <div>
-                            <div class="fw-semibold">System-wide Git Credentials are not configured. Builds will fail.</div>
-                            <div class="small mb-0 text-muted">Add GitLab tokens in Settings to enable cloning and fetching.</div>
+                            <div class="fw-semibold">Git credentials are not configured for this user. Builds will fail.</div>
+                            <div class="small mb-0 text-muted">Save your GitLab tokens to enable cloning and fetching.</div>
                         </div>
                     </div>
-                    <a class="btn btn-sm btn-outline-dark" href="/settings">Setup Now</a>
+                    <a class="btn btn-sm btn-outline-dark" href="/profile">Setup Now</a>
                 </div>
                 {% endif %}
                 {% block content %}{% endblock %}

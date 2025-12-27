@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import grp
@@ -145,22 +146,50 @@ mv -f "${tmp}" "${CONF_DIR}/git-credentials"
 
 
 def has_gitlab_token(username: str) -> bool:
-    path = token_path_for_user(username)
-    if not path.exists() or not path.is_file():
+    data = load_user_tokens(username)
+    if not data:
         return False
-    try:
-        normalize_token_perms(path.parent, path, create_root=False)
-        content = path.read_text(encoding="utf-8").strip()
-    except Exception as exc:
-        logger.warning("Failed to read token for user %s: %s", username, exc)
-        return False
-    return bool(content)
+    return bool((data.get("primary") or "").strip() or (data.get("secondary") or "").strip() or (data.get("raw") or "").strip())
 
 
 def write_gitlab_token(username: str, token: str) -> None:
     token = (token or "").strip()
     if not token:
         raise ValueError("Token is required")
+    # Legacy: store as primary token
+    save_user_tokens(username, token, None)
+
+
+def load_user_tokens(username: str) -> dict:
+    path = token_path_for_user(username)
+    if not path.exists() or not path.is_file():
+        return {}
+    try:
+        normalize_token_perms(path.parent, path, create_root=False)
+        content = path.read_text(encoding="utf-8").strip()
+    except Exception as exc:
+        logger.warning("Failed to read token for user %s: %s", username, exc)
+        return {}
+    if not content:
+        return {}
+    try:
+        parsed = json.loads(content)
+        if isinstance(parsed, dict):
+            return {
+                "primary": (parsed.get("gitlab_token_primary") or parsed.get("primary") or "").strip(),
+                "secondary": (parsed.get("gitlab_token_secondary") or parsed.get("secondary") or "").strip(),
+                "raw": content,
+            }
+    except Exception:
+        pass
+    return {"primary": content, "secondary": "", "raw": content}
+
+
+def save_user_tokens(username: str, token_primary: Optional[str], token_secondary: Optional[str]) -> None:
+    token_primary = (token_primary or "").strip()
+    token_secondary = (token_secondary or "").strip()
+    if not token_primary and not token_secondary:
+        raise ValueError("At least one token is required")
     root = get_token_root()
     root.mkdir(parents=True, exist_ok=True)
     try:
@@ -178,8 +207,14 @@ def write_gitlab_token(username: str, token: str) -> None:
             pass
     path = token_path_for_user(username)
     tmp_path = path.with_suffix(".tmp")
+    payload = json.dumps(
+        {
+            "gitlab_token_primary": token_primary or "",
+            "gitlab_token_secondary": token_secondary or "",
+        }
+    )
     try:
-        tmp_path.write_text(token + "\n", encoding="utf-8")
+        tmp_path.write_text(payload, encoding="utf-8")
         os.replace(tmp_path, path)
         if gid is not None:
             try:

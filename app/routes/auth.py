@@ -1,4 +1,5 @@
 import os
+import pwd
 from typing import Optional
 
 from fastapi import APIRouter, Form, Request
@@ -49,11 +50,15 @@ async def login_page(request: Request, error: Optional[str] = None, message: Opt
 @router.post("/login")
 async def login_post(request: Request, username: str = Form(...)):
     username = (username or "").strip()
-    if auth.username_auth(username):
-        request.session.pop("pending_user", None)
-        request.session["user"] = username
-        return _prg("/")
-    return _prg("/login?error=Unauthorized+user+%28check+Linux+account%2Fgroup%29")
+    if not auth.username_auth(username):
+        return _prg("/login?error=Unauthorized+user+%28check+Linux+account%2Fgroup%29")
+    try:
+        pwd.getpwnam(username)
+    except KeyError:
+        return _prg("/login?error=User+does+not+exist+on+this+system.")
+    request.session.pop("pending_user", None)
+    request.session["user"] = username
+    return _prg("/")
 
 
 @router.get("/logout")

@@ -4,7 +4,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h1 class="mb-1">Global Settings</h1>
-        <p class="text-muted mb-0">Tune retention, tokens, and disk safeguards for every workspace.</p>
+        <p class="text-muted mb-0">Tune retention and disk safeguards for every workspace.</p>
     </div>
 </div>
 
@@ -42,43 +42,14 @@
     <div class="card h-100">
       <div class="card-body">
         <div class="d-flex align-items-center mb-3">
-          <i class="bi bi-git text-danger me-2 fs-4"></i>
+          <i class="bi bi-person-lock text-primary me-2 fs-4"></i>
           <div>
-            <h5 class="card-title mb-0">GitLab Credentials</h5>
-            <small class="text-muted">Per-host tokens for ami.com and ami.com.tw</small>
+            <h5 class="card-title mb-0">Credentials Moved</h5>
+            <small class="text-muted">Git tokens are now managed per-user.</small>
           </div>
         </div>
-
-        <div class="border rounded p-3 mb-3">
-          <h6 class="fw-semibold mb-2">GitLab ami.com</h6>
-          <div class="mb-2">
-            <label class="form-label" for="gitlab_username_primary">Username (ami.com)</label>
-            <input type="text" class="form-control" id="gitlab_username_primary" name="gitlab_username_primary" value="{{ settings.gitlab_username_primary or '' }}" placeholder="e.g., johndoe">
-          </div>
-          <div class="mb-2">
-            <label class="form-label" for="gitlab_token_primary">Token (ami.com)</label>
-            <div class="input-group">
-              <input type="password" class="form-control" id="gitlab_token_primary" name="gitlab_token_primary" value="{{ settings.gitlab_token_primary or '' }}" placeholder="PAT for git.ami.com">
-              <button class="btn btn-outline-secondary toggle-visibility" type="button" data-target="gitlab_token_primary"><i class="bi bi-eye"></i></button>
-            </div>
-          </div>
-        </div>
-
-        <div class="border rounded p-3 mb-3">
-          <h6 class="fw-semibold mb-2">GitLab ami.com.tw</h6>
-          <div class="mb-2">
-            <label class="form-label" for="gitlab_username_secondary">Username (ami.com.tw)</label>
-            <input type="text" class="form-control" id="gitlab_username_secondary" name="gitlab_username_secondary" value="{{ settings.gitlab_username_secondary or '' }}" placeholder="e.g., johndoe">
-          </div>
-          <div class="mb-2">
-            <label class="form-label" for="gitlab_token_secondary">Token (ami.com.tw)</label>
-            <div class="input-group">
-              <input type="password" class="form-control" id="gitlab_token_secondary" name="gitlab_token_secondary" value="{{ settings.gitlab_token_secondary or '' }}" placeholder="PAT for git.ami.com.tw">
-              <button class="btn btn-outline-secondary toggle-visibility" type="button" data-target="gitlab_token_secondary"><i class="bi bi-eye"></i></button>
-            </div>
-          </div>
-          <div class="form-text">At least one host (ami.com or ami.com.tw) must have username + token.</div>
-        </div>
+        <p class="mb-2 text-muted">Manage your personal GitLab tokens from your <a href="/profile">Profile</a>. Global settings no longer store Git credentials.</p>
+        <div class="alert alert-info mb-0 small">Each user must save their own tokens to run jobs.</div>
       </div>
     </div>
   </div>
@@ -88,22 +59,4 @@
     <button type="submit" class="btn btn-primary">Save Settings</button>
   </div>
 </form>
-
-<script>
-  (function() {
-    document.querySelectorAll(".toggle-visibility").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const targetId = btn.getAttribute("data-target");
-        const input = document.getElementById(targetId);
-        if (!input) return;
-        const isHidden = input.getAttribute("type") === "password";
-        input.setAttribute("type", isHidden ? "text" : "password");
-        const icon = btn.querySelector("i");
-        if (icon) {
-          icon.className = isHidden ? "bi bi-eye-slash" : "bi bi-eye";
-        }
-      });
-    });
-  })();
-</script>
 {% endblock %}
