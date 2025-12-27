@@ -194,6 +194,8 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
     token_data = load_user_tokens(owner)
     primary_token = (token_data.get("primary") or "").strip() if isinstance(token_data, dict) else ""
     secondary_token = (token_data.get("secondary") or "").strip() if isinstance(token_data, dict) else ""
+    primary_username = (token_data.get("username_primary") or "").strip() if isinstance(token_data, dict) else ""
+    secondary_username = (token_data.get("username_secondary") or "").strip() if isinstance(token_data, dict) else ""
     if not primary_token and not secondary_token:
         token_path = Path(token_root) / f"{owner}.token"
         with log_path.open("a", encoding="utf-8") as fp:
@@ -238,7 +240,17 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
             gitlab_username=owner,
             gitlab_token=primary_token or secondary_token,
         )
-        env.update(setup_job_git_env(job_root, settings, fallback_token=primary_token or secondary_token, fallback_username=owner))
+        settings.gitlab_username_primary = primary_username or owner
+        settings.gitlab_username_secondary = secondary_username or owner
+        settings.gitlab_username = settings.gitlab_username_primary
+        env.update(
+            setup_job_git_env(
+                job_root,
+                settings,
+                fallback_token=primary_token or secondary_token,
+                fallback_username=owner,
+            )
+        )
     except Exception:
         logger.warning("Failed to inject per-job git credentials", exc_info=True)
     logger.info("Starting runner for job %s (owner=%s) log=%s cmd=%s", job_id, owner, log_path, cmd)

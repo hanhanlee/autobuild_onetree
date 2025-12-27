@@ -178,16 +178,26 @@ def load_user_tokens(username: str) -> dict:
             return {
                 "primary": (parsed.get("gitlab_token_primary") or parsed.get("primary") or "").strip(),
                 "secondary": (parsed.get("gitlab_token_secondary") or parsed.get("secondary") or "").strip(),
+                "username_primary": (parsed.get("gitlab_username_primary") or parsed.get("username_primary") or "").strip(),
+                "username_secondary": (parsed.get("gitlab_username_secondary") or parsed.get("username_secondary") or "").strip(),
                 "raw": content,
             }
     except Exception:
         pass
-    return {"primary": content, "secondary": "", "raw": content}
+    return {"primary": content, "secondary": "", "username_primary": "", "username_secondary": "", "raw": content}
 
 
-def save_user_tokens(username: str, token_primary: Optional[str], token_secondary: Optional[str]) -> None:
+def save_user_tokens(
+    username: str,
+    token_primary: Optional[str],
+    token_secondary: Optional[str],
+    username_primary: Optional[str] = None,
+    username_secondary: Optional[str] = None,
+) -> None:
     token_primary = (token_primary or "").strip()
     token_secondary = (token_secondary or "").strip()
+    username_primary = (username_primary or "").strip()
+    username_secondary = (username_secondary or "").strip()
     if not token_primary and not token_secondary:
         raise ValueError("At least one token is required")
     root = get_token_root()
@@ -211,6 +221,8 @@ def save_user_tokens(username: str, token_primary: Optional[str], token_secondar
         {
             "gitlab_token_primary": token_primary or "",
             "gitlab_token_secondary": token_secondary or "",
+            "gitlab_username_primary": username_primary or "",
+            "gitlab_username_secondary": username_secondary or "",
         }
     )
     try:

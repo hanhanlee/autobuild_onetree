@@ -19,17 +19,25 @@
   <div class="col-lg-8">
     <div class="card">
       <div class="card-body">
-        <h6 class="text-muted text-uppercase small mb-3">GitLab Tokens</h6>
+        <h6 class="text-muted text-uppercase small mb-3">GitLab Credentials</h6>
         <form method="post" action="/profile" class="row g-3">
           <div class="col-md-6">
             <label class="form-label fw-semibold" for="git_token_primary">Token for ami.com</label>
             <input type="password" class="form-control" id="git_token_primary" name="git_token_primary" value="{{ token_primary or '' }}" placeholder="PAT for git.ami.com">
-            <div class="form-text">Used for git.ami.com; defaults to your username.</div>
+            <div class="form-text">Used for git.ami.com.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" for="git_username_primary">GitLab Username (ami.com)</label>
+            <input type="text" class="form-control" id="git_username_primary" name="git_username_primary" value="{{ git_username_primary or '' }}" placeholder="GitLab username for ami.com">
           </div>
           <div class="col-md-6">
             <label class="form-label fw-semibold" for="git_token_secondary">Token for ami.com.tw</label>
             <input type="password" class="form-control" id="git_token_secondary" name="git_token_secondary" value="{{ token_secondary or '' }}" placeholder="PAT for git.ami.com.tw">
-            <div class="form-text">Used for git.ami.com.tw; defaults to your username.</div>
+            <div class="form-text">Used for git.ami.com.tw.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" for="git_username_secondary">GitLab Username (ami.com.tw)</label>
+            <input type="text" class="form-control" id="git_username_secondary" name="git_username_secondary" value="{{ git_username_secondary or '' }}" placeholder="GitLab username for ami.com.tw">
           </div>
           <div class="col-12 d-flex justify-content-between align-items-center">
             <small class="text-muted">Tokens are stored per-user in the workspace and used for your jobs only.</small>
