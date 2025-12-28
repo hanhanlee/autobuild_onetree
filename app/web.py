@@ -7,6 +7,15 @@ from . import auth
 from .config import get_git_host
 from .version import __version__ as APP_VERSION
 
+
+class TemplateUser(str):
+    """String subclass that also exposes `.username` for Jinja templates."""
+
+    @property
+    def username(self) -> str:  # pragma: no cover - trivial accessor
+        return str(self)
+
+
 templates = Jinja2Templates(directory="templates")
 templates.env.globals["app_version"] = APP_VERSION
 
@@ -20,7 +29,8 @@ def render_page(
     status_code: int = 200,
     **ctx,
 ):
-    user = request.session.get("user")
+    raw_user = request.session.get("user")
+    user = TemplateUser(raw_user) if raw_user else None
     if token_ok is None:
         token_ok = True
         if user:

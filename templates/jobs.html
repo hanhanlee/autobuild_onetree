@@ -143,7 +143,7 @@
               <td>{{ j.duration or '-' }}</td>
               <td>{% if is_pruned %}Pruned{% elif state.disk_usage_clean or state.disk_usage %}{{ state.disk_usage_clean or state.disk_usage }}{% else %}-{% endif %}</td>
               <td>
-                <button type="button" class="btn btn-outline-dark btn-sm" title="Copy SSH command" data-copy-ssh='ssh -t {{ user.username }}@172.31.98.113 "cd /work/autobuild_workspace/jobs/{{ j.id }} ; bash"'>
+                <button type="button" class="btn btn-outline-dark btn-sm" title="Copy SSH command" data-copy-ssh='ssh -tt {{ user.username if user else "" }}@172.31.98.113 "cd /work/autobuild_workspace/jobs/{{ j.id }} && exec bash -l"'>
                   <i class="bi bi-terminal"></i> Copy SSH
                 </button>
               </td>
