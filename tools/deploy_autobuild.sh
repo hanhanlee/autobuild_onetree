@@ -109,6 +109,10 @@ check_dependencies() {
     mkdir -p "$DEST_DIR"
     chown "${TARGET_USER}:${TARGET_GROUP}" "$DEST_DIR"
 
+    echo -e "${YELLOW}[Deps] Installing system dependency: libpam0g-dev (for simplepam)...${NC}"
+    apt-get update -y
+    apt-get install -y libpam0g-dev
+
     if [ ! -d "$DEST_DIR/venv" ]; then
         sudo -u "$TARGET_USER" python3 -m venv "$DEST_DIR/venv"
     fi

@@ -48,14 +48,12 @@ async def login_page(request: Request, error: Optional[str] = None, message: Opt
 
 
 @router.post("/login")
-async def login_post(request: Request, username: str = Form(...)):
+async def login_post(request: Request, username: str = Form(...), password: str = Form(...)):
     username = (username or "").strip()
     if not auth.username_auth(username):
         return _prg("/login?error=Unauthorized+user+%28check+Linux+account%2Fgroup%29")
-    try:
-        pwd.getpwnam(username)
-    except KeyError:
-        return _prg("/login?error=User+does+not+exist+on+this+system.")
+    if not auth.pam_auth(username, password):
+        return _prg("/login?error=Invalid+username+or+password.")
     request.session.pop("pending_user", None)
     request.session["user"] = username
     return _prg("/")

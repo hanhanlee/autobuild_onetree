@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Optional
 from urllib.parse import quote, urlparse
 
+from simplepam import authenticate as pam_authenticate
+
 from .config import get_git_host, get_token_root
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,17 @@ def username_auth(username: str) -> bool:
         if group.gr_gid == target_gid and username in group.gr_mem:
             return True
     return False
+
+
+def pam_auth(username: str, password: str) -> bool:
+    user = (username or "").strip()
+    if not user:
+        return False
+    try:
+        return bool(pam_authenticate(str(user), str(password or "")))
+    except Exception as exc:
+        logger.warning("PAM authentication failed for user %s: %s", user, exc)
+        return False
 
 
 def token_path_for_user(username: str) -> Path:

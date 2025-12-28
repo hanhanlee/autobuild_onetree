@@ -3,8 +3,8 @@ uvicorn[standard]
 jinja2
 python-multipart
 sse-starlette
-python-pam
 PyYAML
 SQLAlchemy
 itsdangerous
 python-dotenv
+simplepam
