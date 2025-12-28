@@ -13,7 +13,7 @@ class TemplateUser(str):
 
     @property
     def username(self) -> str:  # pragma: no cover - trivial accessor
-        return str(self)
+        return self
 
 
 templates = Jinja2Templates(directory="templates")
@@ -30,20 +30,25 @@ def render_page(
     **ctx,
 ):
     raw_user = request.session.get("user")
-    user = TemplateUser(raw_user) if raw_user else None
+    session_user = TemplateUser(raw_user) if raw_user else None
     if token_ok is None:
         token_ok = True
-        if user:
+        if session_user:
             try:
-                token_ok = auth.has_gitlab_token(user)
+                token_ok = auth.has_gitlab_token(session_user)
             except Exception:
                 token_ok = False
     base = {
         "request": request,
-        "user": user,
+        "user": session_user,
         "current_page": current_page or "",
         "git_host": get_git_host(),
         "token_ok": token_ok,
     }
     base.update(ctx)
+    # Ensure user is always a TemplateUser (or None) even if ctx provided its own value.
+    final_user = base.get("user") or session_user
+    if final_user and not isinstance(final_user, TemplateUser):
+        final_user = TemplateUser(str(final_user))
+    base["user"] = final_user
     return templates.TemplateResponse(template_name, base, status_code=status_code)

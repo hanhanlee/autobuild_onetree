@@ -19,7 +19,7 @@ from ..database import SessionLocal
 from ..config import get_jobs_root, get_presets_root, get_workspace_root
 from ..recipes_catalog import list_recipes as catalog_list_recipes
 from ..system import get_disk_usage
-from ..web import render_page
+from ..web import render_page, TemplateUser
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -27,8 +27,9 @@ PRESETS_ROOT = get_presets_root()
 WORKSPACES_ROOT = Path(get_workspace_root())
 
 
-def _current_user(request: Request) -> Optional[str]:
-    return request.session.get("user")
+def _current_user(request: Request) -> Optional[TemplateUser]:
+    user = request.session.get("user")
+    return TemplateUser(user) if user else None
 
 
 def _require_login(request: Request) -> Optional[RedirectResponse]:
