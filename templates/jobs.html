@@ -106,7 +106,7 @@
               <th>Created</th>
               <th>Duration</th>
               <th>Size</th>
-              <th>Exit Code</th>
+              <th>Connect</th>
               <th style="width:240px;">Actions</th>
             </tr>
           </thead>
@@ -142,7 +142,11 @@
               <td>{{ j.local_created_at or j.created_at or '-' }}</td>
               <td>{{ j.duration or '-' }}</td>
               <td>{% if is_pruned %}Pruned{% elif state.disk_usage_clean or state.disk_usage %}{{ state.disk_usage_clean or state.disk_usage }}{% else %}-{% endif %}</td>
-              <td>{% if j.exit_code is not none %}{{ j.exit_code }}{% else %}-{% endif %}</td>
+              <td>
+                <button type="button" class="btn btn-outline-dark btn-sm" title="Copy SSH command" data-copy-ssh='ssh -t {{ user.username }}@172.31.98.113 "cd /work/autobuild_workspace/jobs/{{ j.id }} ; bash"'>
+                  <i class="bi bi-terminal"></i> Copy SSH
+                </button>
+              </td>
               <td class="d-flex gap-1">
                 <a href="/jobs/{{ j.id }}" class="btn btn-sm btn-outline-primary" title="View details"><i class="bi bi-eye"></i></a>
                 <button type="button" class="btn btn-sm btn-outline-secondary" title="Copy workspace path" data-copy-path="{{ state.workspace_path or '' }}"><i class="bi bi-clipboard"></i></button>
@@ -268,16 +272,18 @@
     }
 
     document.addEventListener("click", async (event) => {
-      const btn = event.target.closest("[data-copy-path]");
+      const btn = event.target.closest("[data-copy-path],[data-copy-ssh]");
       if (!btn) return;
       const path = btn.getAttribute("data-copy-path");
-      if (!path) return;
+      const ssh = btn.getAttribute("data-copy-ssh");
+      const text = path || ssh;
+      if (!text) return;
       try {
-        await navigator.clipboard.writeText(path);
-        showCopyNotice("Path copied!");
+        await navigator.clipboard.writeText(text);
+        showCopyNotice(path ? "Path copied!" : "SSH Command copied!");
       } catch (err) {
-        console.warn("Failed to copy path", err);
-        alert("Could not copy path");
+        console.warn("Failed to copy text", err);
+        alert("Could not copy text");
       }
     });
   })();
