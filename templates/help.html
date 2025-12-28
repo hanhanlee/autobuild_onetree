@@ -3,53 +3,60 @@
 {% block content %}
 <div class="card shadow-sm">
   <div class="card-body">
-    <h2 class="mb-4">BuildServer User Manual</h2>
-
-    <h3 class="mt-3">1. Quick Start</h3>
-    <ol>
-      <li><strong>Login</strong>: Sign in with your system credentials.</li>
-      <li><strong>Setup Profile</strong>: Go to Profile, enter your GitLab Token and Email.</li>
-      <li><strong>Create Job</strong>: Click <em>New Job</em>, select a Recipe, and hit Create.</li>
-      <li><strong>Wait</strong>: You will receive an email notification when done.</li>
-    </ol>
-
-    <h3 class="mt-4">2. Initial Setup</h3>
-    <ul>
-      <li><strong>Profile</strong>: You must set your <strong>GitLab Username &amp; Token</strong> (for accessing code) and <strong>Notification Email</strong> (for alerts). Don’t forget to click “Save Profile”.</li>
-    </ul>
-
-    <h3 class="mt-4">3. Core Concepts</h3>
-    <ul>
-      <li><strong>Recipes</strong>: YAML templates (in <code>platform/project.yaml</code>) defining how to build a project.</li>
-      <li><strong>Jobs</strong>: A specific execution of a recipe. Each job has a unique ID and workspace.</li>
-    </ul>
-
-    <h3 class="mt-4">4. Job Management</h3>
-    <ul>
-      <li><strong>Status</strong>: 🟠 Pending, 🔵 Running, 🟢 Success, 🔴 Failed.</li>
-      <li><strong>Actions</strong>:
-        <ul>
-          <li><strong>Pin</strong>: Protect a job from auto-cleanup.</li>
-          <li><strong>Retry</strong>: Rerun a finished job in-place.</li>
-          <li><strong>Prune</strong>: Remove workspace files to save disk space (logs are kept).</li>
-          <li><strong>SSH Connect</strong>: Click the <strong>Terminal Icon</strong> to copy the SSH command for direct debugging.</li>
-        </ul>
-      </li>
-    </ul>
-
-    <h3 class="mt-4">5. Advanced Debugging (SSH)</h3>
-    <p>Click “Copy SSH” to get a command like:</p>
-    <blockquote><code>ssh -tt user@host "cd /work/jobs/123 &amp;&amp; exec bash -l"</code></blockquote>
-    <p>This logs you directly into the job’s workspace with the environment loaded.</p>
-
-    <h3 class="mt-4">6. Recipe Configuration Guide</h3>
-    <p>Recipes are defined in YAML format. The system executes blocks in this order: <strong>Clone &rarr; Patch &rarr; Init &rarr; Build</strong>.</p>
-
-    <div class="card bg-light border-0">
-      <div class="card-header bg-transparent border-0 pb-0">
-          <span class="badge bg-primary">Real-World Example: AST2600 EVB</span>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="mb-0">BuildServer User Manual</h2>
+      <div class="btn-group" role="group" aria-label="Language toggle">
+        <button type="button" class="btn btn-outline-primary btn-sm active" data-lang="en">English</button>
+        <button type="button" class="btn btn-outline-primary btn-sm" data-lang="zh">中文</button>
       </div>
-      <div class="card-body p-3">
+    </div>
+
+    <div id="lang-en">
+      <h3 class="mt-3">1. Quick Start</h3>
+      <ol>
+        <li><strong>Login</strong>: Sign in with your system credentials.</li>
+        <li><strong>Setup Profile</strong>: Go to Profile, enter your GitLab Token and Email.</li>
+        <li><strong>Create Job</strong>: Click <em>New Job</em>, select a Recipe, and hit Create.</li>
+        <li><strong>Wait</strong>: You will receive an email notification when done.</li>
+      </ol>
+
+      <h3 class="mt-4">2. Initial Setup</h3>
+      <ul>
+        <li><strong>Profile</strong>: You must set your <strong>GitLab Username &amp; Token</strong> (for accessing code) and <strong>Notification Email</strong> (for alerts). Don’t forget to click “Save Profile”.</li>
+      </ul>
+
+      <h3 class="mt-4">3. Core Concepts</h3>
+      <ul>
+        <li><strong>Recipes</strong>: YAML templates (in <code>platform/project.yaml</code>) defining how to build a project.</li>
+        <li><strong>Jobs</strong>: A specific execution of a recipe. Each job has a unique ID and workspace.</li>
+      </ul>
+
+      <h3 class="mt-4">4. Job Management</h3>
+      <ul>
+        <li><strong>Status</strong>: 🟠 Pending, 🔵 Running, 🟢 Success, 🔴 Failed.</li>
+        <li><strong>Actions</strong>:
+          <ul>
+            <li><strong>Pin</strong>: Protect a job from auto-cleanup.</li>
+            <li><strong>Retry</strong>: Rerun a finished job in-place.</li>
+            <li><strong>Prune</strong>: Remove workspace files to save disk space (logs are kept).</li>
+            <li><strong>SSH Connect</strong>: Click the <strong>Terminal Icon</strong> to copy the SSH command for direct debugging.</li>
+          </ul>
+        </li>
+      </ul>
+
+      <h3 class="mt-4">5. Advanced Debugging (SSH)</h3>
+      <p>Click “Copy SSH” to get a command like:</p>
+      <blockquote><code>ssh -tt user@host "cd /work/jobs/123 &amp;&amp; exec bash -l"</code></blockquote>
+      <p>This logs you directly into the job’s workspace with the environment loaded.</p>
+
+      <h3 class="mt-4">6. Recipe Configuration Guide</h3>
+      <p>Recipes are defined in YAML format. The system executes blocks in this order: <strong>Clone &rarr; Patch &rarr; Init &rarr; Build</strong>.</p>
+
+      <div class="card bg-light border-0">
+        <div class="card-header bg-transparent border-0 pb-0">
+            <span class="badge bg-primary">Real-World Example: AST2600 EVB</span>
+        </div>
+        <div class="card-body p-3">
 <pre><code class="language-yaml">schema_version: 1
 display_name: "AST2600 EVB Mainline"
 # Note: 'workdir' is optional. If omitted, you must 'cd' into directories manually.
@@ -89,21 +96,152 @@ init_block:
 build_block:
   lines:
     - bitbake obmc-phosphor-image</code></pre>
+        </div>
       </div>
+
+      <h5 class="mt-3">Block Definition</h5>
+      <ul>
+          <li><code>clone_block</code>: Standard shell commands to fetch source code.</li>
+          <li><code>patch_block</code>: Defines file modifications.
+              <ul>
+                  <li>Keys: <code>path</code> (relative file path), <code>action</code> (<code>append</code> or <code>replace</code>), <code>content</code> (text to write).</li>
+                  <li>For <code>replace</code>, use the <code>find</code> key to specify the text to be replaced.</li>
+              </ul>
+          </li>
+          <li><code>init_block</code>: Commands to setup the environment (e.g., <code>source openbmc-env</code>).</li>
+          <li><code>build_block</code>: The main build command (e.g., <code>bitbake</code>).</li>
+      </ul>
     </div>
 
-    <h5 class="mt-3">Block Definition</h5>
-    <ul>
-        <li><code>clone_block</code>: Standard shell commands to fetch source code.</li>
-        <li><code>patch_block</code>: Defines file modifications.
-            <ul>
-                <li>Keys: <code>path</code> (relative file path), <code>action</code> (<code>append</code> or <code>replace</code>), <code>content</code> (text to write).</li>
-                <li>For <code>replace</code>, use the <code>find</code> key to specify the text to be replaced.</li>
-            </ul>
-        </li>
-        <li><code>init_block</code>: Commands to setup the environment (e.g., <code>source openbmc-env</code>).</li>
-        <li><code>build_block</code>: The main build command (e.g., <code>bitbake</code>).</li>
-    </ul>
+    <div id="lang-zh" style="display: none;">
+      <h1 class="mb-4">BuildServer 使用手冊</h1>
+
+      <h3 class="mt-4">1. 快速上手 (Quick Start)</h3>
+      <ol>
+          <li><strong>登入</strong>：使用您的系統帳號登入。</li>
+          <li><strong>設定 Profile</strong>：前往 My Profile，填寫您的 GitLab Token 與 Email。</li>
+          <li><strong>建立 Job</strong>：點擊 "Create Job"，選擇一個 Recipe，然後按下 Create。</li>
+          <li><strong>等待通知</strong>：完成後您會收到 Email 通知。</li>
+      </ol>
+
+      <h3 class="mt-4">2. 初次設定 (Initial Setup)</h3>
+      <ul>
+          <li><strong>Profile 設定</strong>：您必須設定 <strong>GitLab Username &amp; Token</strong> (用於存取程式碼) 以及 <strong>Notification Email</strong> (接收通知)。設定完成後請記得點擊 "Save Profile"。</li>
+      </ul>
+
+      <h3 class="mt-4">3. 核心概念 (Core Concepts)</h3>
+      <ul>
+          <li><strong>Recipes (配方)</strong>：定義如何建置專案的 YAML 模板 (位於 <code>platform/project.yaml</code>)。</li>
+          <li><strong>Jobs (任務)</strong>：Recipe 的一次執行實例。每個 Job 都有獨立的 ID 與 Workspace。</li>
+      </ul>
+
+      <h3 class="mt-4">4. 任務管理 (Job Management)</h3>
+      <ul>
+          <li><strong>狀態</strong>：<span class="text-warning">🟠 Pending (排隊中)</span>, <span class="text-primary">🔵 Running (執行中)</span>, <span class="text-success">🟢 Success (成功)</span>, <span class="text-danger">🔴 Failed (失敗)</span>。</li>
+          <li><strong>操作</strong>：
+              <ul>
+                  <li><strong>Pin (釘選)</strong>：保護 Job 不被自動清理。</li>
+                  <li><strong>Retry (重試)</strong>：原地重新執行已結束的 Job。</li>
+                  <li><strong>Prune (清理)</strong>：刪除 Workspace 檔案以釋放空間 (保留 Log)。</li>
+                  <li><strong>SSH Connect</strong>：點擊 <strong>終端機圖示</strong> 可複製 SSH 指令進行除錯。</li>
+              </ul>
+          </li>
+      </ul>
+
+      <h3 class="mt-4">5. 進階除錯 (SSH)</h3>
+      <p>點擊列表中的 "Copy SSH" 按鈕可取得如下指令：</p>
+      <blockquote><code>ssh -tt user@host "cd /work/jobs/123 &amp;&amp; exec bash -l"</code></blockquote>
+      <p>這能讓您直接登入該 Job 的 Workspace 並載入好環境變數。</p>
+
+      <h3 class="mt-4">6. Recipe 配置指南 (Recipe Configuration Guide)</h3>
+      <p>Recipe 使用 YAML 格式定義。系統執行順序為：<strong>Clone &rarr; Patch &rarr; Init &rarr; Build</strong>。</p>
+
+      <div class="card bg-light border-0">
+        <div class="card-header bg-transparent border-0 pb-0">
+            <span class="badge bg-primary">實例參考: AST2600 EVB</span>
+        </div>
+        <div class="card-body p-3">
+          <pre><code class="language-yaml">schema_version: 1
+display_name: "AST2600 EVB Mainline"
+# 注意: 'workdir' 是選填的。如果省略，您必須在指令中手動 'cd' 進入目錄。
+
+# 1. Clone 階段
+clone_block:
+  lines:
+    # Clone 基礎 repo 並進入目錄以 clone 子層
+    - git clone https://git.ami.com/core/ami-bmc/base-tech/openbmc onetree; cd onetree
+    - git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-core
+    - git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-ami
+    # 加入 EVB 特定層
+    - git clone https://git.ami.com/core/ami-bmc/one-tree/amd/crb/venice meta-amd/meta-venice
+
+# 2. Patch 階段 (選填)
+# 在 Init 階段前修改檔案
+patch_block:
+  # 範例: 在 local.conf 後面附加內容
+  - path: "conf/local.conf"
+    action: append
+    content: 'IMAGE_INSTALL:append = " my-package"'
+  # 範例: 取代 layer config 中的文字
+  - path: "meta-ami/conf/layer.conf"
+    action: replace
+    find: 'CORE_IMAGE_EXTRA_INSTALL ?= ""'
+    content: 'CORE_IMAGE_EXTRA_INSTALL ?= "ami-base"'
+
+# 3. Init 階段
+init_block:
+  lines:
+    # 因為沒有設定 workdir key，我們必須手動進入目錄
+    - cd onetree
+    - meta-ami/github-gitlab-url.sh
+    - TEMPLATECONF=meta-ami/meta-evb/meta-evb-aspeed/meta-evb-ast2600/conf/templates/default . openbmc-env
+
+# 4. Build 階段
+build_block:
+  lines:
+    - bitbake obmc-phosphor-image</code></pre>
+        </div>
+      </div>
+
+      <h5 class="mt-3">區塊定義</h5>
+      <ul>
+          <li><code>clone_block</code>: 下載程式碼的標準 Shell 指令。</li>
+          <li><code>patch_block</code>: 定義檔案修改。
+              <ul>
+                  <li>關鍵字: <code>path</code> (相對路徑), <code>action</code> (<code>append</code> 或 <code>replace</code>), <code>content</code> (寫入內容)。</li>
+                  <li>若是 <code>replace</code>，需使用 <code>find</code> 指定要被取代的文字。</li>
+              </ul>
+          </li>
+          <li><code>init_block</code>: 初始化建置環境 (例如 <code>source openbmc-env</code>)。</li>
+          <li><code>build_block</code>: 主要建置指令 (例如 <code>bitbake</code>)。</li>
+      </ul>
+    </div>
   </div>
 </div>
+
+<script>
+  (() => {
+    const buttons = document.querySelectorAll("[data-lang]");
+    const en = document.getElementById("lang-en");
+    const zh = document.getElementById("lang-zh");
+    function setLang(lang) {
+      if (!en || !zh) return;
+      if (lang === "zh") {
+        en.style.display = "none";
+        zh.style.display = "";
+      } else {
+        en.style.display = "";
+        zh.style.display = "none";
+      }
+      buttons.forEach((btn) => {
+        const isActive = btn.getAttribute("data-lang") === lang;
+        btn.classList.toggle("active", isActive);
+      });
+    }
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", () => setLang(btn.getAttribute("data-lang") || "en"));
+    });
+    setLang("en");
+  })();
+</script>
 {% endblock %}
