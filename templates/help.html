@@ -4,7 +4,10 @@
 <div class="card shadow-sm">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-3">
-      <h2 class="mb-0">BuildServer User Manual</h2>
+      <div>
+        <h2 id="title-en" class="mb-0">BuildServer User Manual</h2>
+        <h2 id="title-zh" class="mb-0" style="display: none;">BuildServer 使用手冊</h2>
+      </div>
       <div class="btn-group" role="group" aria-label="Language toggle">
         <button type="button" class="btn btn-outline-primary btn-sm active" data-lang="en">English</button>
         <button type="button" class="btn btn-outline-primary btn-sm" data-lang="zh">中文</button>
@@ -114,8 +117,6 @@ build_block:
     </div>
 
     <div id="lang-zh" style="display: none;">
-      <h1 class="mb-4">BuildServer 使用手冊</h1>
-
       <h3 class="mt-4">1. 快速上手 (Quick Start)</h3>
       <ol>
           <li><strong>登入</strong>：使用您的系統帳號登入。</li>
@@ -224,14 +225,24 @@ build_block:
     const buttons = document.querySelectorAll("[data-lang]");
     const en = document.getElementById("lang-en");
     const zh = document.getElementById("lang-zh");
+    const titleEn = document.getElementById("title-en");
+    const titleZh = document.getElementById("title-zh");
     function setLang(lang) {
       if (!en || !zh) return;
       if (lang === "zh") {
         en.style.display = "none";
         zh.style.display = "";
+        if (titleEn && titleZh) {
+          titleEn.style.display = "none";
+          titleZh.style.display = "";
+        }
       } else {
         en.style.display = "";
         zh.style.display = "none";
+        if (titleEn && titleZh) {
+          titleEn.style.display = "";
+          titleZh.style.display = "none";
+        }
       }
       buttons.forEach((btn) => {
         const isActive = btn.getAttribute("data-lang") === lang;
