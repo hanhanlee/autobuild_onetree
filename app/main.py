@@ -21,6 +21,7 @@ from .routes import presets as presets_routes
 from .routes import projects as projects_routes
 from .routes import recipes as recipes_routes
 from .routes import token as token_routes
+from .routes import help as help_routes
 
 
 app = FastAPI()
@@ -37,6 +38,7 @@ app.include_router(recipes_routes.router)
 app.include_router(jobs_routes.router)
 app.include_router(codebases_routes.router)
 app.include_router(settings_routes.router)
+app.include_router(help_routes.router, prefix="/help")
 
 housekeeping_task: Optional[asyncio.Task] = None
 

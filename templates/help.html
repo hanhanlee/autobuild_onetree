@@ -1,0 +1,46 @@
+{% extends "_layout.html" %}
+{% block title %}Help{% endblock %}
+{% block content %}
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h2 class="mb-4">BuildServer User Manual</h2>
+
+    <h3 class="mt-3">1. Quick Start</h3>
+    <ol>
+      <li><strong>Login</strong>: Sign in with your system credentials.</li>
+      <li><strong>Setup Profile</strong>: Go to Profile, enter your GitLab Token and Email.</li>
+      <li><strong>Create Job</strong>: Click <em>New Job</em>, select a Recipe, and hit Create.</li>
+      <li><strong>Wait</strong>: You will receive an email notification when done.</li>
+    </ol>
+
+    <h3 class="mt-4">2. Initial Setup</h3>
+    <ul>
+      <li><strong>Profile</strong>: You must set your <strong>GitLab Username &amp; Token</strong> (for accessing code) and <strong>Notification Email</strong> (for alerts). Don’t forget to click “Save Profile”.</li>
+    </ul>
+
+    <h3 class="mt-4">3. Core Concepts</h3>
+    <ul>
+      <li><strong>Recipes</strong>: YAML templates (in <code>platform/project.yaml</code>) defining how to build a project.</li>
+      <li><strong>Jobs</strong>: A specific execution of a recipe. Each job has a unique ID and workspace.</li>
+    </ul>
+
+    <h3 class="mt-4">4. Job Management</h3>
+    <ul>
+      <li><strong>Status</strong>: 🟠 Pending, 🔵 Running, 🟢 Success, 🔴 Failed.</li>
+      <li><strong>Actions</strong>:
+        <ul>
+          <li><strong>Pin</strong>: Protect a job from auto-cleanup.</li>
+          <li><strong>Retry</strong>: Rerun a finished job in-place.</li>
+          <li><strong>Prune</strong>: Remove workspace files to save disk space (logs are kept).</li>
+          <li><strong>SSH Connect</strong>: Click the <strong>Terminal Icon</strong> to copy the SSH command for direct debugging.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3 class="mt-4">5. Advanced Debugging (SSH)</h3>
+    <p>Click “Copy SSH” to get a command like:</p>
+    <blockquote><code>ssh -tt user@host "cd /work/jobs/123 &amp;&amp; exec bash -l"</code></blockquote>
+    <p>This logs you directly into the job’s workspace with the environment loaded.</p>
+  </div>
+</div>
+{% endblock %}
