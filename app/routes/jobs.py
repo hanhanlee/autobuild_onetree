@@ -449,7 +449,7 @@ async def stop_job(request: Request, job_id: int):
 
 
 @router.post("/jobs/{job_id}/retry")
-async def retry_job(request: Request, job_id: int):
+async def retry_job(request: Request, job_id: int, background_tasks: BackgroundTasks):
     redirect = _require_login(request)
     if redirect:
         return redirect
@@ -461,6 +461,7 @@ async def retry_job(request: Request, job_id: int):
         return RedirectResponse(url=f"/jobs/{job_id}?error=job_running", status_code=303)
     if not jobs.retry_job(job_id, owner=job.get("created_by") or job.get("owner")):
         return RedirectResponse(url=f"/jobs/{job_id}?error=retry_failed", status_code=303)
+    background_tasks.add_task(jobs.start_job_runner, job_id)
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
 
 
@@ -875,7 +876,16 @@ async def create_job(
 
     created_at = jobs.now_iso()
     try:
-        job_id = jobs.create_job(user, recipe_id_val, recipe_yaml, note, created_at=created_at, cc_emails=cc_emails)
+        job_id = jobs.create_job(
+            user,
+            recipe_id_val,
+            recipe_yaml,
+            note,
+            created_at=created_at,
+            cc_emails=cc_emails,
+            base_job_id=base_job_id,
+            base_job_path=base_job_path,
+        )
     except Exception as exc:
         logger.error("Failed to create job for user %s recipe %s: %s", user, recipe_id_val, exc)
         debug_ctx["last_error"] = debug_ctx.get("last_error") or "Failed to create job"

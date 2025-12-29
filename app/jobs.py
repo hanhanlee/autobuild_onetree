@@ -17,6 +17,7 @@ from .auth import load_user_tokens
 from .config import get_git_host, get_jobs_root, get_token_root
 from .db import get_connection, update_job_status, get_job
 from .email import send_job_notification
+from .config import get_jobs_root
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,16 @@ def setup_job_git_env(job_dir: Path, settings, fallback_token: Optional[str] = N
     return {"XDG_CONFIG_HOME": str(job_dir / ".config")}
 
 
-def create_job(created_by: str, recipe_id: str, raw_recipe_yaml: str, note: str, created_at: Optional[str] = None, cc_emails: str = "") -> int:
+def create_job(
+    created_by: str,
+    recipe_id: str,
+    raw_recipe_yaml: str,
+    note: str,
+    created_at: Optional[str] = None,
+    cc_emails: str = "",
+    base_job_id: Optional[int] = None,
+    base_job_path: Optional[str] = None,
+) -> int:
     created_at = created_at or now_iso()
     with get_connection() as conn:
         cur = conn.execute(
@@ -99,6 +109,19 @@ def create_job(created_by: str, recipe_id: str, raw_recipe_yaml: str, note: str,
         conn.commit()
         job_id = cur.lastrowid
     prepare_job_dirs(job_id)
+    # Clone workspace from base_job if requested
+    try:
+        if base_job_id is not None and base_job_path:
+            src_work = Path(base_job_path) / "work"
+            dst_work = job_dir(job_id) / "work"
+            if src_work.exists() and src_work.is_dir():
+                dst_work.parent.mkdir(parents=True, exist_ok=True)
+                logger.info("Cloning workspace from job %s: %s -> %s", base_job_id, src_work, dst_work)
+                subprocess.run(["cp", "-a", str(src_work), str(dst_work)], check=True)
+            else:
+                logger.warning("Base job workspace missing for job %s at %s", base_job_id, src_work)
+    except Exception:
+        logger.warning("Failed to clone workspace from base job %s", base_job_id, exc_info=True)
     return job_id
 
 
