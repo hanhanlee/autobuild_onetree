@@ -239,6 +239,7 @@ INIT_CMDS="${WORK_DIR}/init_commands.txt"
 MODIFY_CMDS="${WORK_DIR}/modify_commands.txt"
 BUILD_CMDS="${WORK_DIR}/build_commands.txt"
 FILE_EDITS_JSON="${WORK_DIR}/file_edits.json"
+CONTEXT_FILE="${WORK_DIR}/.context_dir"
 
 # Ensure work dir exists
 mkdir -p "${WORK_DIR}"
@@ -369,7 +370,18 @@ run_cmds_file() {
     return 0
   fi
   echo "[RUN] ${label}: ${path}"
-  pushd "${WORK_DIR}" >/dev/null || exit 1
+  local target_dir="${WORK_DIR}"
+  local context_active=0
+  if [[ "${label}" == *"Build"* && -f "${CONTEXT_FILE}" ]]; then
+    local saved_dir
+    saved_dir="$(head -n 1 "${CONTEXT_FILE}" 2>/dev/null | tr -d '\r')"
+    if [[ -n "${saved_dir}" && -d "${saved_dir}" ]]; then
+      target_dir="${saved_dir}"
+      context_active=1
+      echo "[CTX] Restoring build context: ${target_dir}"
+    fi
+  fi
+  pushd "${target_dir}" >/dev/null || exit 1
   # Clear positional args once to avoid leaking into sourced scripts (e.g., oe-init-build-env)
   set --
   echo "[DEBUG] ${label}: starting in PWD=$(pwd)"
@@ -380,12 +392,23 @@ run_cmds_file() {
   cmd_idx=0
   while IFS= read -r line || [[ -n "${line}" ]]; do
     [[ -z "${line}" ]] && continue
+    # If we are resuming context, skip an auto-inserted workdir reset (e.g., "cd <workdir>")
+    if [[ ${context_active} -eq 1 && ${cmd_idx} -eq 0 && "${line}" =~ ^cd[[:space:]]+ ]]; then
+        echo "[SKIP] Ignoring workdir reset due to preserved context: ${line}"
+        cmd_idx=$((cmd_idx+1))
+        continue
+    fi
     cmd_idx=$((cmd_idx+1))
     echo "[cmd #${cmd_idx}] PWD=$(pwd)"
     echo "+ ${line}"
     eval "${line}"
     echo "[cmd #${cmd_idx}] DONE, PWD=$(pwd)"
   done < "${path}"
+  # Persist context after Init stage
+  if [[ "${label}" == *"Init"* ]]; then
+    pwd > "${CONTEXT_FILE}"
+    echo "[CTX] Saved post-init directory: $(cat "${CONTEXT_FILE}")"
+  fi
   popd >/dev/null || true
 }
 
@@ -400,9 +423,23 @@ fi
 # Stage 2: Edit/Patch
 if [[ "${RUN_EDIT}" == "1" ]]; then
   echo "=== [Stage 2] Edit/Patch ==="
+  WORKDIR_HINT=""
+  if [[ -s "${META_SH}" ]]; then
+    first_meta_line="$(head -n 1 "${META_SH}")"
+    if [[ "${first_meta_line}" =~ ^cd[[:space:]]+(.+) ]]; then
+      meta_cd="${BASH_REMATCH[1]}"
+      if pushd "${WORK_DIR}" >/dev/null 2>&1 && cd "${meta_cd}" 2>/dev/null; then
+        WORKDIR_HINT="$(pwd)"
+      fi
+      popd >/dev/null 2>&1 || true
+    fi
+  fi
   if [[ -s "${PATCHES_FILE}" ]]; then
     echo "[Patch] Applying patches from ${PATCHES_FILE}"
-    if ! (cd "${WORK_DIR}" && python3 "${SCRIPT_DIR}/patcher.py" "${PATCHES_FILE}"); then
+    if [[ -n "${WORKDIR_HINT}" ]]; then
+      echo "[Patch] Using workdir hint: ${WORKDIR_HINT}"
+    fi
+    if ! (cd "${WORK_DIR}" && python3 "${SCRIPT_DIR}/patcher.py" ${WORKDIR_HINT:+--workdir "${WORKDIR_HINT}"} "${PATCHES_FILE}"); then
       echo "[Patch] Failed!"
       exit 1
     fi
