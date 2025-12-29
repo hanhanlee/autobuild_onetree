@@ -115,7 +115,7 @@ def create_job(
             src_work = Path(base_job_path)
             dst_work = job_dir(job_id) / "work"
             if src_work.exists() and src_work.is_dir():
-                dst_work.parent.mkdir(parents=True, exist_ok=True)
+                dst_work.mkdir(parents=True, exist_ok=True)
                 logger.info("Cloning workspace from job %s: %s -> %s", base_job_id, src_work, dst_work)
                 subprocess.run(["cp", "-a", str(src_work), str(dst_work)], check=True)
             else:
