@@ -370,6 +370,29 @@ async def job_detail(request: Request, job_id: int):
             user=_current_user(request),
             token_ok=None,
         )
+    # Convert timestamps to GMT+8 for display consistency
+    taipei_tz = timezone(timedelta(hours=8))
+    def _fmt_ts(val: Optional[str]) -> str:
+        if not val:
+            return "-"
+        text = str(val).strip()
+        if not text:
+            return "-"
+        try:
+            if text.endswith("Z"):
+                text = text[:-1] + "+00:00"
+            dt = datetime.fromisoformat(text)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            local = dt.astimezone(taipei_tz)
+            return local.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return text
+    if job:
+        job = dict(job)
+        job["created_at"] = _fmt_ts(job.get("created_at"))
+        job["started_at"] = _fmt_ts(job.get("started_at"))
+        job["finished_at"] = _fmt_ts(job.get("finished_at"))
     artifact_list = jobs.list_artifacts(job_id)
     return render_page(request, "job.html", current_page="jobs", job=job, artifacts=artifact_list)
 
