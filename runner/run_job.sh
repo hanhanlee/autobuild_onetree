@@ -274,18 +274,23 @@ def clean_lines(raw):
 def write_file(filename, content):
     path = os.path.join(work_dir, filename)
     os.makedirs(work_dir, exist_ok=True)
+    def _write_json(obj):
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(obj, f, indent=2)
+        print(f"[generate] wrote {filename} (json)")
+
     if isinstance(content, list):
-        if content:
+        if not content:
+            open(path, "w", encoding="utf-8").close()
+            print(f"[generate] created empty {filename} (no lines)")
+        elif all(isinstance(item, str) for item in content):
             with open(path, "w", encoding="utf-8") as f:
                 f.write("\n".join(content) + "\n")
             print(f"[generate] wrote {filename} ({len(content)} lines)")
         else:
-            open(path, "w", encoding="utf-8").close()
-            print(f"[generate] created empty {filename} (no lines)")
+            _write_json(content)
     else:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(content, f, indent=2)
-        print(f"[generate] wrote {filename} (json)")
+        _write_json(content)
 
 try:
     with open(raw_path, encoding="utf-8") as fh:
