@@ -549,6 +549,7 @@ def retry_job(job_id: int, owner: Optional[str] = None) -> bool:
         job_data = get_job(job_id)
     except Exception:
         job_data = None
+    retry_created_at = now_iso()
     try:
         with get_connection() as conn:
             db_owner = None
@@ -561,10 +562,11 @@ def retry_job(job_id: int, owner: Optional[str] = None) -> bool:
                    SET status = ?,
                        started_at = NULL,
                        finished_at = NULL,
-                       exit_code = NULL
+                       exit_code = NULL,
+                       created_at = ?
                  WHERE id = ?
                 """,
-                (STATUS_PENDING, job_id),
+                (STATUS_PENDING, retry_created_at, job_id),
             )
             conn.commit()
     except Exception:
@@ -576,14 +578,16 @@ def retry_job(job_id: int, owner: Optional[str] = None) -> bool:
         retry_at = now_iso()
         data.update({"status": STATUS_PENDING, "last_retry_at": retry_at, "exit_code": None})
         if job_data:
+            job_data["created_at"] = retry_created_at
             data["recipe_id"] = job_data.get("recipe_id")
             data["raw_recipe_yaml"] = job_data.get("raw_recipe_yaml") or ""
             data["note"] = job_data.get("note")
             data["cc_emails"] = job_data.get("cc_emails")
+            data["created_at"] = retry_created_at
         snap = data.get("snapshot")
         if not isinstance(snap, dict):
             snap = {}
-        snap.update({"status": STATUS_PENDING, "last_retry_at": retry_at})
+        snap.update({"status": STATUS_PENDING, "last_retry_at": retry_at, "created_at": retry_created_at})
         if job_data:
             snap.update(
                 {
@@ -591,6 +595,7 @@ def retry_job(job_id: int, owner: Optional[str] = None) -> bool:
                     "raw_recipe_yaml": job_data.get("raw_recipe_yaml"),
                     "note": job_data.get("note"),
                     "cc_emails": job_data.get("cc_emails"),
+                    "created_at": retry_created_at,
                 }
             )
         data["snapshot"] = snap
@@ -615,5 +620,4 @@ def retry_job(job_id: int, owner: Optional[str] = None) -> bool:
             fp.write(f"[job {job_id}] Retry requested at {now_iso()}\n")
     except Exception:
         logger.warning("Failed to append retry notice to log for job %s", job_id, exc_info=True)
-    start_job_runner(job_id, owner=owner)
     return True

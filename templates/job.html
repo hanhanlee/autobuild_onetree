@@ -41,9 +41,9 @@
           <dt class="col-sm-4">Owner</dt><dd class="col-sm-8">{{ job.created_by or job.owner }}</dd>
           <dt class="col-sm-4">Recipe</dt><dd class="col-sm-8"><code>{{ job.recipe_id or 'unknown' }}</code></dd>
           <dt class="col-sm-4">Note</dt><dd class="col-sm-8">{% if job.note %}{{ job.note }}{% else %}-{% endif %}</dd>
-          <dt class="col-sm-4">Created</dt><dd class="col-sm-8">{{ job.created_at or '-' }}</dd>
-          <dt class="col-sm-4">Started</dt><dd class="col-sm-8">{{ job.started_at or '-' }}</dd>
-          <dt class="col-sm-4">Finished</dt><dd class="col-sm-8">{{ job.finished_at or '-' }}</dd>
+          <dt class="col-sm-4">Created</dt><dd class="col-sm-8">{{ job.created_at|to_taipei }}</dd>
+          <dt class="col-sm-4">Started</dt><dd class="col-sm-8">{{ job.started_at|to_taipei }}</dd>
+          <dt class="col-sm-4">Finished</dt><dd class="col-sm-8">{{ job.finished_at|to_taipei }}</dd>
           <dt class="col-sm-4">Exit Code</dt><dd class="col-sm-8">{% if job.exit_code is not none %}{{ job.exit_code }}{% else %}-{% endif %}</dd>
         </dl>
       </div>

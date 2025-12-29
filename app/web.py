@@ -1,5 +1,7 @@
 import os
+from datetime import datetime, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from fastapi.templating import Jinja2Templates
 
@@ -18,6 +20,26 @@ class TemplateUser(str):
 
 templates = Jinja2Templates(directory="templates")
 templates.env.globals["app_version"] = APP_VERSION
+_tz_taipei = ZoneInfo("Asia/Taipei")
+
+
+def _to_taipei(value: Optional[str]) -> str:
+    if not value:
+        return "-"
+    text = str(value).strip()
+    if not text:
+        return "-"
+    try:
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except Exception:
+        return text
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    local_dt = dt.astimezone(_tz_taipei)
+    return local_dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+
+templates.env.filters["to_taipei"] = _to_taipei
 
 
 def render_page(
