@@ -689,6 +689,8 @@ async def create_job(
             base_job_id = base_job_id_int
             base_job_path = str(resolved)
             codebase_id = base_job_path
+            # If reusing a base job workspace, skip clone to avoid runner cleanup
+            do_clone = False
         except ValueError as exc:
             debug_ctx["last_error"] = debug_ctx.get("last_error") or str(exc)
             return render_page(

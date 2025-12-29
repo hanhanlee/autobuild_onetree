@@ -112,7 +112,7 @@ def create_job(
     # Clone workspace from base_job if requested
     try:
         if base_job_id is not None and base_job_path:
-            src_work = Path(base_job_path) / "work"
+            src_work = Path(base_job_path)
             dst_work = job_dir(job_id) / "work"
             if src_work.exists() and src_work.is_dir():
                 dst_work.parent.mkdir(parents=True, exist_ok=True)
