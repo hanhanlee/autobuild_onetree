@@ -420,38 +420,9 @@ else
   echo "=== [Stage 1] Skipped (Clone) ==="
 fi
 
-# Stage 2: Edit/Patch
-if [[ "${RUN_EDIT}" == "1" ]]; then
-  echo "=== [Stage 2] Edit/Patch ==="
-  WORKDIR_HINT=""
-  if [[ -s "${META_SH}" ]]; then
-    first_meta_line="$(head -n 1 "${META_SH}")"
-    if [[ "${first_meta_line}" =~ ^cd[[:space:]]+(.+) ]]; then
-      meta_cd="${BASH_REMATCH[1]}"
-      if pushd "${WORK_DIR}" >/dev/null 2>&1 && cd "${meta_cd}" 2>/dev/null; then
-        WORKDIR_HINT="$(pwd)"
-      fi
-      popd >/dev/null 2>&1 || true
-    fi
-  fi
-  if [[ -s "${PATCHES_FILE}" ]]; then
-    echo "[Patch] Applying patches from ${PATCHES_FILE}"
-    if [[ -n "${WORKDIR_HINT}" ]]; then
-      echo "[Patch] Using workdir hint: ${WORKDIR_HINT}"
-    fi
-    if ! (cd "${WORK_DIR}" && python3 "${SCRIPT_DIR}/patcher.py" ${WORKDIR_HINT:+--workdir "${WORKDIR_HINT}"} "${PATCHES_FILE}"); then
-      echo "[Patch] Failed!"
-      exit 1
-    fi
-  fi
-  run_cmds_file "${MODIFY_CMDS}" "Modify commands"
-else
-  echo "=== [Stage 2] Skipped (Edit/Patch) ==="
-fi
-
-# Stage 3: Init
+# Stage 2: Init
 if [[ "${RUN_INIT}" == "1" ]]; then
-  echo "=== [Stage 3] Init ==="
+  echo "=== [Stage 2] Init ==="
   run_script "${META_SH}" "Meta script"
   run_cmds_file "${INIT_CMDS}" "Init commands"
   # Inject shared Yocto cache settings so downloads/sstate use the shared mount
@@ -471,7 +442,45 @@ if [[ "${RUN_INIT}" == "1" ]]; then
     echo "[Config] Shared site.conf missing at /work/site.conf; skipping injection"
   fi
 else
-  echo "=== [Stage 3] Skipped (Init) ==="
+  echo "=== [Stage 2] Skipped (Init) ==="
+fi
+
+# Stage 3: Edit/Patch (after Init to allow generated files to be patched)
+if [[ "${RUN_EDIT}" == "1" ]]; then
+  echo "=== [Stage 3] Edit/Patch ==="
+  WORKDIR_HINT=""
+  if [[ -f "${CONTEXT_FILE}" ]]; then
+    ctx_val="$(head -n 1 "${CONTEXT_FILE}" 2>/dev/null | tr -d '\r')"
+    if [[ -n "${ctx_val}" && -d "${ctx_val}" ]]; then
+      WORKDIR_HINT="${ctx_val}"
+    fi
+  fi
+  if [[ -z "${WORKDIR_HINT}" && -s "${META_SH}" ]]; then
+    first_meta_line="$(head -n 1 "${META_SH}")"
+    if [[ "${first_meta_line}" =~ ^cd[[:space:]]+(.+) ]]; then
+      meta_cd="${BASH_REMATCH[1]}"
+      if pushd "${WORK_DIR}" >/dev/null 2>&1 && cd "${meta_cd}" 2>/dev/null; then
+        WORKDIR_HINT="$(pwd)"
+      fi
+      popd >/dev/null 2>&1 || true
+    fi
+  fi
+  if [[ -z "${WORKDIR_HINT}" ]]; then
+    WORKDIR_HINT="${WORK_DIR}"
+  fi
+  if [[ -s "${PATCHES_FILE}" ]]; then
+    echo "[Patch] Applying patches from ${PATCHES_FILE}"
+    if [[ -n "${WORKDIR_HINT}" ]]; then
+      echo "[Patch] Using workdir hint: ${WORKDIR_HINT}"
+    fi
+    if ! (cd "${WORK_DIR}" && python3 "${SCRIPT_DIR}/patcher.py" ${WORKDIR_HINT:+--workdir "${WORKDIR_HINT}"} "${PATCHES_FILE}"); then
+      echo "[Patch] Failed!"
+      exit 1
+    fi
+  fi
+  run_cmds_file "${MODIFY_CMDS}" "Modify commands"
+else
+  echo "=== [Stage 3] Skipped (Edit/Patch) ==="
 fi
 
 # Stage 4: Build
