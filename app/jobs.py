@@ -523,11 +523,14 @@ def stop_job(job_id: int) -> bool:
 
 def retry_job(job_id: int, owner: Optional[str] = None) -> bool:
     try:
+        job_data = get_job(job_id)
+    except Exception:
+        job_data = None
+    try:
         with get_connection() as conn:
-            row = conn.execute("SELECT created_by, owner FROM jobs WHERE id = ?", (job_id,)).fetchone()
             db_owner = None
-            if row:
-                db_owner = row[0] or row[1]
+            if job_data:
+                db_owner = job_data.get("created_by") or job_data.get("owner")
             owner = owner or db_owner
             conn.execute(
                 """
@@ -545,29 +548,47 @@ def retry_job(job_id: int, owner: Optional[str] = None) -> bool:
         logger.warning("Failed to reset job state for retry (job=%s)", job_id, exc_info=True)
         return False
 
-    # Best-effort cleanup of prior workspace to reduce flakiness on retry.
-    try:
-        ws_dir = job_dir(job_id) / "workspace"
-        if ws_dir.exists():
-            shutil.rmtree(ws_dir)
-    except Exception:
-        logger.warning("Failed to clean workspace before retry for job %s", job_id, exc_info=True)
-
     def _mark_retry(data: Dict[str, object]) -> None:
         data.pop("runner_pid", None)
         retry_at = now_iso()
-        data.update({"status": STATUS_PENDING, "last_retry_at": retry_at})
+        data.update({"status": STATUS_PENDING, "last_retry_at": retry_at, "exit_code": None})
+        if job_data:
+            data["recipe_id"] = job_data.get("recipe_id")
+            data["raw_recipe_yaml"] = job_data.get("raw_recipe_yaml") or ""
+            data["note"] = job_data.get("note")
+            data["cc_emails"] = job_data.get("cc_emails")
         snap = data.get("snapshot")
-        if isinstance(snap, dict):
-            snap["status"] = STATUS_PENDING
-            snap["last_retry_at"] = retry_at
-            data["snapshot"] = snap
+        if not isinstance(snap, dict):
+            snap = {}
+        snap.update({"status": STATUS_PENDING, "last_retry_at": retry_at})
+        if job_data:
+            snap.update(
+                {
+                    "recipe_id": job_data.get("recipe_id"),
+                    "raw_recipe_yaml": job_data.get("raw_recipe_yaml"),
+                    "note": job_data.get("note"),
+                    "cc_emails": job_data.get("cc_emails"),
+                }
+            )
+        data["snapshot"] = snap
 
     _update_job_spec(job_id, _mark_retry)
+
+    # Overwrite raw_recipe.yaml on disk with latest DB content
+    try:
+        raw_recipe = ""
+        if job_data:
+            raw_recipe = (job_data.get("raw_recipe_yaml") or "").strip()
+        raw_path = job_dir(job_id) / "raw_recipe.yaml"
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_path.write_text(raw_recipe if raw_recipe.endswith("\n") else f"{raw_recipe}\n", encoding="utf-8")
+    except Exception:
+        logger.warning("Failed to refresh raw_recipe.yaml for retry %s", job_id, exc_info=True)
+
     try:
         log_path = log_file(job_id)
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        with log_path.open("a", encoding="utf-8") as fp:
+        with log_path.open("w", encoding="utf-8") as fp:
             fp.write(f"[job {job_id}] Retry requested at {now_iso()}\n")
     except Exception:
         logger.warning("Failed to append retry notice to log for job %s", job_id, exc_info=True)
