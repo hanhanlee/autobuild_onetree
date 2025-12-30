@@ -27,28 +27,13 @@
             <input type="text" class="form-control" name="project" id="project" value="{{ project or '' }}" required placeholder="e.g., base">
           </div>
           <div class="col-12">
-            <label class="form-label">Display Name</label>
+            <label class="form-label">Display Name (optional)</label>
             <input type="text" class="form-control" id="display_name" placeholder="Shown in UI (e.g., AST2600 EVB Mainline)" value="">
           </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card mb-3">
-      <div class="card-body">
-        <h5 class="card-title">Source</h5>
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label">Repo URL</label>
-            <input type="text" class="form-control" id="repo_url" placeholder="https://example.com/repo.git">
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Branch/Ref</label>
-            <input type="text" class="form-control" id="repo_ref" placeholder="main">
-          </div>
-          <div class="col-md-3">
+          <div class="col-12">
             <label class="form-label">Workdir (optional)</label>
             <input type="text" class="form-control" id="workdir" placeholder="onetree">
+            <div class="text-muted small mt-1">Top-level YAML key; runner uses this as project root.</div>
           </div>
         </div>
       </div>
@@ -59,7 +44,7 @@
         <h5 class="card-title mb-3">Pipeline Blocks</h5>
         <div class="mb-3">
           <label class="form-label">Clone Commands (workspace root)</label>
-          <textarea class="form-control font-monospace" id="clone_lines" rows="4" placeholder="git clone https://example.com/repo.git onetree&#10;cd onetree && git submodule update --init --recursive"></textarea>
+          <textarea class="form-control font-monospace" id="clone_lines" rows="5" placeholder="git clone https://example.com/base.git onetree&#10;cd onetree && git clone https://example.com/meta-core.git meta-core&#10;cd onetree && git clone https://example.com/meta-ami.git meta-ami"></textarea>
           <div class="text-muted small mt-1">Runs in workspace root; create/enter your project folder here.</div>
         </div>
         <div class="mb-3">
@@ -85,6 +70,9 @@
         </h5>
         <pre class="bg-light border rounded p-3" style="max-height:70vh; overflow:auto;"><code id="yaml-preview" class="language-yaml"></code></pre>
         <input type="hidden" name="recipe_yaml" id="recipe_yaml" value="{{ recipe_yaml or '' }}">
+      </div>
+      <div class="card-footer bg-white">
+        <button type="submit" class="btn btn-primary w-100">Save Recipe</button>
       </div>
     </div>
   </div>
@@ -152,7 +140,7 @@
     if (hidden) hidden.value = yamlStr;
   }
 
-  ["platform","project","display_name","workdir","clone_lines","init_lines","build_lines","repo_url","repo_ref"].forEach((id) => {
+  ["platform","project","display_name","workdir","clone_lines","init_lines","build_lines"].forEach((id) => {
     const el = $(id);
     if (el) {
       el.addEventListener("input", buildYaml);
@@ -163,13 +151,6 @@
   // Seed defaults if server provided one (legacy raw YAML)
   if ($("recipe_yaml") && $("recipe_yaml").value) {
     $("yaml-preview").textContent = $("recipe_yaml").value;
-  } else {
-    // Optional helper: auto-seed clone_lines from repo_url/ref if empty
-    const repoUrl = $("repo_url")?.value || "";
-    const ref = $("repo_ref")?.value || "";
-    if (repoUrl && !($("clone_lines")?.value || "").trim()) {
-      $("clone_lines").value = `git clone ${repoUrl} ${($("workdir")?.value || "project").trim() || "project"}` + (ref ? ` --branch ${ref}` : "");
-    }
   }
 
   buildYaml();
