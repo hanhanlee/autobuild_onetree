@@ -137,7 +137,7 @@
             </div>
             <div class="alert alert-warning py-2 px-3 small mb-3 d-flex align-items-center gap-2">
               <span class="badge bg-warning text-dark text-uppercase">Base Dir</span>
-              <span>Patches apply relative to <code id="patch-base-hint">.../work/</code></span>
+              <span>Patches apply relative to <code id="patch-base-hint">{{ (jobs_root or '') }}/{{ (next_job_id or 1) }}/work/</code></span>
             </div>
             <div id="patch-container" class="mb-3"></div>
             <div class="text-muted small mb-1">Apply automated file patches (append/replace) after cloning.</div>
@@ -198,6 +198,8 @@ const recipesData = {};
     };
 }
 {% endfor %}
+const jobsRoot = {{ (jobs_root or '')|tojson }};
+const nextJobId = {{ (next_job_id or 1)|tojson }};
 
 // 2. Visibility Logic
 function toggleSection(id, show) {
@@ -215,7 +217,13 @@ function updateWorkdirHint(data) {
     if (!hintEl || !descEl) return;
     const wd = (data && data.workdir && String(data.workdir).trim()) || "";
     const normalize = (val) => val.replace(/^\/+/, "").replace(/\/+$/, "");
-    const baseDir = wd ? `.../work/${normalize(wd)}/` : ".../work/";
+    const rootClean = (jobsRoot || "").replace(/\/+$/, "");
+    const jobIdPart = nextJobId ? String(nextJobId).trim() : "";
+    const baseParts = [rootClean, jobIdPart, "work"].filter(Boolean);
+    let baseDir = baseParts.join("/") + "/";
+    if (wd) {
+        baseDir += `${normalize(wd)}/`;
+    }
     if (wd) {
         hintEl.textContent = wd;
         descEl.textContent = "Init and Build commands run inside this directory automatically.";

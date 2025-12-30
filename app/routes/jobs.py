@@ -275,6 +275,18 @@ async def new_job_page(request: Request):
         debug_ctx["last_error"] = cb_error
     error_msg = debug_ctx.get("last_error")
     recent_jobs = db.list_recent_jobs(limit=50)
+    next_job_id = 1
+    try:
+        if recent_jobs and isinstance(recent_jobs, list):
+            first_id = recent_jobs[0].get("id") if isinstance(recent_jobs[0], dict) else None
+            if first_id:
+                next_job_id = int(first_id) + 1
+    except Exception:
+        next_job_id = 1
+    try:
+        jobs_root_str = str(get_jobs_root().resolve())
+    except Exception:
+        jobs_root_str = str(get_jobs_root())
     return render_page(
         request,
         "new_job.html",
@@ -288,6 +300,8 @@ async def new_job_page(request: Request):
         codebases_count=len(codebases),
         workspaces_root=str(WORKSPACES_ROOT),
         recent_jobs=recent_jobs,
+        next_job_id=next_job_id,
+        jobs_root=jobs_root_str,
         status_code=200,
         user=user,
         token_ok=None,
