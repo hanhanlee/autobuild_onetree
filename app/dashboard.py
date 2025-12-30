@@ -1,6 +1,6 @@
 import json
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 
 from .config import get_workspace_root
@@ -39,6 +39,16 @@ def _time_ago(ts: Optional[str]) -> str:
         return f"{hours}h ago"
     days = hours // 24
     return f"{days}d ago"
+
+
+def _format_ts_local(ts: Optional[str]) -> str:
+    dt = _parse_iso(ts)
+    if not dt:
+        return "-"
+    try:
+        return dt.astimezone(TAIPEI_TZ).strftime("%Y-%m-%d %H:%M:%S GMT+8")
+    except Exception:
+        return str(ts) or "-"
 
 
 def get_live_jobs(limit: int = 100) -> List[Dict[str, object]]:
@@ -93,7 +103,7 @@ def get_recent_jobs(limit: int = 5) -> List[Dict[str, object]]:
     for row in rows:
         item = dict(row)
         ts = item.get("finished_at") or item.get("started_at") or item.get("created_at")
-        item["timestamp"] = ts or "-"
+        item["timestamp"] = _format_ts_local(ts)
         item["time_ago"] = _time_ago(ts)
         recent.append(item)
     return recent
@@ -162,3 +172,4 @@ def get_dashboard_context() -> Dict[str, object]:
         "disk_usage": disk_usage,
         "sensors": sensors,
     }
+TAIPEI_TZ = timezone(timedelta(hours=8))
