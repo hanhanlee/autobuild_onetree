@@ -448,32 +448,23 @@ fi
 # Stage 3: Edit/Patch (after Init to allow generated files to be patched)
 if [[ "${RUN_EDIT}" == "1" ]]; then
   echo "=== [Stage 3] Edit/Patch ==="
-  WORKDIR_HINT=""
-  if [[ -f "${CONTEXT_FILE}" ]]; then
-    ctx_val="$(head -n 1 "${CONTEXT_FILE}" 2>/dev/null | tr -d '\r')"
-    if [[ -n "${ctx_val}" && -d "${ctx_val}" ]]; then
-      WORKDIR_HINT="${ctx_val}"
-    fi
-  fi
-  if [[ -z "${WORKDIR_HINT}" && -s "${META_SH}" ]]; then
+  PATCH_BASE="${WORK_DIR}"
+  if [[ -s "${META_SH}" ]]; then
     first_meta_line="$(head -n 1 "${META_SH}")"
     if [[ "${first_meta_line}" =~ ^cd[[:space:]]+(.+) ]]; then
       meta_cd="${BASH_REMATCH[1]}"
-      if pushd "${WORK_DIR}" >/dev/null 2>&1 && cd "${meta_cd}" 2>/dev/null; then
-        WORKDIR_HINT="$(pwd)"
+      if patch_base_candidate="$(cd "${WORK_DIR}" && cd "${meta_cd}" 2>/dev/null && pwd)"; then
+        case "${patch_base_candidate}" in
+          "${WORK_DIR}"/*) PATCH_BASE="${patch_base_candidate}" ;;
+          *) echo "[Patch] Ignoring workdir outside workspace: ${patch_base_candidate}" ;;
+        esac
       fi
-      popd >/dev/null 2>&1 || true
     fi
-  fi
-  if [[ -z "${WORKDIR_HINT}" ]]; then
-    WORKDIR_HINT="${WORK_DIR}"
   fi
   if [[ -s "${PATCHES_FILE}" ]]; then
     echo "[Patch] Applying patches from ${PATCHES_FILE}"
-    if [[ -n "${WORKDIR_HINT}" ]]; then
-      echo "[Patch] Using workdir hint: ${WORKDIR_HINT}"
-    fi
-    if ! (cd "${WORK_DIR}" && python3 "${SCRIPT_DIR}/patcher.py" ${WORKDIR_HINT:+--workdir "${WORKDIR_HINT}"} "${PATCHES_FILE}"); then
+    echo "[Patch] Base dir: ${PATCH_BASE}"
+    if ! (cd "${WORK_DIR}" && python3 "${SCRIPT_DIR}/patcher.py" --workdir "${PATCH_BASE}" "${PATCHES_FILE}"); then
       echo "[Patch] Failed!"
       exit 1
     fi

@@ -135,6 +135,10 @@
               <span class="fw-semibold text-dark">File Patches</span>
               <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addPatchRow()"><i class="bi bi-plus-lg"></i> Add Patch</button>
             </div>
+            <div class="alert alert-warning py-2 px-3 small mb-3 d-flex align-items-center gap-2">
+              <span class="badge bg-warning text-dark text-uppercase">Base Dir</span>
+              <span>Patches apply relative to <code id="patch-base-hint">.../work/</code></span>
+            </div>
             <div id="patch-container" class="mb-3"></div>
             <div class="text-muted small mb-1">Apply automated file patches (append/replace) after cloning.</div>
           </div>
@@ -207,14 +211,20 @@ function toggleSection(id, show) {
 function updateWorkdirHint(data) {
     const hintEl = document.getElementById("workdir-hint");
     const descEl = document.getElementById("workdir-hint-desc");
+    const patchBaseEl = document.getElementById("patch-base-hint");
     if (!hintEl || !descEl) return;
     const wd = (data && data.workdir && String(data.workdir).trim()) || "";
+    const normalize = (val) => val.replace(/^\/+/, "").replace(/\/+$/, "");
+    const baseDir = wd ? `.../work/${normalize(wd)}/` : ".../work/";
     if (wd) {
         hintEl.textContent = wd;
         descEl.textContent = "Init and Build commands run inside this directory automatically.";
     } else {
         hintEl.textContent = "workspace root";
         descEl.textContent = "Init and Build run at the workspace root unless Workdir is set in the recipe.";
+    }
+    if (patchBaseEl) {
+        patchBaseEl.textContent = baseDir;
     }
 }
 
@@ -373,7 +383,7 @@ function toggleFind(select) {
 <template id="tpl-patch-row">
     <div class="row g-2 mb-2 patch-row align-items-center">
         <div class="col-4">
-            <input type="text" name="patch_paths" class="form-control form-control-sm font-monospace" placeholder="Path (e.g. conf/local.conf)" required>
+            <input type="text" name="patch_paths" class="form-control form-control-sm font-monospace" placeholder="Path (e.g., build/conf/local.conf)" required>
         </div>
         <div class="col-2">
             <select name="patch_actions" class="form-select form-select-sm" onchange="toggleFind(this)">
