@@ -36,7 +36,7 @@
 
       <h3 class="mt-4">4. Job Management</h3>
       <ul>
-        <li><strong>Status</strong>: 🟠 Pending, 🔵 Running, 🟢 Success, 🔴 Failed.</li>
+        <li><strong>Status</strong>: 🔸 Pending, 🔹 Running, ✅ Success, 🔴 Failed.</li>
         <li><strong>Actions</strong>:
           <ul>
             <li><strong>Pin</strong>: Protect a job from auto-cleanup.</li>
@@ -53,7 +53,15 @@
       <p>This logs you directly into the job’s workspace with the environment loaded.</p>
 
       <h3 class="mt-4">6. Recipe Configuration Guide</h3>
-      <p>Recipes are defined in YAML format. The system executes blocks in this order: <strong>Clone &rarr; Patch &rarr; Init &rarr; Build</strong>.</p>
+      <p>Recipes are defined in YAML format. The system executes blocks in this order: <strong>Clone &rarr; Init &rarr; Edit/Patch &rarr; Build</strong>. Patch runs after Init so you can modify generated files (e.g., <code>build/conf/local.conf</code>).</p>
+
+      <h5 class="mt-3">Working Directory by Stage</h5>
+      <ul>
+        <li><strong>Clone</strong>: Runs in the workspace root. Create/clone your project folder here.</li>
+        <li><strong>Init</strong>: Runs in the project root (or workspace root if no <code>workdir</code>). Sets up env and build directories.</li>
+        <li><strong>Edit/Patch</strong>: Runs after Init in the project root (source tree). Patch paths are relative to this root (e.g., <code>build/conf/local.conf</code>).</li>
+        <li><strong>Build</strong>: Runs inside the build directory saved from Init (context restored automatically).</li>
+      </ul>
 
       <div class="card bg-light border-0">
         <div class="card-header bg-transparent border-0 pb-0">
@@ -62,159 +70,143 @@
         <div class="card-body p-3">
 <pre><code class="language-yaml">schema_version: 1
 display_name: "AST2600 EVB Mainline"
-# Note: 'workdir' is optional. If omitted, you must 'cd' into directories manually.
+workdir: "onetree"  # Project root; Init/Build/Patch run here
 
-# 1. Clone Stage
+# 1. Clone Stage (workspace root)
 clone_block:
   lines:
-    # Clone base repo and enter it to clone sub-layers inside
-    - git clone https://git.ami.com/core/ami-bmc/base-tech/openbmc onetree; cd onetree
-    - git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-core
-    - git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-ami
-    # Add EVB specific layer
-    - git clone https://git.ami.com/core/ami-bmc/one-tree/amd/crb/venice meta-amd/meta-venice
+    - git clone https://git.ami.com/core/ami-bmc/base-tech/openbmc onetree
+    - cd onetree && git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-core
+    - cd onetree && git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-ami
+    - cd onetree && git clone https://git.ami.com/core/ami-bmc/one-tree/amd/crb/venice meta-amd/meta-venice
 
-# 2. Patch Stage (Optional)
-# Modifies files BEFORE the Init stage.
+# 2. Init Stage (project root)
+init_block:
+  lines:
+    - meta-ami/github-gitlab-url.sh
+    - TEMPLATECONF=meta-ami/meta-evb/meta-evb-aspeed/meta-evb-ast2600/conf/templates/default . openbmc-env
+
+# 3. Edit/Patch Stage (project root) - runs after Init
 patch_block:
-  # Example: Append a package to local.conf
-  - path: "conf/local.conf"
+  - path: "build/conf/local.conf"   # Relative to project root
     action: append
     content: 'IMAGE_INSTALL:append = " my-package"'
-  # Example: Replace text in a layer config
   - path: "meta-ami/conf/layer.conf"
     action: replace
     find: 'CORE_IMAGE_EXTRA_INSTALL ?= ""'
     content: 'CORE_IMAGE_EXTRA_INSTALL ?= "ami-base"'
 
-# 3. Init Stage
-init_block:
-  lines:
-    # We must enter the directory because 'workdir' key was not set
-    - cd onetree
-    - meta-ami/github-gitlab-url.sh
-    - TEMPLATECONF=meta-ami/meta-evb/meta-evb-aspeed/meta-evb-ast2600/conf/templates/default . openbmc-env
-
-# 4. Build Stage
+# 4. Build Stage (build dir preserved from Init)
 build_block:
   lines:
     - bitbake obmc-phosphor-image</code></pre>
         </div>
       </div>
 
-      <h5 class="mt-3">Block Definition</h5>
+      <h5 class="mt-3">Block Definition &amp; Working Directory</h5>
       <ul>
-          <li><code>clone_block</code>: Standard shell commands to fetch source code.</li>
-          <li><code>patch_block</code>: Defines file modifications.
-              <ul>
-                  <li>Keys: <code>path</code> (relative file path), <code>action</code> (<code>append</code> or <code>replace</code>), <code>content</code> (text to write).</li>
-                  <li>For <code>replace</code>, use the <code>find</code> key to specify the text to be replaced.</li>
-              </ul>
-          </li>
-          <li><code>init_block</code>: Commands to setup the environment (e.g., <code>source openbmc-env</code>).</li>
-          <li><code>build_block</code>: The main build command (e.g., <code>bitbake</code>).</li>
+          <li><code>clone_block</code>: Runs in the workspace root. Clone source code here.</li>
+          <li><code>init_block</code>: Runs in the project root (or workspace root if no <code>workdir</code>). Use for environment setup.</li>
+          <li><code>patch_block</code>: Runs after Init in the project root. Paths are relative to the source root (e.g., <code>build/conf/local.conf</code>).</li>
+          <li><code>build_block</code>: Runs inside the build directory saved from Init (context is restored automatically).</li>
       </ul>
     </div>
 
     <div id="lang-zh" style="display: none;">
-      <h3 class="mt-4">1. 快速上手 (Quick Start)</h3>
+      <h3 class="mt-4">1. 快速開始 (Quick Start)</h3>
       <ol>
-          <li><strong>登入</strong>：使用您的系統帳號登入。</li>
-          <li><strong>設定 Profile</strong>：前往 My Profile，填寫您的 GitLab Token 與 Email。</li>
-          <li><strong>建立 Job</strong>：點擊 "Create Job"，選擇一個 Recipe，然後按下 Create。</li>
-          <li><strong>等待通知</strong>：完成後您會收到 Email 通知。</li>
+          <li><strong>登入</strong>：使用系統帳密登入。</li>
+          <li><strong>設定 Profile</strong>：到 My Profile 填寫 GitLab Token 與 Email。</li>
+          <li><strong>建立 Job</strong>：點選 Create Job，選擇 Recipe 後按 Create。</li>
+          <li><strong>等待通知</strong>：完成後會寄送 Email 通知。</li>
       </ol>
 
-      <h3 class="mt-4">2. 初次設定 (Initial Setup)</h3>
+      <h3 class="mt-4">2. 初始設定 (Initial Setup)</h3>
       <ul>
-          <li><strong>Profile 設定</strong>：您必須設定 <strong>GitLab Username &amp; Token</strong> (用於存取程式碼) 以及 <strong>Notification Email</strong> (接收通知)。設定完成後請記得點擊 "Save Profile"。</li>
+          <li><strong>Profile 必填</strong>：需填寫 <strong>GitLab Username &amp; Token</strong>（取得程式碼）與 <strong>Notification Email</strong>（通知），並按下 “Save Profile”。</li>
       </ul>
 
       <h3 class="mt-4">3. 核心概念 (Core Concepts)</h3>
       <ul>
-          <li><strong>Recipes (配方)</strong>：定義如何建置專案的 YAML 模板 (位於 <code>platform/project.yaml</code>)。</li>
-          <li><strong>Jobs (任務)</strong>：Recipe 的一次執行實例。每個 Job 都有獨立的 ID 與 Workspace。</li>
+          <li><strong>Recipes（配方）</strong>：定義建置流程的 YAML（放在 <code>platform/project.yaml</code>）。</li>
+          <li><strong>Jobs（任務）</strong>：一次 Recipe 執行，每個 Job 有獨立 ID 與 Workspace。</li>
       </ul>
 
       <h3 class="mt-4">4. 任務管理 (Job Management)</h3>
       <ul>
-          <li><strong>狀態</strong>：<span class="text-warning">🟠 Pending (排隊中)</span>, <span class="text-primary">🔵 Running (執行中)</span>, <span class="text-success">🟢 Success (成功)</span>, <span class="text-danger">🔴 Failed (失敗)</span>。</li>
+          <li><strong>狀態</strong>：🔸 Pending、🔹 Running、✅ Success、🔴 Failed。</li>
           <li><strong>操作</strong>：
               <ul>
-                  <li><strong>Pin (釘選)</strong>：保護 Job 不被自動清理。</li>
-                  <li><strong>Retry (重試)</strong>：原地重新執行已結束的 Job。</li>
-                  <li><strong>Prune (清理)</strong>：刪除 Workspace 檔案以釋放空間 (保留 Log)。</li>
-                  <li><strong>SSH Connect</strong>：點擊 <strong>終端機圖示</strong> 可複製 SSH 指令進行除錯。</li>
+                  <li><strong>Pin</strong>：防止任務被自動清理。</li>
+                  <li><strong>Retry</strong>：重新執行已完成的任務。</li>
+                  <li><strong>Prune</strong>：清理 Workspace 節省空間（保留 Log）。</li>
+                  <li><strong>SSH Connect</strong>：點「終端機圖示」複製 SSH 指令以便除錯。</li>
               </ul>
           </li>
       </ul>
 
       <h3 class="mt-4">5. 進階除錯 (SSH)</h3>
-      <p>點擊列表中的 "Copy SSH" 按鈕可取得如下指令：</p>
+      <p>按下 “Copy SSH” 會得到：</p>
       <blockquote><code>ssh -tt user@host "cd /work/jobs/123 &amp;&amp; exec bash -l"</code></blockquote>
-      <p>這能讓您直接登入該 Job 的 Workspace 並載入好環境變數。</p>
+      <p>會直接進入該 Job 的 Workspace，環境已載入。</p>
 
       <h3 class="mt-4">6. Recipe 配置指南 (Recipe Configuration Guide)</h3>
-      <p>Recipe 使用 YAML 格式定義。系統執行順序為：<strong>Clone &rarr; Patch &rarr; Init &rarr; Build</strong>。</p>
+      <p>Recipe 以 YAML 定義，執行順序為 <strong>Clone &rarr; Init &rarr; Edit/Patch &rarr; Build</strong>。Patch 排在 Init 之後，可修改 Init 產生的檔案（例如 <code>build/conf/local.conf</code>）。</p>
+
+      <h5 class="mt-3">各階段工作目錄</h5>
+      <ul>
+          <li><strong>Clone</strong>：在 workspace root 執行，用來建立/clone 專案目錄。</li>
+          <li><strong>Init</strong>：在專案根目錄執行（未設定 <code>workdir</code> 則在 workspace root），用來設定環境與建立 build 目錄。</li>
+          <li><strong>Edit/Patch</strong>：Init 之後在專案根目錄執行，路徑以原始碼根目錄為基準（例如 <code>build/conf/local.conf</code>）。</li>
+          <li><strong>Build</strong>：在 Init 保存的 build 目錄內執行（自動還原 context）。</li>
+      </ul>
 
       <div class="card bg-light border-0">
         <div class="card-header bg-transparent border-0 pb-0">
-            <span class="badge bg-primary">實例參考: AST2600 EVB</span>
+            <span class="badge bg-primary">實例：AST2600 EVB</span>
         </div>
         <div class="card-body p-3">
           <pre><code class="language-yaml">schema_version: 1
 display_name: "AST2600 EVB Mainline"
-# 注意: 'workdir' 是選填的。如果省略，您必須在指令中手動 'cd' 進入目錄。
+workdir: "onetree"  # 專案根目錄，Init/Build/Patch 都在這裡
 
-# 1. Clone 階段
+# 1. Clone 階段 (workspace root)
 clone_block:
   lines:
-    # Clone 基礎 repo 並進入目錄以 clone 子層
-    - git clone https://git.ami.com/core/ami-bmc/base-tech/openbmc onetree; cd onetree
-    - git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-core
-    - git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-ami
-    # 加入 EVB 特定層
-    - git clone https://git.ami.com/core/ami-bmc/one-tree/amd/crb/venice meta-amd/meta-venice
+    - git clone https://git.ami.com/core/ami-bmc/base-tech/openbmc onetree
+    - cd onetree && git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-core
+    - cd onetree && git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-ami
+    - cd onetree && git clone https://git.ami.com/core/ami-bmc/one-tree/amd/crb/venice meta-amd/meta-venice
 
-# 2. Patch 階段 (選填)
-# 在 Init 階段前修改檔案
+# 2. Init 階段 (專案根目錄)
+init_block:
+  lines:
+    - meta-ami/github-gitlab-url.sh
+    - TEMPLATECONF=meta-ami/meta-evb/meta-evb-aspeed/meta-evb-ast2600/conf/templates/default . openbmc-env
+
+# 3. Edit/Patch 階段 (專案根目錄，Init 之後)
 patch_block:
-  # 範例: 在 local.conf 後面附加內容
-  - path: "conf/local.conf"
+  - path: "build/conf/local.conf"   # 相對於專案根目錄
     action: append
     content: 'IMAGE_INSTALL:append = " my-package"'
-  # 範例: 取代 layer config 中的文字
   - path: "meta-ami/conf/layer.conf"
     action: replace
     find: 'CORE_IMAGE_EXTRA_INSTALL ?= ""'
     content: 'CORE_IMAGE_EXTRA_INSTALL ?= "ami-base"'
 
-# 3. Init 階段
-init_block:
-  lines:
-    # 因為沒有設定 workdir key，我們必須手動進入目錄
-    - cd onetree
-    - meta-ami/github-gitlab-url.sh
-    - TEMPLATECONF=meta-ami/meta-evb/meta-evb-aspeed/meta-evb-ast2600/conf/templates/default . openbmc-env
-
-# 4. Build 階段
+# 4. Build 階段 (Init 保存的 build 目錄)
 build_block:
   lines:
     - bitbake obmc-phosphor-image</code></pre>
         </div>
       </div>
 
-      <h5 class="mt-3">區塊定義</h5>
+      <h5 class="mt-3">區塊說明與工作目錄</h5>
       <ul>
-          <li><code>clone_block</code>: 下載程式碼的標準 Shell 指令。</li>
-          <li><code>patch_block</code>: 定義檔案修改。
-              <ul>
-                  <li>關鍵字: <code>path</code> (相對路徑), <code>action</code> (<code>append</code> 或 <code>replace</code>), <code>content</code> (寫入內容)。</li>
-                  <li>若是 <code>replace</code>，需使用 <code>find</code> 指定要被取代的文字。</li>
-              </ul>
-          </li>
-          <li><code>init_block</code>: 初始化建置環境 (例如 <code>source openbmc-env</code>)。</li>
-          <li><code>build_block</code>: 主要建置指令 (例如 <code>bitbake</code>)。</li>
+          <li><code>clone_block</code>：在 workspace root 執行，用來抓取原始碼。</li>
+          <li><code>init_block</code>：在專案根目錄（或未設 <code>workdir</code> 時的 workspace root）執行，負責環境設定。</li>
+          <li><code>patch_block</code>：Init 之後在專案根目錄執行，路徑以原始碼根目錄為基準（如 <code>build/conf/local.conf</code>）。</li>
+          <li><code>build_block</code>：在 Init 保存的 build 目錄內執行，context 會自動還原。</li>
       </ul>
     </div>
   </div>
