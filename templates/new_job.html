@@ -56,7 +56,17 @@
 
           <div class="row g-3">
             <div class="col-lg-6">
-              <label class="form-label fw-semibold" for="recipe-select">Recipe Template</label>
+              <div class="d-flex justify-content-between align-items-center">
+                <label class="form-label fw-semibold mb-0" for="recipe-select">Recipe Template</label>
+                <div class="d-flex align-items-center gap-2">
+                  <a class="btn btn-link btn-sm text-decoration-none" href="/recipes/new" target="_blank" rel="noopener">
+                    <i class="bi bi-plus-circle me-1"></i>Create New Recipe
+                  </a>
+                  <button type="button" class="btn btn-link btn-sm text-decoration-none" onclick="refreshRecipes()" title="Refresh recipe list">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                  </button>
+                </div>
+              </div>
               {% if recipes_count is defined %}
               <div class="text-muted small mb-1">presets_root: {{ presets_root }}, recipes_count: {{ recipes_count }}</div>
               {% endif %}
@@ -69,7 +79,7 @@
               <input id="recipe-filter" class="form-control mt-2" value="" placeholder="Filter recipes (e.g. 2600)" autocomplete="off">
               <div class="text-muted small mt-1">Type to filter the dropdown; selection comes from the list.</div>
               {% if (recipes or [])|length == 0 %}
-              <div class="text-warning small mt-1">No recipes found. Create one via /projects and ensure it is saved under presets_root/&lt;platform&gt;/&lt;project&gt;.yaml</div>
+              <div class="text-warning small mt-1">No recipes found. Use "Create New Recipe" to add one and ensure it is saved under presets_root/&lt;platform&gt;/&lt;project&gt;.yaml.</div>
               {% endif %}
             </div>
             <div class="col-lg-6">
@@ -208,6 +218,10 @@ function toggleSection(id, show) {
         if (show) el.classList.remove("d-none");
         else el.classList.add("d-none");
     }
+}
+
+function refreshRecipes() {
+    window.location.reload();
 }
 
 function updateWorkdirHint(data) {

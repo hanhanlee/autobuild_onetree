@@ -48,8 +48,7 @@
                     <li><a href="/" class="{% if current_page=='dashboard' %}active{% endif %}"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
                     <li><a href="/new" class="{% if current_page=='new' %}active{% endif %}"><i class="bi bi-plus-circle me-2"></i>Create Job</a></li>
                     <li><a href="/jobs" class="{% if current_page=='jobs' %}active{% endif %}"><i class="bi bi-list-task me-2"></i>Jobs</a></li>
-                    <li><a href="/projects" class="{% if request.url.path.startswith('/projects') %}active{% endif %}"><i class="bi bi-box-seam me-2"></i>Recipe Catalog</a></li>
-                    <li><a href="/recipes" class="{% if request.url.path.startswith('/recipes') %}active{% endif %}"><i class="bi bi-file-earmark-code me-2"></i>Recipes</a></li>
+                    <li><a href="/recipes" class="{% if request.url.path.startswith('/recipes') %}active{% endif %}"><i class="bi bi-box-seam me-2"></i>Recipes</a></li>
                     <li><a href="/profile" class="{% if request.url.path.startswith('/profile') %}active{% endif %}"><i class="bi bi-person-circle me-1"></i>My Profile</a></li>
                     <li><a href="/settings" class="nav-link {% if current_page in ('token','settings') %}active{% endif %}{% if token_ok is defined and not token_ok %} token-alert{% endif %}"><i class="bi bi-gear me-2"></i>Settings{% if token_ok is defined and not token_ok %} (!) {% endif %}</a></li>
                     <li><a href="/help" class="{% if request.url.path.startswith('/help') or current_page=='help' %}active{% endif %}"><i class="bi bi-question-circle me-2"></i>Help</a></li>
