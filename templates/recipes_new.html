@@ -1,24 +1,178 @@
 {% extends "_layout.html" %}
-{% block title %}Recipe Template{% endblock %}
+{% block title %}New Recipe{% endblock %}
 {% block content %}
-<h1>Recipe Template</h1>
-{% if error %}<p class="error">{{ error }}</p>{% endif %}
-<div class="card">
-    <form method="post" action="/recipes/new" class="flex" style="flex-direction:column;gap:0.75rem;max-width:860px;">
-        <div class="flex" style="gap:1rem;flex-wrap:wrap;">
-            <label style="flex:1;min-width:220px;">Platform
-                <input type="text" name="platform" value="{{ platform or '' }}" required placeholder="e.g. ast2600evb">
-            </label>
-            <label style="flex:1;min-width:220px;">Project
-                <input type="text" name="project" value="{{ project or '' }}" required placeholder="e.g. base">
-            </label>
-        </div>
-        <label>Recipe YAML (raw text; saved exactly as authored)
-            <textarea name="recipe_yaml" rows="22" style="font-family:monospace;" required>{{ recipe_yaml or '' }}</textarea>
-        </label>
-        <p class="status" style="color:#444;">Tips: runner supports clone_block/init_block/build_block/workdir; include meta-ami/github-gitlab-url.sh, set TEMPLATECONF, and edit conf/local.conf inside init_block while it runs.</p>
-        <p class="status">Note: Existing recipe with same platform/project will be overwritten.</p>
-        <button type="submit">Save Template</button>
-    </form>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="mb-0">Create Recipe</h1>
+    <div class="text-muted">Structured form on the left, live YAML preview on the right.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="/recipes">
+    <i class="bi bi-arrow-left me-1"></i>Back to Recipes
+  </a>
 </div>
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<form method="post" action="/recipes/new" class="row g-3">
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Metadata</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Platform</label>
+            <input type="text" class="form-control" name="platform" id="platform" value="{{ platform or '' }}" required placeholder="e.g., ast2600evb">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Project</label>
+            <input type="text" class="form-control" name="project" id="project" value="{{ project or '' }}" required placeholder="e.g., base">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Display Name</label>
+            <input type="text" class="form-control" id="display_name" placeholder="Shown in UI (e.g., AST2600 EVB Mainline)" value="">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Source</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Repo URL</label>
+            <input type="text" class="form-control" id="repo_url" placeholder="https://example.com/repo.git">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Branch/Ref</label>
+            <input type="text" class="form-control" id="repo_ref" placeholder="main">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Workdir (optional)</label>
+            <input type="text" class="form-control" id="workdir" placeholder="onetree">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Pipeline Blocks</h5>
+        <div class="mb-3">
+          <label class="form-label">Clone Commands (workspace root)</label>
+          <textarea class="form-control font-monospace" id="clone_lines" rows="4" placeholder="git clone https://example.com/repo.git onetree&#10;cd onetree && git submodule update --init --recursive"></textarea>
+          <div class="text-muted small mt-1">Runs in workspace root; create/enter your project folder here.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Init Commands (project root)</label>
+          <textarea class="form-control font-monospace" id="init_lines" rows="4" placeholder="meta-ami/github-gitlab-url.sh&#10;TEMPLATECONF=... . openbmc-env"></textarea>
+          <div class="text-muted small mt-1">Runs in project root; set up env and generate build directories.</div>
+        </div>
+        <div>
+          <label class="form-label">Build Commands (build dir)</label>
+          <textarea class="form-control font-monospace" id="build_lines" rows="3" placeholder="bitbake obmc-phosphor-image"></textarea>
+          <div class="text-muted small mt-1">Runs in build dir saved from Init.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-body position-sticky" style="top: 1rem;">
+        <h5 class="card-title d-flex align-items-center justify-content-between">
+          <span>Live YAML Preview</span>
+          <small class="text-muted">schema_version: 1</small>
+        </h5>
+        <pre class="bg-light border rounded p-3" style="max-height:70vh; overflow:auto;"><code id="yaml-preview" class="language-yaml"></code></pre>
+        <input type="hidden" name="recipe_yaml" id="recipe_yaml" value="{{ recipe_yaml or '' }}">
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+(function() {
+  const $ = (id) => document.getElementById(id);
+
+  function linesFromTextarea(val) {
+    return (val || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  }
+
+  function esc(str) {
+    return String(str || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
+
+  function buildYaml() {
+    const platform = ($("platform")?.value || "").trim();
+    const project = ($("project")?.value || "").trim();
+    const displayName = ($("display_name")?.value || "").trim() || `${platform || "platform"}/${project || "project"}`;
+    const workdir = ($("workdir")?.value || "").trim();
+
+    const cloneLines = linesFromTextarea($("clone_lines")?.value || "");
+    const initLines = linesFromTextarea($("init_lines")?.value || "");
+    const buildLines = linesFromTextarea($("build_lines")?.value || "");
+
+    const lines = [];
+    lines.push("schema_version: 1");
+    if (platform && project) {
+      lines.push(`id: "${esc(platform)}/${esc(project)}"`);
+    } else {
+      lines.push('id: "platform/project"');
+    }
+    lines.push(`display_name: "${esc(displayName)}"`);
+    if (platform) lines.push(`platform: "${esc(platform)}"`);
+    if (project) lines.push(`project: "${esc(project)}"`);
+
+    lines.push("clone_block:");
+    lines.push("  lines:");
+    (cloneLines.length ? cloneLines : ['git clone https://example.com/repo.git onetree']).forEach((l) => {
+      lines.push(`    - "${esc(l)}"`);
+    });
+
+    if (workdir) {
+      lines.push(`workdir: "${esc(workdir)}"`);
+    }
+
+    lines.push("init_block:");
+    lines.push("  lines:");
+    (initLines.length ? initLines : ['meta-ami/github-gitlab-url.sh', 'TEMPLATECONF=... . openbmc-env']).forEach((l) => {
+      lines.push(`    - "${esc(l)}"`);
+    });
+
+    lines.push("build_block:");
+    lines.push("  lines:");
+    (buildLines.length ? buildLines : ['bitbake obmc-phosphor-image']).forEach((l) => {
+      lines.push(`    - "${esc(l)}"`);
+    });
+
+    const yamlStr = lines.join("\n") + "\n";
+    const preview = $("yaml-preview");
+    const hidden = $("recipe_yaml");
+    if (preview) preview.textContent = yamlStr;
+    if (hidden) hidden.value = yamlStr;
+  }
+
+  ["platform","project","display_name","workdir","clone_lines","init_lines","build_lines","repo_url","repo_ref"].forEach((id) => {
+    const el = $(id);
+    if (el) {
+      el.addEventListener("input", buildYaml);
+      el.addEventListener("change", buildYaml);
+    }
+  });
+
+  // Seed defaults if server provided one (legacy raw YAML)
+  if ($("recipe_yaml") && $("recipe_yaml").value) {
+    $("yaml-preview").textContent = $("recipe_yaml").value;
+  } else {
+    // Optional helper: auto-seed clone_lines from repo_url/ref if empty
+    const repoUrl = $("repo_url")?.value || "";
+    const ref = $("repo_ref")?.value || "";
+    if (repoUrl && !($("clone_lines")?.value || "").trim()) {
+      $("clone_lines").value = `git clone ${repoUrl} ${($("workdir")?.value || "project").trim() || "project"}` + (ref ? ` --branch ${ref}` : "");
+    }
+  }
+
+  buildYaml();
+})();
+</script>
 {% endblock %}
