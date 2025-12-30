@@ -29,11 +29,8 @@
 {% else %}
     {% for platform in platforms %}
     <div class="card mb-3">
-        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <div class="card-header bg-light">
             <h2 class="h5 mb-0">{{ platform.name }}</h2>
-            <a class="btn btn-sm btn-outline-success" href="/recipes/new">
-                <i class="bi bi-plus-lg me-1"></i>New Recipe
-            </a>
         </div>
         {% if platform.files|length == 0 %}
         <p class="m-3">No recipes for this platform.</p>
