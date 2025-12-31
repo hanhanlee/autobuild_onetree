@@ -5,6 +5,12 @@
 {% if rid %}<p><strong>Editing:</strong> {{ platform }} / {{ filename }}</p>{% endif %}
 {% if error %}<div class="card" style="border:1px solid #c00;background:#ffe5e5;color:#900;padding:0.5rem 0.75rem;margin-bottom:0.75rem;">{{ error }}</div>{% endif %}
 <div class="card" style="margin-bottom:1rem;">
+    <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
+      <div><strong>Heads up:</strong> The file path (<code>{{ platform }} / {{ filename }}</code>) cannot be edited here.</div>
+      <div>To rename or change platform, use the <strong>Copy</strong> form below to create a new file.</div>
+      <div>Edit internal metadata (e.g., <code>display_name</code>) directly in the YAML below.</div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
     <form method="post" action="/recipes/save" style="display:flex;flex-direction:column;gap:0.75rem;">
         <input type="hidden" name="rid" value="{{ rid }}">
         <label>Content (YAML)
