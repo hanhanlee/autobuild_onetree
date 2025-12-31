@@ -278,11 +278,46 @@
       const ssh = btn.getAttribute("data-copy-ssh");
       const text = path || ssh;
       if (!text) return;
+
+      const fallbackCopy = (value) => {
+        const ta = document.createElement("textarea");
+        ta.value = value;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "absolute";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        const selection = document.getSelection();
+        const range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+        ta.select();
+        ta.setSelectionRange(0, ta.value.length);
+        let ok = false;
+        try {
+          ok = document.execCommand("copy");
+        } catch (_) {
+          ok = false;
+        }
+        document.body.removeChild(ta);
+        if (range && selection) {
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        return ok;
+      };
+
       try {
-        await navigator.clipboard.writeText(text);
-        showCopyNotice(path ? "Path copied!" : "SSH Command copied!");
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          showCopyNotice(path ? "Path copied!" : "SSH Command copied!");
+          return;
+        }
       } catch (err) {
-        console.warn("Failed to copy text", err);
+        console.warn("navigator.clipboard failed, falling back", err);
+      }
+
+      const ok = fallbackCopy(text);
+      if (ok) {
+        showCopyNotice(path ? "Path copied!" : "SSH Command copied!");
+      } else {
         alert("Could not copy text");
       }
     });
