@@ -58,6 +58,25 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+Section 4.1: Optional - Deployment Script (tools/)
+--------------------------------------------------
+The repo includes `tools/deploy_autobuild.sh` for guided deploy and updates.
+It uses:
+- DEST_DIR=/opt/autobuild
+- SERVICE_NAME=autobuild
+- TARGET_USER=autobuild
+- TARGET_GROUP=scm-bmc
+
+If your service user/name differs, edit the variables at the top of the script.
+
+Run the script from the repo root:
+```bash
+cd /opt/autobuild
+bash tools/deploy_autobuild.sh
+```
+
+You will be prompted to select a deploy action (full deploy, fast deploy, sync only, etc.).
+
 Section 5: Configuration
 ------------------------
 Systemd Service
