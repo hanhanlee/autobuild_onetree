@@ -3,8 +3,14 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
-    <h1 class="mb-1">Help</h1>
-    <p class="text-muted mb-0">Quick guidance for daily Autobuild tasks.</p>
+    <h1 class="mb-1 lang-en">Help</h1>
+    <h1 class="mb-1 lang-zh d-none">使用說明</h1>
+    <p class="text-muted mb-0 lang-en">Quick guidance for daily Autobuild tasks.</p>
+    <p class="text-muted mb-0 lang-zh d-none">Autobuild 系統操作快速指南。</p>
+  </div>
+  <div class="btn-group" role="group" aria-label="Language toggle">
+    <button type="button" class="btn btn-outline-primary btn-sm active" data-lang="en">English</button>
+    <button type="button" class="btn btn-outline-primary btn-sm" data-lang="zh">中文</button>
   </div>
 </div>
 
@@ -15,44 +21,52 @@
         <div class="d-flex align-items-center mb-3">
           <i class="bi bi-lightbulb text-primary me-2 fs-4"></i>
           <div>
-            <h5 class="card-title mb-0">Quick FAQ</h5>
-            <small class="text-muted">Common questions and answers.</small>
+            <h5 class="card-title mb-0 lang-en">Quick FAQ</h5>
+            <h5 class="card-title mb-0 lang-zh d-none">常見問題</h5>
+            <small class="text-muted lang-en">Common questions and answers.</small>
+            <small class="text-muted lang-zh d-none">快速解答常見疑問。</small>
           </div>
         </div>
         <div class="accordion" id="helpFaq">
           <div class="accordion-item">
             <h2 class="accordion-header" id="faq-pin">
               <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faqPinBody" aria-expanded="true" aria-controls="faqPinBody">
-                Why can't I delete a job?
+                <span class="lang-en">Why can't I delete a job?</span>
+                <span class="lang-zh d-none">為什麼我不能刪除 Job？</span>
               </button>
             </h2>
             <div id="faqPinBody" class="accordion-collapse collapse show" aria-labelledby="faq-pin" data-bs-parent="#helpFaq">
               <div class="accordion-body">
-                Pinned jobs are protected. Unpin the job first, then you can prune or delete it.
+                <span class="lang-en">Pinned jobs are protected. Unpin first, then you can prune or delete the job.</span>
+                <span class="lang-zh d-none">被釘選 (Pinned) 的 Job 受保護以防止誤刪。請先取消釘選再進行 Prune 或 Delete。</span>
               </div>
             </div>
           </div>
           <div class="accordion-item">
             <h2 class="accordion-header" id="faq-disk">
               <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqDiskBody" aria-expanded="false" aria-controls="faqDiskBody">
-                How do I free up disk space?
+                <span class="lang-en">How do I free up disk space?</span>
+                <span class="lang-zh d-none">硬碟空間不足怎麼辦？</span>
               </button>
             </h2>
             <div id="faqDiskBody" class="accordion-collapse collapse" aria-labelledby="faq-disk" data-bs-parent="#helpFaq">
               <div class="accordion-body">
-                Use "Prune Workspace" on old jobs to remove the work/ directory, or use Storage Maintenance in Settings to clean sstate and downloads.
+                <span class="lang-en">Use "Prune Workspace" on old jobs, or go to Settings and run Storage Maintenance.</span>
+                <span class="lang-zh d-none">你可以對舊的 Job 執行 "Prune Workspace"，或到 Settings 使用 Storage Maintenance 清理。</span>
               </div>
             </div>
           </div>
           <div class="accordion-item">
             <h2 class="accordion-header" id="faq-artifacts">
               <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqArtifactsBody" aria-expanded="false" aria-controls="faqArtifactsBody">
-                Where are my build artifacts?
+                <span class="lang-en">Where are my build artifacts?</span>
+                <span class="lang-zh d-none">編譯產物 (Artifacts) 在哪裡？</span>
               </button>
             </h2>
             <div id="faqArtifactsBody" class="accordion-collapse collapse" aria-labelledby="faq-artifacts" data-bs-parent="#helpFaq">
               <div class="accordion-body">
-                Open the job detail page. The Artifacts section lists output files and provides download links.
+                <span class="lang-en">Open the job detail page. The Artifacts section lists output files and download links.</span>
+                <span class="lang-zh d-none">請打開 Job 詳細頁面。下方的 Artifacts 區塊會列出產出檔案與下載連結。</span>
               </div>
             </div>
           </div>
@@ -66,26 +80,36 @@
         <div class="d-flex align-items-center mb-3">
           <i class="bi bi-flag text-primary me-2 fs-4"></i>
           <div>
-            <h5 class="card-title mb-0">Icon Legend</h5>
-            <small class="text-muted">Meaning of common actions.</small>
+            <h5 class="card-title mb-0 lang-en">Icon Legend</h5>
+            <h5 class="card-title mb-0 lang-zh d-none">圖示說明</h5>
+            <small class="text-muted lang-en">Meaning of common actions.</small>
+            <small class="text-muted lang-zh d-none">常用操作圖示解釋。</small>
           </div>
         </div>
         <ul class="list-group list-group-flush">
           <li class="list-group-item d-flex align-items-center justify-content-between">
-            <span><i class="bi bi-pin-angle me-2"></i>Pin job</span>
-            <span class="text-muted">Keep on top and protect</span>
+            <span class="lang-en"><i class="bi bi-pin-angle me-2"></i>Pin job</span>
+            <span class="lang-zh d-none"><i class="bi bi-pin-angle me-2"></i>釘選 Job</span>
+            <span class="text-muted lang-en">Keep on top and protect</span>
+            <span class="text-muted lang-zh d-none">置頂並防止誤刪</span>
           </li>
           <li class="list-group-item d-flex align-items-center justify-content-between">
-            <span><i class="bi bi-eraser me-2"></i>Prune workspace</span>
-            <span class="text-muted">Delete work/ directory</span>
+            <span class="lang-en"><i class="bi bi-eraser me-2"></i>Prune workspace</span>
+            <span class="lang-zh d-none"><i class="bi bi-eraser me-2"></i>Prune 工作目錄</span>
+            <span class="text-muted lang-en">Delete work/ directory</span>
+            <span class="text-muted lang-zh d-none">刪除 work/ 目錄釋放空間</span>
           </li>
           <li class="list-group-item d-flex align-items-center justify-content-between">
-            <span><i class="bi bi-trash me-2"></i>Delete job</span>
-            <span class="text-muted">Remove job and files</span>
+            <span class="lang-en"><i class="bi bi-trash me-2"></i>Delete job</span>
+            <span class="lang-zh d-none"><i class="bi bi-trash me-2"></i>刪除 Job</span>
+            <span class="text-muted lang-en">Remove job and files</span>
+            <span class="text-muted lang-zh d-none">永久刪除紀錄與檔案</span>
           </li>
           <li class="list-group-item d-flex align-items-center justify-content-between">
-            <span><i class="bi bi-arrow-repeat me-2"></i>Retry job</span>
-            <span class="text-muted">Run again in place</span>
+            <span class="lang-en"><i class="bi bi-arrow-repeat me-2"></i>Retry job</span>
+            <span class="lang-zh d-none"><i class="bi bi-arrow-repeat me-2"></i>重試 Job</span>
+            <span class="text-muted lang-en">Run again in place</span>
+            <span class="text-muted lang-zh d-none">原位重新執行</span>
           </li>
         </ul>
       </div>
@@ -100,12 +124,16 @@
         <div class="d-flex align-items-center mb-3">
           <i class="bi bi-folder-check text-primary me-2 fs-4"></i>
           <div>
-            <h5 class="card-title mb-0">Artifacts</h5>
-            <small class="text-muted">Where outputs appear.</small>
+            <h5 class="card-title mb-0 lang-en">Artifacts</h5>
+            <h5 class="card-title mb-0 lang-zh d-none">產出檔案</h5>
+            <small class="text-muted lang-en">Where outputs appear.</small>
+            <small class="text-muted lang-zh d-none">產出檔案位置與格式。</small>
           </div>
         </div>
-        <p class="mb-2">Artifacts are collected after a job finishes and appear on the job detail page.</p>
-        <div class="text-muted small">Common extensions: .bin, .img, .mtd, .static.mtd</div>
+        <p class="mb-2 lang-en">Artifacts are collected after a job finishes and appear on the job detail page.</p>
+        <p class="mb-2 lang-zh d-none">Job 完成後會收集產出檔案，並顯示在 Job 詳細頁面。</p>
+        <div class="text-muted small lang-en">Common extensions: .bin, .img, .mtd, .static.mtd</div>
+        <div class="text-muted small lang-zh d-none">支援格式: .bin, .img, .mtd, .static.mtd</div>
       </div>
     </div>
   </div>
@@ -115,17 +143,48 @@
         <div class="d-flex align-items-center mb-3">
           <i class="bi bi-hdd-stack text-primary me-2 fs-4"></i>
           <div>
-            <h5 class="card-title mb-0">Storage Maintenance</h5>
-            <small class="text-muted">Manual cache cleanup.</small>
+            <h5 class="card-title mb-0 lang-en">Storage Maintenance</h5>
+            <h5 class="card-title mb-0 lang-zh d-none">空間維護</h5>
+            <small class="text-muted lang-en">Manual cache cleanup.</small>
+            <small class="text-muted lang-zh d-none">手動清理快取。</small>
           </div>
         </div>
-        <p class="mb-2">Settings includes a Storage Maintenance section to clean sstate and downloads.</p>
-        <div class="text-muted small">
-          SState cleanup removes files unused for X days (atime).
-          Downloads cleanup only removes root files and preserves git repos.
-        </div>
+        <p class="mb-2 lang-en">SState cleanup removes files unused for X days (atime). Downloads cleanup only removes root files to protect git repos.</p>
+        <p class="mb-2 lang-zh d-none">SState 依據 atime 清理超過 X 天未使用的檔案；Downloads 僅清理根目錄檔案以保護 Git Repo。</p>
       </div>
     </div>
   </div>
 </div>
+
+<script>
+  (function() {
+    const buttons = document.querySelectorAll("[data-lang]");
+    const itemsEn = document.querySelectorAll(".lang-en");
+    const itemsZh = document.querySelectorAll(".lang-zh");
+
+    function setLang(lang) {
+      const showEn = lang !== "zh";
+      itemsEn.forEach((el) => el.classList.toggle("d-none", !showEn));
+      itemsZh.forEach((el) => el.classList.toggle("d-none", showEn));
+      buttons.forEach((btn) => btn.classList.toggle("active", btn.getAttribute("data-lang") === lang));
+      try {
+        localStorage.setItem("autobuild_lang", lang);
+      } catch (e) {
+        // ignore storage errors
+      }
+    }
+
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", () => setLang(btn.getAttribute("data-lang") || "en"));
+    });
+
+    let initial = "en";
+    try {
+      initial = localStorage.getItem("autobuild_lang") || "en";
+    } catch (e) {
+      initial = "en";
+    }
+    setLang(initial);
+  })();
+</script>
 {% endblock %}
