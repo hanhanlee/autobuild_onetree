@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
+from ..config import get_token_root
 from ..web import render_page
 
 router = APIRouter()
@@ -22,5 +23,6 @@ async def token_status(request: Request):
         current_page="token",
         user=user,
         token_ok=token_ok,
+        token_root=str(get_token_root()),
         status_code=200,
     )

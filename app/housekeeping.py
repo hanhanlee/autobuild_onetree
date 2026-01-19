@@ -52,7 +52,7 @@ def _mark_pruned(job_id: int) -> None:
 
 def _prune_workspace(job_id: int) -> None:
     job_path = jobs.job_dir(job_id)
-    workspace_dir = job_path / "workspace"
+    workspace_dir = job_path / "work"
     if workspace_dir.exists():
         shutil.rmtree(workspace_dir, ignore_errors=True)
     _mark_pruned(job_id)

@@ -10,7 +10,7 @@
             <span class="error">NOT OK</span>
         {% endif %}
     </p>
-    <p>Token store path: /opt/autobuild/workspace/secrets/gitlab/</p>
+    <p>Token store path: {{ token_root or "-" }}</p>
     {% if not token_ok %}
     <p class="error">Token unavailable: check token store owner/group/mode and ensure normalize_token_perms() and permission fail-fast checks ran before startup.</p>
     {% else %}

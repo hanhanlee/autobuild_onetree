@@ -404,15 +404,33 @@ def _copy_unique(src: Path, dest_dir: Path) -> None:
 def collect_artifacts(job_id: int) -> None:
     """
     Collect build artifacts into the job's artifacts directory.
-    Looks for *.static.mtd and *.static.mtd.tar under the job directory (recursively).
+    Looks for build outputs under deploy/images and fallback *.static.mtd artifacts.
     """
     base_dir = job_dir(job_id)
     artifacts_dir = base_dir / "artifacts"
     if not base_dir.exists():
         return
-    patterns = ["*.static.mtd", "*.static.mtd.tar"]
     found_any = False
-    for pattern in patterns:
+    search_roots = []
+    try:
+        for root in base_dir.rglob("deploy/images"):
+            if root.is_dir():
+                search_roots.append(root)
+    except Exception:
+        search_roots = []
+    for root in search_roots:
+        for pattern in ("*.bin", "*.mtd", "*.mtd.tar"):
+            for path in root.rglob(pattern):
+                try:
+                    if artifacts_dir in path.parents:
+                        continue
+                    if path.is_file():
+                        _copy_unique(path, artifacts_dir)
+                        found_any = True
+                except Exception:
+                    logger.debug("Failed to copy artifact %s for job %s", path, job_id, exc_info=True)
+
+    for pattern in ("*.static.mtd", "*.static.mtd.tar"):
         for path in base_dir.rglob(pattern):
             try:
                 if artifacts_dir in path.parents:

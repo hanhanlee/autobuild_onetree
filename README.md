@@ -32,14 +32,8 @@ Minimal FastAPI + Jinja2 service to submit Yocto build jobs, stream logs, and fe
    ```
 
 5) **Per-user GitLab token**
-   - For each Linux user allowed to run jobs, create `~username/.autobuild` (700) and `gitlab_token` inside (600) containing the PAT (repo read/clone scope).
-   ```bash
-   sudo -u <user> mkdir -p ~/.autobuild
-   sudo -u <user> sh -c 'echo "<PAT>" > ~/.autobuild/gitlab_token'
-   sudo chmod 700 ~/.autobuild
-   sudo chmod 600 ~/.autobuild/gitlab_token
-   ```
-   - Alternatively, users can log in to `/settings` and save the token themselves.
+   - Default token root is `/opt/autobuild/workspace/secrets/gitlab/` and files are stored as `<username>.token`.
+   - Tokens are saved via the UI at `/profile` (preferred), or by writing a JSON payload to the token file.
 
 6) **Systemd service**
    ```bash
@@ -58,15 +52,15 @@ Minimal FastAPI + Jinja2 service to submit Yocto build jobs, stream logs, and fe
 ## Usage
 - Web app: `http://<host>/`
 - Login uses PAM (Linux only). Session stored in signed cookie.
-- Set GitLab PAT in `/settings` (saved to `~/.autobuild/gitlab_token`).
+- Set GitLab PATs in `/profile` (stored under the token root).
 - Submit jobs via `/new` with repo URL, ref, machine, target.
-- Job page (`/jobs/<id>`) streams log via SSE and lists artifacts.
+- Job page (`/jobs/<id>`) polls logs via chunked JSON and lists artifacts (SSE endpoint also exists at `/api/jobs/<id>/log/stream`).
 
 ## Job flow
 1. Web inserts job into SQLite at `/srv/autobuild/data/jobs.db` (override with `AUTO_BUILD_DB` env).
 2. Background task runs `sudo -u <owner> /opt/autobuild/runner/run_job.sh <id> <repo> <ref> <machine> <target>`.
 3. Runner logs to `/srv/autobuild/jobs/<id>/logs/build.log`, updates `status.json` and `exit_code`.
-4. Runner copies artifacts from `build/tmp/deploy/images/<machine>/*.bin|*.mtd` into `/srv/autobuild/jobs/<id>/artifacts/` if present.
+4. Runner collects artifacts from `build/tmp/deploy/images/**` (`*.bin`, `*.mtd`, `*.mtd.tar`) plus any `*.static.mtd*` under the job directory into `/srv/autobuild/jobs/<id>/artifacts/`.
 
 ## Notes
 - Service uses environment vars:

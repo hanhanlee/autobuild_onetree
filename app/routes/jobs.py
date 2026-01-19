@@ -349,7 +349,7 @@ async def jobs_page(request: Request):
             "disk_usage": state.get("disk_usage"),
             "disk_usage_clean": _clean_disk_usage(state.get("disk_usage")),
             "is_pruned": state.get("is_pruned"),
-            "workspace_path": str(jobs.job_dir(int(jid)) / "workspace"),
+            "workspace_path": str(jobs.job_dir(int(jid)) / "work"),
         }
         job["duration"] = _job_duration_text(job)
     return render_page(
@@ -384,29 +384,8 @@ async def job_detail(request: Request, job_id: int):
             user=_current_user(request),
             token_ok=None,
         )
-    # Convert timestamps to GMT+8 for display consistency
-    taipei_tz = timezone(timedelta(hours=8))
-    def _fmt_ts(val: Optional[str]) -> str:
-        if not val:
-            return "-"
-        text = str(val).strip()
-        if not text:
-            return "-"
-        try:
-            if text.endswith("Z"):
-                text = text[:-1] + "+00:00"
-            dt = datetime.fromisoformat(text)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            local = dt.astimezone(taipei_tz)
-            return local.strftime("%Y-%m-%d %H:%M:%S")
-        except Exception:
-            return text
     if job:
         job = dict(job)
-        job["created_at"] = _fmt_ts(job.get("created_at"))
-        job["started_at"] = _fmt_ts(job.get("started_at"))
-        job["finished_at"] = _fmt_ts(job.get("finished_at"))
     artifact_list = jobs.list_artifacts(job_id)
     return render_page(request, "job.html", current_page="jobs", job=job, artifacts=artifact_list)
 
@@ -449,7 +428,7 @@ async def prune_job(request: Request, job_id: int):
     base_dir = _safe_job_dir(job_id)
     if base_dir is None:
         return RedirectResponse(url=f"/jobs/{job_id}?error=invalid_path", status_code=303)
-    workspace_dir = (base_dir / "workspace").resolve()
+    workspace_dir = (base_dir / "work").resolve()
     if workspace_dir.exists():
         try:
             shutil.rmtree(workspace_dir)
@@ -570,7 +549,7 @@ async def jobs_batch_action(request: Request):
             if status_val not in {"success", "failed"}:
                 continue
             if job_dir:
-                workspace_dir = job_dir / "workspace"
+                workspace_dir = job_dir / "work"
                 if workspace_dir.exists():
                     try:
                         shutil.rmtree(workspace_dir)
@@ -750,6 +729,106 @@ async def create_job(
                 user=user,
                 token_ok=None,
             )
+
+    if codebase_id and base_job_id is None:
+        codebase_id_val, codebase_err = _sanitize_segment(codebase_id)
+        if codebase_err:
+            err_msg = f"Invalid codebase_id: {codebase_err}"
+            debug_ctx["last_error"] = debug_ctx.get("last_error") or err_msg
+            return render_page(
+                request,
+                "new_job.html",
+                current_page="new",
+                status_code=400,
+                error=err_msg,
+                recipes=recipes,
+                presets_root=str(PRESETS_ROOT),
+                recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+                codebases=codebases,
+                codebases_count=len(codebases),
+                workspaces_root=str(WORKSPACES_ROOT),
+                last_error=debug_ctx.get("last_error"),
+                debug_context=debug_ctx,
+                codebase_id=codebase_id,
+                recent_jobs=db.list_recent_jobs(limit=50),
+                user=user,
+                token_ok=None,
+            )
+        codebase_dir = (WORKSPACES_ROOT / codebase_id_val).resolve()
+        try:
+            root = WORKSPACES_ROOT.resolve()
+            if root not in codebase_dir.parents and codebase_dir != root:
+                raise ValueError("codebase path must stay under workspaces_root")
+        except Exception as exc:
+            err_msg = f"Invalid codebase path: {exc}"
+            debug_ctx["last_error"] = debug_ctx.get("last_error") or err_msg
+            return render_page(
+                request,
+                "new_job.html",
+                current_page="new",
+                status_code=400,
+                error=err_msg,
+                recipes=recipes,
+                presets_root=str(PRESETS_ROOT),
+                recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+                codebases=codebases,
+                codebases_count=len(codebases),
+                workspaces_root=str(WORKSPACES_ROOT),
+                last_error=debug_ctx.get("last_error"),
+                debug_context=debug_ctx,
+                codebase_id=codebase_id,
+                recent_jobs=db.list_recent_jobs(limit=50),
+                user=user,
+                token_ok=None,
+            )
+        if not codebase_dir.exists() or not codebase_dir.is_dir():
+            err_msg = f"Codebase not found: {codebase_id_val}"
+            debug_ctx["last_error"] = debug_ctx.get("last_error") or err_msg
+            return render_page(
+                request,
+                "new_job.html",
+                current_page="new",
+                status_code=400,
+                error=err_msg,
+                recipes=recipes,
+                presets_root=str(PRESETS_ROOT),
+                recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+                codebases=codebases,
+                codebases_count=len(codebases),
+                workspaces_root=str(WORKSPACES_ROOT),
+                last_error=debug_ctx.get("last_error"),
+                debug_context=debug_ctx,
+                codebase_id=codebase_id,
+                recent_jobs=db.list_recent_jobs(limit=50),
+                user=user,
+                token_ok=None,
+            )
+        if not (codebase_dir / "codebase.json").exists():
+            err_msg = f"Codebase metadata missing: {codebase_id_val}"
+            debug_ctx["last_error"] = debug_ctx.get("last_error") or err_msg
+            return render_page(
+                request,
+                "new_job.html",
+                current_page="new",
+                status_code=400,
+                error=err_msg,
+                recipes=recipes,
+                presets_root=str(PRESETS_ROOT),
+                recipes_count=debug_ctx.get("recipes_count", len(recipes)),
+                codebases=codebases,
+                codebases_count=len(codebases),
+                workspaces_root=str(WORKSPACES_ROOT),
+                last_error=debug_ctx.get("last_error"),
+                debug_context=debug_ctx,
+                codebase_id=codebase_id,
+                recent_jobs=db.list_recent_jobs(limit=50),
+                user=user,
+                token_ok=None,
+            )
+        base_job_path = str(codebase_dir)
+        codebase_id = codebase_id_val
+        # Reuse the codebase as a starting workspace; skip clone stage.
+        do_clone = False
 
     patch_paths = form.getlist("patch_paths") if hasattr(form, "getlist") else []
     patch_actions = form.getlist("patch_actions") if hasattr(form, "getlist") else []
