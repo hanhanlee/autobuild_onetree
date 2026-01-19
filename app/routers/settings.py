@@ -1,3 +1,5 @@
+import os
+import subprocess
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -83,3 +85,50 @@ async def update_settings(
         "</div>"
     )
     return HTMLResponse(content=content, status_code=200)
+
+
+@router.post("/settings/cleanup")
+async def cleanup_cache(request: Request):
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    data = {}
+    try:
+        form = await request.form()
+        data = dict(form)
+    except Exception:
+        data = {}
+    if not data:
+        try:
+            payload = await request.json()
+            if isinstance(payload, dict):
+                data = payload
+        except Exception:
+            data = {}
+    target = str(data.get("target") or "").strip().lower()
+    days_raw = data.get("days")
+    try:
+        days = int(days_raw)
+    except Exception:
+        days = -1
+    if target not in {"sstate", "downloads"}:
+        return HTMLResponse('<div class="alert alert-danger mb-0" role="alert">Invalid cleanup target.</div>', status_code=400)
+    if days < 0:
+        return HTMLResponse('<div class="alert alert-danger mb-0" role="alert">Days must be 0 or greater.</div>', status_code=400)
+
+    if target == "sstate":
+        base_path = os.environ.get("SSTATE_DIR") or "/work/sstate-cache"
+        cmd = ["find", base_path, "-type", "f", "-atime", f"+{days}", "-delete"]
+        label = "SState cache"
+    else:
+        base_path = os.environ.get("DL_DIR") or "/work/downloads"
+        cmd = ["find", base_path, "-maxdepth", "1", "-type", "f", "-atime", f"+{days}", "-delete"]
+        label = "Downloads"
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        msg = (result.stderr or "").strip() or "Cleanup failed."
+        return HTMLResponse(f'<div class="alert alert-danger mb-0" role="alert">{msg}</div>', status_code=500)
+
+    msg = f"{label} cleanup complete. Deleted files older than {days} days in {base_path}."
+    return HTMLResponse(f'<div class="alert alert-success mb-0" role="alert">{msg}</div>', status_code=200)
