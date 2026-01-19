@@ -127,7 +127,7 @@ def list_recent_jobs(limit: int = 50, status: Optional[str] = None, days: Option
     where = ""
     if clauses:
         where = " WHERE " + " AND ".join(clauses)
-    order_limit = " ORDER BY COALESCE(created_at, '') DESC, id DESC LIMIT ?"
+    order_limit = " ORDER BY pinned DESC, COALESCE(created_at, '') DESC, id DESC LIMIT ?"
     params.append(limit)
     query = sql + where + order_limit
     with get_connection() as conn:

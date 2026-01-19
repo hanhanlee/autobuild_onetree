@@ -421,7 +421,7 @@ async def prune_job(request: Request, job_id: int):
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
     if job.get("pinned"):
-        return RedirectResponse(url=f"/jobs/{job_id}?error=job_is_pinned", status_code=303)
+        return RedirectResponse(url="/jobs?error=Cannot+prune+a+pinned+job.+Unpin+it+first.", status_code=303)
     status_val = (job.get("status") or "").lower()
     if status_val not in {"success", "failed"}:
         return RedirectResponse(url=f"/jobs/{job_id}?error=not_finished", status_code=303)
@@ -491,7 +491,7 @@ async def delete_job(request: Request, job_id: int):
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
     if job.get("pinned"):
-        return RedirectResponse(url=f"/jobs/{job_id}?error=job_is_pinned", status_code=303)
+        return RedirectResponse(url="/jobs?error=Cannot+delete+a+pinned+job.+Unpin+it+first.", status_code=303)
 
     job_dir = _safe_job_dir(job_id)
     if job_dir and job_dir.exists():

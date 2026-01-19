@@ -163,9 +163,13 @@
                 {% if st in ['success', 'failed'] and not is_pruned and not is_pinned %}
                 <button type="submit" formaction="/jobs/{{ j.id }}/prune" formmethod="post" class="btn btn-sm btn-outline-secondary" title="Prune workspace"><i class="bi bi-eraser"></i></button>
                 {% else %}
+                {% if is_pinned %}
+                <button type="button" class="btn btn-sm btn-outline-secondary disabled" title="Pinned jobs cannot be pruned"><i class="bi bi-eraser"></i></button>
+                {% else %}
                 <button type="button" class="btn btn-sm btn-outline-secondary disabled" title="Prune unavailable"><i class="bi bi-eraser"></i></button>
                 {% endif %}
-                <button type="submit" formaction="/jobs/{{ j.id }}/delete" formmethod="post" class="btn btn-sm btn-outline-danger" title="Delete job" {% if is_pinned %}disabled{% endif %}><i class="bi bi-trash"></i></button>
+                {% endif %}
+                <button type="submit" formaction="/jobs/{{ j.id }}/delete" formmethod="post" class="btn btn-sm btn-outline-danger" title="{% if is_pinned %}Pinned jobs cannot be deleted{% else %}Delete job{% endif %}" {% if is_pinned %}disabled{% endif %}><i class="bi bi-trash"></i></button>
               </td>
             </tr>
             {% else %}
