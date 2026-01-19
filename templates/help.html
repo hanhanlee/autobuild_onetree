@@ -1,250 +1,131 @@
 {% extends "_layout.html" %}
 {% block title %}Help{% endblock %}
 {% block content %}
-<div class="card shadow-sm">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <div>
-        <h2 id="title-en" class="mb-0">BuildServer User Manual</h2>
-        <h2 id="title-zh" class="mb-0" style="display: none;">BuildServer 使用手冊</h2>
-      </div>
-      <div class="btn-group" role="group" aria-label="Language toggle">
-        <button type="button" class="btn btn-outline-primary btn-sm active" data-lang="en">English</button>
-        <button type="button" class="btn btn-outline-primary btn-sm" data-lang="zh">中文</button>
-      </div>
-    </div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="mb-1">Help</h1>
+    <p class="text-muted mb-0">Quick guidance for daily Autobuild tasks.</p>
+  </div>
+</div>
 
-    <div id="lang-en">
-      <h3 class="mt-3">1. Quick Start</h3>
-      <ol>
-        <li><strong>Login</strong>: Sign in with your system credentials.</li>
-        <li><strong>Setup Profile</strong>: Go to Profile, enter your GitLab Token and Email.</li>
-        <li><strong>Create Job</strong>: Click <em>New Job</em>, select a Recipe, and hit Create.</li>
-        <li><strong>Wait</strong>: You will receive an email notification when done.</li>
-      </ol>
-
-      <h3 class="mt-4">2. Initial Setup</h3>
-      <ul>
-        <li><strong>Profile</strong>: You must set your <strong>GitLab Username &amp; Token</strong> (for accessing code) and <strong>Notification Email</strong> (for alerts). Don’t forget to click “Save Profile”.</li>
-      </ul>
-
-      <h3 class="mt-4">3. Core Concepts</h3>
-      <ul>
-        <li><strong>Recipes</strong>: YAML templates (in <code>platform/project.yaml</code>) defining how to build a project.</li>
-        <li><strong>Jobs</strong>: A specific execution of a recipe. Each job has a unique ID and workspace.</li>
-      </ul>
-
-      <h3 class="mt-4">4. Job Management</h3>
-      <ul>
-        <li><strong>Status</strong>: 🔸 Pending, 🔹 Running, ✅ Success, 🔴 Failed.</li>
-        <li><strong>Actions</strong>:
-          <ul>
-            <li><strong>Pin</strong>: Protect a job from auto-cleanup.</li>
-            <li><strong>Retry</strong>: Rerun a finished job in-place.</li>
-            <li><strong>Prune</strong>: Remove workspace files to save disk space (logs are kept).</li>
-            <li><strong>SSH Connect</strong>: Click the <strong>Terminal Icon</strong> to copy the SSH command for direct debugging.</li>
-          </ul>
-        </li>
-      </ul>
-
-      <h3 class="mt-4">5. Advanced Debugging (SSH)</h3>
-      <p>Click “Copy SSH” to get a command like:</p>
-      <blockquote><code>ssh -tt user@host "cd /work/jobs/123 &amp;&amp; exec bash -l"</code></blockquote>
-      <p>This logs you directly into the job’s workspace with the environment loaded.</p>
-
-      <h3 class="mt-4">6. Recipe Configuration Guide</h3>
-      <p>Recipes are defined in YAML format. The system executes blocks in this order: <strong>Clone &rarr; Init &rarr; Edit/Patch &rarr; Build</strong>. Patch runs after Init so you can modify generated files (e.g., <code>build/conf/local.conf</code>).</p>
-
-      <h5 class="mt-3">Working Directory by Stage</h5>
-      <ul>
-        <li><strong>Clone</strong>: Runs in the workspace root. Create/clone your project folder here.</li>
-        <li><strong>Init</strong>: Runs in the project root (or workspace root if no <code>workdir</code>). Sets up env and build directories.</li>
-        <li><strong>Edit/Patch</strong>: Runs after Init in the project root (source tree). Patch paths are relative to this root (e.g., <code>build/conf/local.conf</code>).</li>
-        <li><strong>Build</strong>: Runs inside the build directory saved from Init (context restored automatically).</li>
-      </ul>
-
-      <div class="card bg-light border-0">
-        <div class="card-header bg-transparent border-0 pb-0">
-            <span class="badge bg-primary">Real-World Example: AST2600 EVB</span>
+<div class="row g-3 mb-3">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-3">
+          <i class="bi bi-lightbulb text-primary me-2 fs-4"></i>
+          <div>
+            <h5 class="card-title mb-0">Quick FAQ</h5>
+            <small class="text-muted">Common questions and answers.</small>
+          </div>
         </div>
-        <div class="card-body p-3">
-<pre><code class="language-yaml">schema_version: 1
-display_name: "AST2600 EVB Mainline"
-workdir: "onetree"  # Project root; Init/Build/Patch run here
-
-# 1. Clone Stage (workspace root)
-clone_block:
-  lines:
-    - git clone https://git.ami.com/core/ami-bmc/base-tech/openbmc onetree
-    - cd onetree && git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-core
-    - cd onetree && git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-ami
-    - cd onetree && git clone https://git.ami.com/core/ami-bmc/one-tree/amd/crb/venice meta-amd/meta-venice
-
-# 2. Init Stage (project root)
-init_block:
-  lines:
-    - meta-ami/github-gitlab-url.sh
-    - TEMPLATECONF=meta-ami/meta-evb/meta-evb-aspeed/meta-evb-ast2600/conf/templates/default . openbmc-env
-
-# 3. Edit/Patch Stage (project root) - runs after Init
-patch_block:
-  - path: "build/conf/local.conf"   # Relative to project root
-    action: append
-    content: 'IMAGE_INSTALL:append = " my-package"'
-  - path: "meta-ami/conf/layer.conf"
-    action: replace
-    find: 'CORE_IMAGE_EXTRA_INSTALL ?= ""'
-    content: 'CORE_IMAGE_EXTRA_INSTALL ?= "ami-base"'
-
-# 4. Build Stage (build dir preserved from Init)
-build_block:
-  lines:
-    - bitbake obmc-phosphor-image</code></pre>
+        <div class="accordion" id="helpFaq">
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="faq-pin">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faqPinBody" aria-expanded="true" aria-controls="faqPinBody">
+                Why can't I delete a job?
+              </button>
+            </h2>
+            <div id="faqPinBody" class="accordion-collapse collapse show" aria-labelledby="faq-pin" data-bs-parent="#helpFaq">
+              <div class="accordion-body">
+                Pinned jobs are protected. Unpin the job first, then you can prune or delete it.
+              </div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="faq-disk">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqDiskBody" aria-expanded="false" aria-controls="faqDiskBody">
+                How do I free up disk space?
+              </button>
+            </h2>
+            <div id="faqDiskBody" class="accordion-collapse collapse" aria-labelledby="faq-disk" data-bs-parent="#helpFaq">
+              <div class="accordion-body">
+                Use "Prune Workspace" on old jobs to remove the work/ directory, or use Storage Maintenance in Settings to clean sstate and downloads.
+              </div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="faq-artifacts">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faqArtifactsBody" aria-expanded="false" aria-controls="faqArtifactsBody">
+                Where are my build artifacts?
+              </button>
+            </h2>
+            <div id="faqArtifactsBody" class="accordion-collapse collapse" aria-labelledby="faq-artifacts" data-bs-parent="#helpFaq">
+              <div class="accordion-body">
+                Open the job detail page. The Artifacts section lists output files and provides download links.
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
-      <h5 class="mt-3">Block Definition &amp; Working Directory</h5>
-      <ul>
-          <li><code>clone_block</code>: Runs in the workspace root. Clone source code here.</li>
-          <li><code>init_block</code>: Runs in the project root (or workspace root if no <code>workdir</code>). Use for environment setup.</li>
-          <li><code>patch_block</code>: Runs after Init in the project root. Paths are relative to the source root (e.g., <code>build/conf/local.conf</code>).</li>
-          <li><code>build_block</code>: Runs inside the build directory saved from Init (context is restored automatically).</li>
-      </ul>
     </div>
-
-    <div id="lang-zh" style="display: none;">
-      <h3 class="mt-4">1. 快速開始 (Quick Start)</h3>
-      <ol>
-          <li><strong>登入</strong>：使用系統帳密登入。</li>
-          <li><strong>設定 Profile</strong>：到 My Profile 填寫 GitLab Token 與 Email。</li>
-          <li><strong>建立 Job</strong>：點選 Create Job，選擇 Recipe 後按 Create。</li>
-          <li><strong>等待通知</strong>：完成後會寄送 Email 通知。</li>
-      </ol>
-
-      <h3 class="mt-4">2. 初始設定 (Initial Setup)</h3>
-      <ul>
-          <li><strong>Profile 必填</strong>：需填寫 <strong>GitLab Username &amp; Token</strong>（取得程式碼）與 <strong>Notification Email</strong>（通知），並按下 “Save Profile”。</li>
-      </ul>
-
-      <h3 class="mt-4">3. 核心概念 (Core Concepts)</h3>
-      <ul>
-          <li><strong>Recipes（配方）</strong>：定義建置流程的 YAML（放在 <code>platform/project.yaml</code>）。</li>
-          <li><strong>Jobs（任務）</strong>：一次 Recipe 執行，每個 Job 有獨立 ID 與 Workspace。</li>
-      </ul>
-
-      <h3 class="mt-4">4. 任務管理 (Job Management)</h3>
-      <ul>
-          <li><strong>狀態</strong>：🔸 Pending、🔹 Running、✅ Success、🔴 Failed。</li>
-          <li><strong>操作</strong>：
-              <ul>
-                  <li><strong>Pin</strong>：防止任務被自動清理。</li>
-                  <li><strong>Retry</strong>：重新執行已完成的任務。</li>
-                  <li><strong>Prune</strong>：清理 Workspace 節省空間（保留 Log）。</li>
-                  <li><strong>SSH Connect</strong>：點「終端機圖示」複製 SSH 指令以便除錯。</li>
-              </ul>
+  </div>
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-3">
+          <i class="bi bi-flag text-primary me-2 fs-4"></i>
+          <div>
+            <h5 class="card-title mb-0">Icon Legend</h5>
+            <small class="text-muted">Meaning of common actions.</small>
+          </div>
+        </div>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item d-flex align-items-center justify-content-between">
+            <span><i class="bi bi-pin-angle me-2"></i>Pin job</span>
+            <span class="text-muted">Keep on top and protect</span>
           </li>
-      </ul>
-
-      <h3 class="mt-4">5. 進階除錯 (SSH)</h3>
-      <p>按下 “Copy SSH” 會得到：</p>
-      <blockquote><code>ssh -tt user@host "cd /work/jobs/123 &amp;&amp; exec bash -l"</code></blockquote>
-      <p>會直接進入該 Job 的 Workspace，環境已載入。</p>
-
-      <h3 class="mt-4">6. Recipe 配置指南 (Recipe Configuration Guide)</h3>
-      <p>Recipe 以 YAML 定義，執行順序為 <strong>Clone &rarr; Init &rarr; Edit/Patch &rarr; Build</strong>。Patch 排在 Init 之後，可修改 Init 產生的檔案（例如 <code>build/conf/local.conf</code>）。</p>
-
-      <h5 class="mt-3">各階段工作目錄</h5>
-      <ul>
-          <li><strong>Clone</strong>：在 workspace root 執行，用來建立/clone 專案目錄。</li>
-          <li><strong>Init</strong>：在專案根目錄執行（未設定 <code>workdir</code> 則在 workspace root），用來設定環境與建立 build 目錄。</li>
-          <li><strong>Edit/Patch</strong>：Init 之後在專案根目錄執行，路徑以原始碼根目錄為基準（例如 <code>build/conf/local.conf</code>）。</li>
-          <li><strong>Build</strong>：在 Init 保存的 build 目錄內執行（自動還原 context）。</li>
-      </ul>
-
-      <div class="card bg-light border-0">
-        <div class="card-header bg-transparent border-0 pb-0">
-            <span class="badge bg-primary">實例：AST2600 EVB</span>
-        </div>
-        <div class="card-body p-3">
-          <pre><code class="language-yaml">schema_version: 1
-display_name: "AST2600 EVB Mainline"
-workdir: "onetree"  # 專案根目錄，Init/Build/Patch 都在這裡
-
-# 1. Clone 階段 (workspace root)
-clone_block:
-  lines:
-    - git clone https://git.ami.com/core/ami-bmc/base-tech/openbmc onetree
-    - cd onetree && git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-core
-    - cd onetree && git clone https://git.ami.com/core/ami-bmc/one-tree/core/meta-ami
-    - cd onetree && git clone https://git.ami.com/core/ami-bmc/one-tree/amd/crb/venice meta-amd/meta-venice
-
-# 2. Init 階段 (專案根目錄)
-init_block:
-  lines:
-    - meta-ami/github-gitlab-url.sh
-    - TEMPLATECONF=meta-ami/meta-evb/meta-evb-aspeed/meta-evb-ast2600/conf/templates/default . openbmc-env
-
-# 3. Edit/Patch 階段 (專案根目錄，Init 之後)
-patch_block:
-  - path: "build/conf/local.conf"   # 相對於專案根目錄
-    action: append
-    content: 'IMAGE_INSTALL:append = " my-package"'
-  - path: "meta-ami/conf/layer.conf"
-    action: replace
-    find: 'CORE_IMAGE_EXTRA_INSTALL ?= ""'
-    content: 'CORE_IMAGE_EXTRA_INSTALL ?= "ami-base"'
-
-# 4. Build 階段 (Init 保存的 build 目錄)
-build_block:
-  lines:
-    - bitbake obmc-phosphor-image</code></pre>
-        </div>
+          <li class="list-group-item d-flex align-items-center justify-content-between">
+            <span><i class="bi bi-eraser me-2"></i>Prune workspace</span>
+            <span class="text-muted">Delete work/ directory</span>
+          </li>
+          <li class="list-group-item d-flex align-items-center justify-content-between">
+            <span><i class="bi bi-trash me-2"></i>Delete job</span>
+            <span class="text-muted">Remove job and files</span>
+          </li>
+          <li class="list-group-item d-flex align-items-center justify-content-between">
+            <span><i class="bi bi-arrow-repeat me-2"></i>Retry job</span>
+            <span class="text-muted">Run again in place</span>
+          </li>
+        </ul>
       </div>
-
-      <h5 class="mt-3">區塊說明與工作目錄</h5>
-      <ul>
-          <li><code>clone_block</code>：在 workspace root 執行，用來抓取原始碼。</li>
-          <li><code>init_block</code>：在專案根目錄（或未設 <code>workdir</code> 時的 workspace root）執行，負責環境設定。</li>
-          <li><code>patch_block</code>：Init 之後在專案根目錄執行，路徑以原始碼根目錄為基準（如 <code>build/conf/local.conf</code>）。</li>
-          <li><code>build_block</code>：在 Init 保存的 build 目錄內執行，context 會自動還原。</li>
-      </ul>
     </div>
   </div>
 </div>
 
-<script>
-  (() => {
-    const buttons = document.querySelectorAll("[data-lang]");
-    const en = document.getElementById("lang-en");
-    const zh = document.getElementById("lang-zh");
-    const titleEn = document.getElementById("title-en");
-    const titleZh = document.getElementById("title-zh");
-    function setLang(lang) {
-      if (!en || !zh) return;
-      if (lang === "zh") {
-        en.style.display = "none";
-        zh.style.display = "";
-        if (titleEn && titleZh) {
-          titleEn.style.display = "none";
-          titleZh.style.display = "";
-        }
-      } else {
-        en.style.display = "";
-        zh.style.display = "none";
-        if (titleEn && titleZh) {
-          titleEn.style.display = "";
-          titleZh.style.display = "none";
-        }
-      }
-      buttons.forEach((btn) => {
-        const isActive = btn.getAttribute("data-lang") === lang;
-        btn.classList.toggle("active", isActive);
-      });
-    }
-    buttons.forEach((btn) => {
-      btn.addEventListener("click", () => setLang(btn.getAttribute("data-lang") || "en"));
-    });
-    setLang("en");
-  })();
-</script>
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-3">
+          <i class="bi bi-folder-check text-primary me-2 fs-4"></i>
+          <div>
+            <h5 class="card-title mb-0">Artifacts</h5>
+            <small class="text-muted">Where outputs appear.</small>
+          </div>
+        </div>
+        <p class="mb-2">Artifacts are collected after a job finishes and appear on the job detail page.</p>
+        <div class="text-muted small">Common extensions: .bin, .img, .mtd, .static.mtd</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-3">
+          <i class="bi bi-hdd-stack text-primary me-2 fs-4"></i>
+          <div>
+            <h5 class="card-title mb-0">Storage Maintenance</h5>
+            <small class="text-muted">Manual cache cleanup.</small>
+          </div>
+        </div>
+        <p class="mb-2">Settings includes a Storage Maintenance section to clean sstate and downloads.</p>
+        <div class="text-muted small">
+          SState cleanup removes files unused for X days (atime).
+          Downloads cleanup only removes root files and preserves git repos.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
