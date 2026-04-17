@@ -110,7 +110,7 @@
               <th style="width:240px;">Actions</th>
             </tr>
           </thead>
-          <tbody id="jobs-table-body" hx-get="/jobs" hx-trigger="every 5s" hx-select="#jobs-table-body" hx-swap="outerHTML" hx-include="#jobs-filters">
+          <tbody id="jobs-table-body" {% if active_total > 0 %}hx-get="/jobs" hx-trigger="every 5s" hx-select="#jobs-table-body" hx-swap="outerHTML" hx-include="#jobs-filters"{% endif %}>
             {% for j in jobs %}
             {% set states = job_states or {} %}
             {% set state = states.get(j.id, {}) %}

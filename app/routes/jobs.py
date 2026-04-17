@@ -164,16 +164,12 @@ def _safe_job_dir(job_id: int) -> Optional[Path]:
         jobs_root_path = get_jobs_root()
         root = jobs_root_path.resolve()
         target = (jobs_root_path / str(job_id)).resolve()
-        print(f"--- DEBUG PATH CHECK ---", flush=True)
-        print(f"Config Root: {jobs_root_path}", flush=True)
-        print(f"Resolved Root: {root}", flush=True)
-        print(f"Target Job: {target}", flush=True)
-        if str(root) not in str(target):
-            print(f"[ERROR] Path Mismatch! Root '{root}' not in '{target}'", flush=True)
+        if not target.is_relative_to(root):
+            logger.warning("Path traversal blocked: %s not under %s", target, root)
             return None
         return target
     except Exception as exc:
-        print(f"[safe_job_dir] exception: {exc}", flush=True)
+        logger.warning("_safe_job_dir exception for job %s: %s", job_id, exc)
         return None
 
 
@@ -1265,6 +1261,22 @@ async def stream_log(request: Request, job_id: int):
             await asyncio.sleep(1)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.get("/jobs/{job_id}/status")
+async def job_status(request: Request, job_id: int):
+    """Lightweight endpoint: returns only status fields (~100 bytes)."""
+    redirect = _require_login(request)
+    if redirect:
+        return redirect
+    job = db.get_job(job_id)
+    if not job:
+        return JSONResponse({"detail": "Job not found"}, status_code=404)
+    return JSONResponse({
+        "status": job.get("status"),
+        "exit_code": job.get("exit_code"),
+        "finished_at": job.get("finished_at"),
+    })
 
 
 @router.get("/jobs/{job_id}/refresh")

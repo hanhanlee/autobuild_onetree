@@ -11,12 +11,7 @@
           {% set badge_class = 'bg-secondary' %}
           {% if st == 'success' %}{% set badge_class = 'bg-success' %}{% elif st == 'failed' %}{% set badge_class = 'bg-danger' %}{% elif st == 'running' %}{% set badge_class = 'bg-primary progress-bar-striped progress-bar-animated' %}{% elif st == 'pending' %}{% set badge_class = 'bg-warning text-dark' %}{% endif %}
           <span class="badge {{ badge_class }} text-uppercase px-3 py-2 job-status-badge"
-            {% if st in ['pending','running'] %}
-              hx-get="/jobs/{{ job.id }}"
-              hx-trigger="every 2s"
-              hx-swap="outerHTML"
-              hx-select=".job-status-badge"
-            {% endif %}
+            id="status-badge"
           >{{ job.status }}</span>
         </div>
         <div class="d-flex align-items-center gap-2">
@@ -95,76 +90,105 @@
 <script>
   (function() {
       const jobId = {{ job.id }};
-      const jobStatus = "{{ job.status or '' }}".toLowerCase();
+      let jobStatus = "{{ job.status or '' }}".toLowerCase();
       const consoleEl = document.getElementById("terminal-console");
       const loadingEl = document.getElementById("log-loading");
+      const badgeEl = document.getElementById("status-badge");
       let currentOffset = 0;
-      let stopped = false;
+      let logStopped = false;
+      let statusStopped = !["pending", "running"].includes(jobStatus);
 
-      // Simple ANSI-to-HTML handling (basic colors and reset)
+      const badgeClasses = {
+        success: "bg-success",
+        failed: "bg-danger",
+        running: "bg-primary progress-bar-striped progress-bar-animated",
+        pending: "bg-warning text-dark",
+      };
+
+      // --- Lightweight status polling (replaces HTMX full-page poll) ---
+      async function pollStatus() {
+          if (statusStopped) return;
+          try {
+              const resp = await fetch(`/jobs/${jobId}/status`);
+              if (!resp.ok) { setTimeout(pollStatus, 5000); return; }
+              const data = await resp.json();
+              const newStatus = (data.status || "").toLowerCase();
+              if (newStatus !== jobStatus) {
+                  jobStatus = newStatus;
+                  // Update badge text and class
+                  badgeEl.textContent = data.status;
+                  badgeEl.className = "badge text-uppercase px-3 py-2 job-status-badge " +
+                      (badgeClasses[newStatus] || "bg-secondary");
+              }
+              if (!["pending", "running"].includes(newStatus)) {
+                  statusStopped = true;
+                  // Reload page once to show final details (finished_at, artifacts, etc.)
+                  setTimeout(() => location.reload(), 1500);
+                  return;
+              }
+          } catch (err) {
+              console.warn("Status poll error:", err);
+          }
+          setTimeout(pollStatus, 3000);
+      }
+      if (!statusStopped) pollStatus();
+
+      // --- ANSI-to-HTML ---
       function parseAnsi(text) {
           return text
-              .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") // HTML Escape
-              .replace(/\x1b\[0m/g, '</span>')                                    // Reset
-              .replace(/\x1b\[31m/g, '<span style="color:#ff7b72">')              // Red
-              .replace(/\x1b\[32m/g, '<span style="color:#3fb950">')              // Green
-              .replace(/\x1b\[33m/g, '<span style="color:#e3b341">')              // Yellow
-              .replace(/\x1b\[34m/g, '<span style="color:#58a6ff">')              // Blue
-              .replace(/\x1b\[36m/g, '<span style="color:#56d4dd">')              // Cyan
-              .replace(/\x1b\[1m/g, '<span style="font-weight:bold">')            // Bold
-              .replace(/\x1b\[\d+;?\d*m/g, '');                                   // Ignore other complex codes
+              .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+              .replace(/\x1b\[0m/g, '</span>')
+              .replace(/\x1b\[31m/g, '<span style="color:#ff7b72">')
+              .replace(/\x1b\[32m/g, '<span style="color:#3fb950">')
+              .replace(/\x1b\[33m/g, '<span style="color:#e3b341">')
+              .replace(/\x1b\[34m/g, '<span style="color:#58a6ff">')
+              .replace(/\x1b\[36m/g, '<span style="color:#56d4dd">')
+              .replace(/\x1b\[1m/g, '<span style="font-weight:bold">')
+              .replace(/\x1b\[\d+;?\d*m/g, '');
       }
 
       function appendLog(text) {
           if (loadingEl) loadingEl.remove();
-          
-          // Detect whether we are at the bottom (auto-scroll check)
           const atBottom = consoleEl.scrollTop + consoleEl.clientHeight >= consoleEl.scrollHeight - 50;
-          
-          // 1. Parse ANSI and insert via innerHTML
           const htmlContent = parseAnsi(text);
           consoleEl.insertAdjacentHTML('beforeend', htmlContent);
-
-          // 2. Buffer limiting: if content grows too large, drop from the start to save memory
-          if (consoleEl.childNodes.length > 5000) { // Simple heuristic by node count
+          if (consoleEl.childNodes.length > 5000) {
                while (consoleEl.childNodes.length > 2000) {
                   consoleEl.removeChild(consoleEl.firstChild);
                }
           }
-
-          // 3. Auto-scroll
           if (atBottom) {
               consoleEl.scrollTop = consoleEl.scrollHeight;
           }
       }
 
+      // --- Log polling (stops fully when finished + eof) ---
       async function fetchLogChunk() {
-          if (stopped) return;
+          if (logStopped) return;
           try {
               const resp = await fetch(`/jobs/${jobId}/log/stream?offset=${currentOffset}`);
               if (!resp.ok) throw new Error("fetch failed");
               const data = await resp.json();
-              
-              if (data.content) {
-                  appendLog(data.content);
-              }
-              
+              if (data.content) appendLog(data.content);
               currentOffset = data.next_offset || currentOffset;
               const eof = !!data.eof;
-              const running = jobStatus === "running";
-              
-              // If the job is still running, keep polling even if temporarily at EOF; slow down once finished
-              const delay = (eof && !running) ? 10000 : 2000;
-              
+              const isActive = ["pending", "running"].includes(jobStatus);
+
+              if (eof && !isActive) {
+                  // Job finished and all log consumed — stop polling entirely
+                  logStopped = true;
+                  return;
+              }
+              const delay = isActive ? 2000 : 4000;
               setTimeout(fetchLogChunk, delay);
           } catch (err) {
               console.warn("Log stream error:", err);
               setTimeout(fetchLogChunk, 5000);
           }
       }
-
       fetchLogChunk();
 
+      // --- Copy button ---
       const copyBtn = document.getElementById("copy-log");
       if (copyBtn) {
         copyBtn.addEventListener("click", () => {
