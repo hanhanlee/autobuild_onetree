@@ -13,11 +13,11 @@
 
 ## P1 — 影響維護性與正確性
 
-- [ ] **時區雙重轉換**：`format_datetime_taipei()` 在 route 和 template filter 被雙重呼叫，顯示時間可能 +16 小時。需統一為單一轉換點
-- [ ] **`requirements.txt` 版本鎖定**：目前無 pin 版本，下次部署 `pip install` 可能拉到 breaking change。跑一次 `pip freeze`
+- [x] **時間設定收斂**：確認 jobs 頁面的雙重轉換 bug 已不存在；dashboard 改為使用統一 app timezone，移除硬編碼 `GMT+8`
+- [x] **`requirements.txt` 版本鎖定**：已依 deployed virtualenv 版本鎖定，避免下次部署拉到 breaking change
 - [ ] **Dual DB 架構統一**：SQLAlchemy ORM（SystemSettings）+ raw sqlite3（jobs）並存，增加維護複雜度。長期應統一
 - [x] **`_spec_locks` dict 記憶體洩漏**：已加上限 200 + 自動清理未持有的 lock
-- [ ] **啟用 SSE 替代 JSON polling**：SSE endpoint 已實作但前端未使用，目前每 4-5 秒 poll 一次，效率差且 log 更新不即時
+- [ ] **減少 jobs 頁輪詢負擔**：log 已用 SSE；目前仍以 4-5 秒 polling 更新 status/artifacts，可評估合併或降頻
 
 ## P2 — 良好實踐，有空再做
 

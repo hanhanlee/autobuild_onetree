@@ -1,8 +1,9 @@
 import json
 import subprocess
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
+from .app_settings import app_settings
 from .config import get_workspace_root
 from .db import get_connection
 from .system import get_disk_usage
@@ -46,7 +47,7 @@ def _format_ts_local(ts: Optional[str]) -> str:
     if not dt:
         return "-"
     try:
-        return dt.astimezone(TAIPEI_TZ).strftime("%Y-%m-%d %H:%M:%S GMT+8")
+        return dt.astimezone(app_settings.tz).strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
         return str(ts) or "-"
 
@@ -172,4 +173,3 @@ def get_dashboard_context() -> Dict[str, object]:
         "disk_usage": disk_usage,
         "sensors": sensors,
     }
-TAIPEI_TZ = timezone(timedelta(hours=8))
