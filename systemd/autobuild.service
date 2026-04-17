@@ -4,11 +4,19 @@ After=network.target
 
 [Service]
 User=autobuild
-Group=autobuild
+Group=scm-bmc
 WorkingDirectory=/opt/autobuild
 Environment=PYTHONUNBUFFERED=1
-Environment=AUTO_BUILD_DB=/srv/autobuild/data/jobs.db
-Environment=AUTO_BUILD_JOBS_ROOT=/srv/autobuild/jobs
+
+# --- 環境變數 ---
+Environment="AUTOBUILD_WORKSPACE_ROOT=/work/autobuild_workspace"
+Environment="AUTOBUILD_JOBS_ROOT=/work/autobuild_workspace/jobs"
+Environment="AUTOBUILD_DB=/work/autobuild_workspace/data/jobs.db"
+
+# --- 記憶體洩漏止血：每 24 小時自動重啟 ---
+RuntimeMaxSec=86400
+
+# --- 啟動指令 ---
 ExecStart=/opt/autobuild/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers
 Restart=on-failure
 

@@ -14,9 +14,10 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Stre
 
 from .. import db, jobs
 from ..auth import username_auth, has_gitlab_token
+from ..app_settings import app_settings
 from ..crud_settings import get_system_settings
 from ..database import SessionLocal
-from ..config import get_jobs_root, get_presets_root, get_workspace_root
+from ..config import get_jobs_root, get_presets_root, get_workspace_root, get_job_work_dir
 from ..recipes_catalog import list_recipes as catalog_list_recipes
 from ..system import get_disk_usage
 from ..web import render_page, TemplateUser
@@ -323,33 +324,28 @@ async def jobs_page(request: Request):
             days_filter = int(raw_time)
         except Exception:
             days_filter = None
-    taipei_tz = timezone(timedelta(hours=8))
     user = _current_user(request)
     recent = db.list_recent_jobs(limit=50, status=status_filter, days=days_filter)
     disk_usage = None
     try:
         disk_usage = get_disk_usage(str(WORKSPACES_ROOT))
     except Exception as exc:
-        logger.warning("Failed to read disk usage: %s", exc)
+        logger.warning("无法读取磁盤使用情況: %s", exc)
     job_states: Dict[int, Dict[str, object]] = {}
     for job in recent:
         jid = job.get("id")
         if jid is None:
             continue
-        raw_created = _parse_iso_dt(job.get("created_at"))
-        if raw_created and raw_created.tzinfo is None:
-            raw_created = raw_created.replace(tzinfo=timezone.utc)
-        if raw_created:
-            local_created = raw_created.astimezone(taipei_tz)
-            job["local_created_at"] = local_created.strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            job["local_created_at"] = "-"
+        # 使用統一的時間格式化函數，避免二次轉換
+        created_at_display = jobs.format_datetime_taipei(job.get("created_at"))
+        job["local_created_at"] = created_at_display
+        
         state = _load_job_state(int(jid))
         job_states[int(jid)] = {
             "disk_usage": state.get("disk_usage"),
             "disk_usage_clean": _clean_disk_usage(state.get("disk_usage")),
             "is_pruned": state.get("is_pruned"),
-            "workspace_path": str(jobs.job_dir(int(jid)) / "work"),
+            "workspace_path": str(get_job_work_dir(int(jid))),
         }
         job["duration"] = _job_duration_text(job)
     return render_page(

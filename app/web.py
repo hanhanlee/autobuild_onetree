@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from fastapi.templating import Jinja2Templates
 
 from . import auth
+from .app_settings import app_settings
 from .config import get_git_host
 from .version import __version__ as APP_VERSION
 
@@ -20,10 +21,14 @@ class TemplateUser(str):
 
 templates = Jinja2Templates(directory="templates")
 templates.env.globals["app_version"] = APP_VERSION
-_tz_taipei = ZoneInfo("Asia/Taipei")
 
 
-def _to_taipei(value: Optional[str]) -> str:
+def format_datetime_taipei(value: Optional[str]) -> str:
+    """
+    統一的時間格式化函數
+    將 ISO 格式時間轉換為台北時區的可讀格式
+    使用此函數避免時區二次轉換問題
+    """
     if not value:
         return "-"
     text = str(value).strip()
@@ -35,11 +40,12 @@ def _to_taipei(value: Optional[str]) -> str:
         return text
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    local_dt = dt.astimezone(_tz_taipei)
-    return local_dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+    local_dt = dt.astimezone(app_settings.tz)
+    return local_dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
-templates.env.filters["to_taipei"] = _to_taipei
+# 開放給模板使用的過濾器（保持向後相容性）
+templates.env.filters["to_taipei"] = format_datetime_taipei
 
 
 def render_page(

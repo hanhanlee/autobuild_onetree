@@ -78,3 +78,19 @@ def get_secret_key() -> str:
 
 def get_git_host() -> str:
     return os.getenv("AUTOBUILD_GIT_HOST", "gitlab.example.com")
+
+
+def get_job_dir(job_id: int) -> Path:
+    """
+    取得特定任務的根目錄
+    包含: logs/, artifacts/, work/, job.json 等
+    """
+    return get_jobs_root() / str(job_id)
+
+
+def get_job_work_dir(job_id: int) -> Path:
+    """
+    取得特定任務的工作目錄（構建工作區）
+    統一路徑定義，避免混亂
+    """
+    return get_job_dir(job_id) / "work"

@@ -14,21 +14,31 @@ from typing import Callable, Dict, List, Optional, Set
 from urllib.parse import urlparse
 
 from .auth import load_user_tokens
-from .config import get_git_host, get_jobs_root, get_token_root
+from .config import get_git_host, get_jobs_root, get_token_root, get_job_dir, get_job_work_dir
+from .app_settings import app_settings
 from .db import get_connection, update_job_status, get_job
 from .email import send_job_notification
-from .config import get_jobs_root
 
 logger = logging.getLogger(__name__)
 
 _spec_locks_lock = threading.Lock()
 _spec_locks: Dict[int, threading.Lock] = {}
 
+_MAX_SPEC_LOCKS = 200
+
 
 def _job_lock(job_id: int) -> threading.Lock:
     with _spec_locks_lock:
         lock = _spec_locks.get(job_id)
         if lock is None:
+            if len(_spec_locks) >= _MAX_SPEC_LOCKS:
+                # 清除未被持有的舊 lock，避免無限增長
+                to_remove = [
+                    k for k, v in _spec_locks.items()
+                    if not v.locked()
+                ]
+                for k in to_remove:
+                    del _spec_locks[k]
             lock = threading.Lock()
             _spec_locks[job_id] = lock
         return lock
@@ -42,6 +52,89 @@ STATUS_FAILED = "failed"
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def format_datetime_taipei(value: Optional[str]) -> str:
+    """
+    統一時間格式化處理
+    避免模板層的二次轉換
+    """
+    if not value:
+        return "-"
+    text = str(value).strip()
+    if not text:
+        return "-"
+    try:
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except Exception:
+        return text
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    local_dt = dt.astimezone(app_settings.tz)
+    return local_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def run_process_with_timeout(
+    cmd: List[str],
+    timeout_seconds: int = None,
+    env: Dict[str, str] = None,
+    stdout=None,
+    stderr=None,
+    **kwargs
+) -> int:
+    """
+    執行執行程序並帶有超時保護
+    
+    逾時處理:
+    - subprocess.TimeoutExpired: 程序被殺死（返回-1）
+    - 其他異常: 返回-2
+    
+    Args:
+        cmd: 命令列表
+        timeout_seconds: 超時秒數（若為 None 使用全域設定）
+        env: 環境變數
+        stdout: stdout 目標
+        stderr: stderr 目標
+    
+    Returns:
+        程序退出代碼，逾時返回 -1，錯誤返回 -2
+    """
+    timeout = timeout_seconds or app_settings.build_timeout_seconds
+    process = None
+    try:
+        process = subprocess.Popen(
+            cmd,
+            env=env,
+            stdout=stdout,
+            stderr=stderr,
+            start_new_session=True,  # 創建新的程序群組
+            **kwargs
+        )
+        exit_code = process.wait(timeout=timeout)
+        return exit_code
+    except subprocess.TimeoutExpired:
+        logger.error(
+            "[jobs] 程序逾時 (%.0f秒)，正在殺死程序。命令: %s",
+            timeout,
+            " ".join(cmd)
+        )
+        if process:
+            try:
+                # 殺死整個程序群組
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                process.wait(timeout=5)
+            except (ProcessLookupError, PermissionError):
+                logger.warning("[jobs] 程序群組已消失或無權限")
+            except subprocess.TimeoutExpired:
+                logger.warning("[jobs] 強制殺死程序群組")
+                try:
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                except Exception:
+                    pass
+        return -1
+    except Exception as e:
+        logger.error("[jobs] 程序執行失敗: %s", e)
+        return -2
 
 
 def setup_job_git_env(job_dir: Path, settings, fallback_token: Optional[str] = None, fallback_username: Optional[str] = None) -> Dict[str, str]:
@@ -126,14 +219,18 @@ def create_job(
 
 
 def prepare_job_dirs(job_id: int) -> Path:
-    root = get_jobs_root() / str(job_id)
+    root = get_job_dir(job_id)
     (root / "logs").mkdir(parents=True, exist_ok=True)
     (root / "artifacts").mkdir(parents=True, exist_ok=True)
     return root
 
 
 def job_dir(job_id: int) -> Path:
-    return get_jobs_root() / str(job_id)
+    """
+    取得任務目錄（相容性包裝器）
+    推薦使用: config.get_job_dir()
+    """
+    return get_job_dir(job_id)
 
 
 def status_file(job_id: int) -> Path:
@@ -480,14 +577,18 @@ def _find_runner_pids(job_id: int) -> Set[int]:
 
 
 def resolve_base_job_path(base_job_id: int) -> Path:
-    base_dir = job_dir(base_job_id) / "work"
+    """
+    解析基準任務的工作路徑
+    用於複製工作目錄
+    """
+    base_dir = get_job_work_dir(base_job_id)
     if not base_dir.exists() or not base_dir.is_dir():
-        raise ValueError(f"Job {base_job_id} work directory not found")
+        raise ValueError(f"任務 {base_job_id} 的工作目錄不存在")
     subdirs = [p for p in base_dir.iterdir() if p.is_dir()]
     if len(subdirs) == 0:
-        raise ValueError(f"No source directory found in Job {base_job_id} work folder.")
+        raise ValueError(f"在任務 {base_job_id} 的工作資料夾中未找到原始目錄")
     if len(subdirs) > 1:
-        raise ValueError(f"Ambiguous source: Multiple directories found in Job {base_job_id} work folder.")
+        raise ValueError(f"模糊的來源：在任務 {base_job_id} 的工作資料夾中找到多個目錄")
     return subdirs[0]
 
 
