@@ -38,28 +38,28 @@
         #artifact-list { list-style: none; padding: 0; }
     </style>
 </head>
-<body>
+<body data-base-path="{{ app_base_path }}">
     <div class="shell">
         {% if user %}
         <aside class="sidebar">
             <div class="brand">Autobuild</div>
             <nav>
                 <ul class="nav">
-                    <li><a href="/" class="{% if current_page=='dashboard' %}active{% endif %}"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
-                    <li><a href="/new" class="{% if current_page=='new' %}active{% endif %}"><i class="bi bi-plus-circle me-2"></i>Create Job</a></li>
-                    <li><a href="/jobs" class="{% if current_page=='jobs' %}active{% endif %}"><i class="bi bi-list-task me-2"></i>Jobs</a></li>
-                    <li><a href="/recipes" class="{% if request.url.path.startswith('/recipes') %}active{% endif %}"><i class="bi bi-box-seam me-2"></i>Recipes</a></li>
-                    <li><a href="/profile" class="{% if request.url.path.startswith('/profile') %}active{% endif %}"><i class="bi bi-person-circle me-1"></i>My Profile</a></li>
-                    <li><a href="/settings" class="nav-link {% if current_page in ('token','settings') %}active{% endif %}{% if token_ok is defined and not token_ok %} token-alert{% endif %}"><i class="bi bi-gear me-2"></i>Settings{% if token_ok is defined and not token_ok %} (!) {% endif %}</a></li>
-                    <li><a href="/help" class="{% if request.url.path.startswith('/help') or current_page=='help' %}active{% endif %}"><i class="bi bi-question-circle me-2"></i>Help</a></li>
+                    <li><a href="{{ app_path('/') }}" class="{% if current_page=='dashboard' %}active{% endif %}"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a></li>
+                    <li><a href="{{ app_path('/new') }}" class="{% if current_page=='new' %}active{% endif %}"><i class="bi bi-plus-circle me-2"></i>Create Job</a></li>
+                    <li><a href="{{ app_path('/jobs') }}" class="{% if current_page=='jobs' %}active{% endif %}"><i class="bi bi-list-task me-2"></i>Jobs</a></li>
+                    <li><a href="{{ app_path('/recipes') }}" class="{% if current_page=='recipes' %}active{% endif %}"><i class="bi bi-box-seam me-2"></i>Recipes</a></li>
+                    <li><a href="{{ app_path('/profile') }}" class="{% if current_page=='profile' %}active{% endif %}"><i class="bi bi-person-circle me-1"></i>My Profile</a></li>
+                    <li><a href="{{ app_path('/settings') }}" class="nav-link {% if current_page in ('token','settings') %}active{% endif %}{% if token_ok is defined and not token_ok %} token-alert{% endif %}"><i class="bi bi-gear me-2"></i>Settings{% if token_ok is defined and not token_ok %} (!) {% endif %}</a></li>
+                    <li><a href="{{ app_path('/help') }}" class="{% if current_page=='help' %}active{% endif %}"><i class="bi bi-question-circle me-2"></i>Help</a></li>
                 </ul>
             </nav>
             <div class="footer">
                 <div class="d-flex align-items-center justify-content-between gap-2">
-                    <a href="/profile" class="text-decoration-none">
+                    <a href="{{ app_path('/profile') }}" class="text-decoration-none">
                         <span class="badge bg-light text-dark text-uppercase">{{ user or '-' }}</span>
                     </a>
-                    <a href="/logout" class="text-decoration-none text-danger d-flex align-items-center gap-1" title="Switch Account">
+                    <a href="{{ app_path('/logout') }}" class="text-decoration-none text-danger d-flex align-items-center gap-1" title="Switch Account">
                         <i class="bi bi-box-arrow-right"></i><span>Sign Out</span>
                     </a>
                 </div>
@@ -83,7 +83,7 @@
                             <div class="small mb-0 text-muted">Save your GitLab tokens to enable cloning and fetching.</div>
                         </div>
                     </div>
-                    <a class="btn btn-sm btn-outline-dark" href="/profile">Setup Now</a>
+                    <a class="btn btn-sm btn-outline-dark" href="{{ app_path('/profile') }}">Setup Now</a>
                 </div>
                 {% endif %}
                 {% block content %}{% endblock %}

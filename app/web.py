@@ -1,9 +1,11 @@
 import os
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import SplitResult, urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 from fastapi.templating import Jinja2Templates
+from fastapi.responses import RedirectResponse
 from markupsafe import Markup
 
 from . import auth
@@ -21,8 +23,47 @@ class TemplateUser(str):
         return self
 
 
+def _normalize_base_path(raw_value: Optional[str]) -> str:
+    value = (raw_value or "").strip()
+    if not value or value == "/":
+        return ""
+    return "/" + value.strip("/")
+
+
+APP_BASE_PATH = _normalize_base_path(os.getenv("AUTOBUILD_BASE_PATH"))
+
+
+def get_app_base_path() -> str:
+    return APP_BASE_PATH
+
+
+def app_path(path: str = "/") -> str:
+    if not path:
+        path = "/"
+    if path.startswith(("http://", "https://", "//")):
+        return path
+
+    parts = urlsplit(path)
+    raw_path = parts.path or "/"
+    if not raw_path.startswith("/"):
+        raw_path = f"/{raw_path}"
+
+    if APP_BASE_PATH and raw_path not in {APP_BASE_PATH, f"{APP_BASE_PATH}/"}:
+        prefixed_path = f"{APP_BASE_PATH}/" if raw_path == "/" else f"{APP_BASE_PATH}{raw_path}"
+    else:
+        prefixed_path = raw_path
+
+    return urlunsplit(SplitResult("", "", prefixed_path, parts.query, parts.fragment))
+
+
+def redirect_to(path: str, status_code: int = 303) -> RedirectResponse:
+    return RedirectResponse(url=app_path(path), status_code=status_code)
+
+
 templates = Jinja2Templates(directory="templates")
 templates.env.globals["app_version"] = APP_VERSION
+templates.env.globals["app_path"] = app_path
+templates.env.globals["app_base_path"] = APP_BASE_PATH
 
 
 def _csrf_input(token: str = "") -> Markup:
@@ -83,6 +124,7 @@ def render_page(
         "git_host": get_git_host(),
         "token_ok": token_ok,
         "csrf_token": get_or_create_token(request),
+        "app_base_path": APP_BASE_PATH,
     }
     base.update(ctx)
     # Ensure user is always a TemplateUser (or None) even if ctx provided its own value.

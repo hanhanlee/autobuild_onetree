@@ -11,7 +11,7 @@ from fastapi.responses import RedirectResponse
 from .. import auth
 from ..config import get_presets_root
 from ..csrf import validate_csrf
-from ..web import render_page
+from ..web import redirect_to, render_page
 
 router = APIRouter()
 RID_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\.yaml$")
@@ -171,7 +171,7 @@ def _atomic_write(target: Path, content: str) -> None:
 async def recipes_list(request: Request, platform: Optional[str] = None):
     user = _current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
     presets_root = get_presets_root()
     platform_filter = (platform or request.query_params.get("platform") or "").strip()
     try:
@@ -182,7 +182,7 @@ async def recipes_list(request: Request, platform: Optional[str] = None):
             "recipes.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=404,
             error=str(exc),
             presets_root=str(presets_root),
@@ -196,7 +196,7 @@ async def recipes_list(request: Request, platform: Optional[str] = None):
             "recipes.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=500,
             error=f"Failed to list recipes: {exc}",
             presets_root=str(presets_root),
@@ -209,7 +209,7 @@ async def recipes_list(request: Request, platform: Optional[str] = None):
         "recipes.html",
         user=user,
         token_ok=None,
-        current_page="projects",
+        current_page="recipes",
         status_code=200,
         error=None,
         presets_root=str(presets_root),
@@ -223,7 +223,7 @@ async def recipes_list(request: Request, platform: Optional[str] = None):
 async def recipe_edit(request: Request, rid: str):
     user = _current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
     try:
         rid_value, platform, filename, target_path = _validate_rid(rid, require_exists=True)
     except ValueError as exc:
@@ -232,7 +232,7 @@ async def recipe_edit(request: Request, rid: str):
             "recipe_edit.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error=str(exc),
             rid=rid,
@@ -248,7 +248,7 @@ async def recipe_edit(request: Request, rid: str):
             "recipe_edit.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=500,
             error=f"Failed to read recipe: {exc}",
             rid=rid_value,
@@ -261,7 +261,7 @@ async def recipe_edit(request: Request, rid: str):
         "recipe_edit.html",
         user=user,
         token_ok=None,
-        current_page="projects",
+        current_page="recipes",
         status_code=200,
         error=None,
         rid=rid_value,
@@ -275,7 +275,7 @@ async def recipe_edit(request: Request, rid: str):
 async def recipe_save(request: Request):
     user = _current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
     await validate_csrf(request)
     try:
         form = await request.form()
@@ -285,7 +285,7 @@ async def recipe_save(request: Request):
             "recipe_edit.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error="Invalid form submission",
             rid="",
@@ -303,7 +303,7 @@ async def recipe_save(request: Request):
             "recipe_edit.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error=str(exc),
             rid=rid_raw,
@@ -324,7 +324,7 @@ async def recipe_save(request: Request):
                 "recipe_edit.html",
                 user=user,
                 token_ok=None,
-                current_page="projects",
+                current_page="recipes",
                 status_code=400,
                 error=f"Invalid YAML: {exc}",
                 rid=rid_value,
@@ -340,7 +340,7 @@ async def recipe_save(request: Request):
             "recipe_edit.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=500,
             error=f"Failed to save recipe: {exc}",
             rid=rid_value,
@@ -348,14 +348,14 @@ async def recipe_save(request: Request):
             platform=platform,
             filename=filename,
         )
-    return RedirectResponse(url=f"/recipes/edit?rid={rid_value}", status_code=303)
+    return redirect_to(f"/recipes/edit?rid={rid_value}")
 
 
 @router.post("/recipes/archive")
 async def recipe_archive(request: Request):
     user = _current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
     await validate_csrf(request)
     presets_root = get_presets_root()
     try:
@@ -371,7 +371,7 @@ async def recipe_archive(request: Request):
             "recipes.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error="Invalid form submission",
             presets_root=str(presets_root),
@@ -393,7 +393,7 @@ async def recipe_archive(request: Request):
             "recipes.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error=str(exc),
             presets_root=str(presets_root),
@@ -413,7 +413,7 @@ async def recipe_archive(request: Request):
             "recipe_edit.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=500,
             error=f"Failed to archive recipe: {exc}",
             rid=rid_value,
@@ -421,39 +421,39 @@ async def recipe_archive(request: Request):
             platform=platform,
             filename=filename,
         )
-    return RedirectResponse(url=f"/recipes?platform={platform}", status_code=303)
+    return redirect_to(f"/recipes?platform={platform}")
 
 
 @router.post("/recipes/delete")
 async def recipe_delete(request: Request):
     user = _current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
     await validate_csrf(request)
     presets_root = get_presets_root()
     try:
         form = await request.form()
     except Exception:
-        return RedirectResponse(url="/recipes?error=invalid_form", status_code=303)
+        return redirect_to("/recipes?error=invalid_form")
     rid_raw = str(form.get("rid") or "")
     try:
         rid_value, platform, filename, target_path = _validate_rid(rid_raw, require_exists=True)
     except ValueError as exc:
-        return RedirectResponse(url=f"/recipes?error={quote_plus(str(exc))}", status_code=303)
+        return redirect_to(f"/recipes?error={quote_plus(str(exc))}")
     try:
         target_path.unlink()
     except FileNotFoundError:
-        return RedirectResponse(url="/recipes?error=not_found", status_code=303)
+        return redirect_to("/recipes?error=not_found")
     except Exception as exc:
-        return RedirectResponse(url=f"/recipes?error={quote_plus(f'Failed to delete recipe: {exc}')}", status_code=303)
-    return RedirectResponse(url=f"/recipes?platform={platform}", status_code=303)
+        return redirect_to(f"/recipes?error={quote_plus(f'Failed to delete recipe: {exc}')}")
+    return redirect_to(f"/recipes?platform={platform}")
 
 
 @router.post("/recipes/copy")
 async def recipe_copy(request: Request):
     user = _current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
     await validate_csrf(request)
     try:
         form = await request.form()
@@ -463,7 +463,7 @@ async def recipe_copy(request: Request):
             "recipe_edit.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error="Invalid form submission",
             rid="",
@@ -481,7 +481,7 @@ async def recipe_copy(request: Request):
             "recipe_edit.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error=str(exc),
             rid=rid_raw,
@@ -496,7 +496,7 @@ async def recipe_copy(request: Request):
             "recipe_edit.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error="new_name must end with .yaml and use [A-Za-z0-9._-]",
             rid=rid_value,
@@ -511,7 +511,7 @@ async def recipe_copy(request: Request):
             "recipe_edit.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=409,
             error=f"Destination already exists: {platform}/{new_name}",
             rid=rid_value,
@@ -528,7 +528,7 @@ async def recipe_copy(request: Request):
             "recipe_edit.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=500,
             error=f"Failed to copy recipe: {exc}",
             rid=rid_value,
@@ -537,16 +537,16 @@ async def recipe_copy(request: Request):
             filename=filename,
         )
     new_rid = f"{platform}/{new_name}"
-    return RedirectResponse(url=f"/recipes/edit?rid={new_rid}", status_code=303)
+    return redirect_to(f"/recipes/edit?rid={new_rid}")
 
 
 @router.get("/recipes/new")
 async def recipes_new(request: Request):
     user = _current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
     if not auth.username_auth(user):
-        return render_page(request, "recipes_new.html", user=user, token_ok=None, current_page="projects", status_code=403, error="Forbidden")
+        return render_page(request, "recipes_new.html", user=user, token_ok=None, current_page="recipes", status_code=403, error="Forbidden")
     sample_yaml = "\n".join(
         [
             "schema_version: 1",
@@ -573,7 +573,7 @@ async def recipes_new(request: Request):
         "recipes_new.html",
         user=user,
         token_ok=None,
-        current_page="projects",
+        current_page="recipes",
         status_code=200,
         recipe_yaml=sample_yaml,
     )
@@ -588,10 +588,10 @@ async def recipes_new_post(
 ):
     user = _current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
     await validate_csrf(request)
     if not auth.username_auth(user):
-        return render_page(request, "recipes_new.html", user=user, token_ok=None, current_page="projects", status_code=403, error="Forbidden")
+        return render_page(request, "recipes_new.html", user=user, token_ok=None, current_page="recipes", status_code=403, error="Forbidden")
 
     recipe_yaml_text = (recipe_yaml or "").strip()
     platform_val = (platform or "").strip()
@@ -601,7 +601,7 @@ async def recipes_new_post(
             "recipes_new.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error="platform is required and must match [A-Za-z0-9._-]+",
             platform=platform,
@@ -616,7 +616,7 @@ async def recipes_new_post(
             "recipes_new.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error="project is required and must match [A-Za-z0-9._-]+",
             platform=platform,
@@ -630,7 +630,7 @@ async def recipes_new_post(
             "recipes_new.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error="recipe_yaml is required",
             platform=platform,
@@ -646,7 +646,7 @@ async def recipes_new_post(
             "recipes_new.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=500,
             error="PyYAML missing",
             platform=platform,
@@ -662,7 +662,7 @@ async def recipes_new_post(
             "recipes_new.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error="Invalid YAML; please fix and retry",
             platform=platform,
@@ -676,7 +676,7 @@ async def recipes_new_post(
             "recipes_new.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error="Recipe YAML must be a mapping",
             platform=platform,
@@ -690,7 +690,7 @@ async def recipes_new_post(
             "recipes_new.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error=message,
             platform=platform,
@@ -724,7 +724,7 @@ async def recipes_new_post(
             "recipes_new.html",
             user=user,
             token_ok=None,
-            current_page="projects",
+            current_page="recipes",
             status_code=400,
             error=f"Recipe id must be {expected_id} to match path",
             platform=platform,
@@ -738,4 +738,4 @@ async def recipes_new_post(
     target_path = target_dir / f"{project_val}.yaml"
     target_path.write_text(recipe_yaml_text + ("\n" if not recipe_yaml_text.endswith("\n") else ""), encoding="utf-8")
 
-    return RedirectResponse(url="/projects", status_code=303)
+    return redirect_to(f"/recipes?platform={platform_val}")

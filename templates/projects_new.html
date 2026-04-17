@@ -4,7 +4,7 @@
 <h1>New Project Template (v1)</h1>
 {% if error %}<p class="error">{{ error }}</p>{% endif %}
 <div class="card">
-    <form method="post" action="/projects/new" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start;">
+    <form method="post" action="{{ app_path('/projects/new') }}" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start;">
       {{ csrf_input(csrf_token) }}
         <div style="display:flex;flex-direction:column;gap:0.75rem;">
             <div class="flex" style="gap:0.75rem;flex-wrap:wrap;">

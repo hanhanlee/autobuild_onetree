@@ -10,7 +10,7 @@ from fastapi.responses import RedirectResponse
 from ..config import get_presets_root
 from ..csrf import validate_csrf
 from ..recipes.generator import generate_recipe_yaml
-from ..web import render_page
+from ..web import redirect_to, render_page
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -224,7 +224,7 @@ async def projects_page(
 ):
     user = _current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
 
     saved_flag = saved or request.query_params.get("saved")
     recipe_id_raw = recipe_id or request.query_params.get("recipe_id") or ""
@@ -287,7 +287,7 @@ async def projects_page(
 async def save_project_recipe(request: Request):
     user = _current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
     await validate_csrf(request)
 
     try:
@@ -412,7 +412,7 @@ async def save_project_recipe(request: Request):
                 visibility="all",
                 query="",
             )
-        return RedirectResponse(url=f"/projects?saved=1&recipe_id={recipe_id_value}", status_code=303)
+        return redirect_to(f"/projects?saved=1&recipe_id={recipe_id_value}")
 
     debug_ctx = _debug_context(PRESETS_ROOT, last_error=None, ignored_fields=ignored_fields or None)
     return render_page(

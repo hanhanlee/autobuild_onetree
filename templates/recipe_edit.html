@@ -11,7 +11,7 @@
       <div>Edit internal metadata (e.g., <code>display_name</code>) directly in the YAML below.</div>
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
-    <form method="post" action="/recipes/save" style="display:flex;flex-direction:column;gap:0.75rem;">
+    <form method="post" action="{{ app_path('/recipes/save') }}" style="display:flex;flex-direction:column;gap:0.75rem;">
       {{ csrf_input(csrf_token) }}
         <input type="hidden" name="rid" value="{{ rid }}">
         <label>Content (YAML)
@@ -19,7 +19,7 @@
         </label>
         <div class="flex" style="gap:0.5rem;">
             <button type="submit">Save</button>
-            <a href="/recipes">Back to list</a>
+            <a href="{{ app_path('/recipes') }}">Back to list</a>
         </div>
     </form>
 </div>
@@ -28,7 +28,7 @@
 <div class="flex" style="gap:1rem;flex-wrap:wrap;">
     <div class="card" style="flex:1;min-width:260px;">
         <h3>Copy</h3>
-        <form method="post" action="/recipes/copy" style="display:flex;flex-direction:column;gap:0.5rem;">
+        <form method="post" action="{{ app_path('/recipes/copy') }}" style="display:flex;flex-direction:column;gap:0.5rem;">
       {{ csrf_input(csrf_token) }}
             <input type="hidden" name="rid" value="{{ rid }}">
             <label>New filename (same platform)
@@ -39,7 +39,7 @@
     </div>
     <div class="card" style="flex:1;min-width:200px;">
         <h3>Archive</h3>
-        <form method="post" action="/recipes/archive" style="display:flex;flex-direction:column;gap:0.5rem;">
+        <form method="post" action="{{ app_path('/recipes/archive') }}" style="display:flex;flex-direction:column;gap:0.5rem;">
       {{ csrf_input(csrf_token) }}
             <input type="hidden" name="rid" value="{{ rid }}">
             <button type="submit">Move to .archived</button>

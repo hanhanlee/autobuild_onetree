@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 
 from .. import auth
 from ..config import get_db_path, get_jobs_root, get_presets_root, get_token_root
-from ..web import render_page
+from ..web import redirect_to, render_page
 
 
 router = APIRouter()
@@ -18,7 +18,7 @@ def _current_user(request: Request) -> Optional[str]:
 
 
 def _prg(url: str) -> RedirectResponse:
-    return RedirectResponse(url=url, status_code=303)
+    return redirect_to(url, status_code=303)
 
 
 @router.get("/")

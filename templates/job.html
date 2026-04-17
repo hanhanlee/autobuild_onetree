@@ -15,8 +15,8 @@
           >{{ job.status }}</span>
         </div>
         <div class="d-flex align-items-center gap-2">
-          <a href="/new" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus-circle"></i> New Job</a>
-          <form method="post" action="/jobs/{{ job.id }}/pin">
+          <a href="{{ app_path('/new') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus-circle"></i> New Job</a>
+          <form method="post" action="{{ app_path('/jobs/' ~ job.id ~ '/pin') }}">
       {{ csrf_input(csrf_token) }}
             <button type="submit" name="pinned" value="{% if job.pinned %}0{% else %}1{% endif %}" class="btn btn-outline-warning">
               <i class="bi {% if job.pinned %}bi-pin-fill{% else %}bi-pin-angle{% endif %}"></i> {% if job.pinned %}Pinned{% else %}Pin{% endif %}
@@ -52,7 +52,7 @@
         <ul class="list-group list-group-flush">
           {% for item in artifacts.values() %}
           <li class="list-group-item d-flex justify-content-between align-items-center">
-            <a href="/api/jobs/{{ job.id }}/artifacts/{{ item.name }}">{{ item.name }}</a>
+            <a href="{{ app_path('/api/jobs/' ~ job.id ~ '/artifacts/' ~ item.name) }}">{{ item.name }}</a>
             <span class="text-muted small">{{ item.size }} bytes</span>
           </li>
           {% else %}
@@ -79,7 +79,7 @@
       <h5 class="mb-0">Logs</h5>
       <div class="d-flex gap-2">
         <button id="copy-log" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-clipboard"></i> Copy</button>
-        <a href="/jobs/{{ job.id }}/log/download" class="btn btn-outline-primary btn-sm"><i class="bi bi-download"></i> Download</a>
+        <a href="{{ app_path('/jobs/' ~ job.id ~ '/log/download') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-download"></i> Download</a>
       </div>
     </div>
     <div id="terminal-console" class="border rounded" style="background:#0d1117;color:#c9d1d9;padding:1rem;max-height:70vh;overflow-y:auto;white-space:pre-wrap;font-family:SFMono-Regular,Consolas,'Liberation Mono',Menlo,monospace;">
@@ -91,6 +91,8 @@
 <script>
   (function() {
       const jobId = {{ job.id }};
+      const appBasePath = document.body.dataset.basePath || "";
+      const appUrl = (path) => `${appBasePath}${path}`;
       let jobStatus = "{{ job.status or '' }}".toLowerCase();
       const consoleEl = document.getElementById("terminal-console");
       const loadingEl = document.getElementById("log-loading");
@@ -110,7 +112,7 @@
       async function pollStatus() {
           if (statusStopped) return;
           try {
-              const resp = await fetch(`/jobs/${jobId}/status`);
+              const resp = await fetch(appUrl(`/jobs/${jobId}/status`));
               if (!resp.ok) { setTimeout(pollStatus, 5000); return; }
               const data = await resp.json();
               const newStatus = (data.status || "").toLowerCase();
@@ -167,7 +169,7 @@
       async function fetchLogChunk() {
           if (logStopped) return;
           try {
-              const resp = await fetch(`/jobs/${jobId}/log/stream?offset=${currentOffset}`);
+              const resp = await fetch(appUrl(`/jobs/${jobId}/log/stream?offset=${currentOffset}`));
               if (!resp.ok) throw new Error("fetch failed");
               const data = await resp.json();
               if (data.content) appendLog(data.content);

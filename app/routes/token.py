@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
 from ..config import get_token_root
-from ..web import render_page
+from ..web import redirect_to, render_page
 
 router = APIRouter()
 
@@ -15,7 +15,7 @@ def _current_user(request: Request):
 async def token_status(request: Request):
     user = _current_user(request)
     if not user:
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
     token_ok = None  # let render_page compute if None
     return render_page(
         request,

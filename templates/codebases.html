@@ -29,16 +29,16 @@
                 <td style="font-family:monospace;">{{ cb.path }}</td>
                 <td>
                     {% if confirm_action and confirm_codebase == cb.id %}
-                    <form method="post" action="/codebases/action" style="display:inline;">
+                    <form method="post" action="{{ app_path('/codebases/action') }}" style="display:inline;">
       {{ csrf_input(csrf_token) }}
                         <input type="hidden" name="action" value="{{ confirm_action }}">
                         <input type="hidden" name="codebase_id" value="{{ cb.id }}">
                         <button type="submit">Confirm {{ confirm_action }}</button>
                     </form>
-                    <a href="/codebases" style="margin-left:0.5rem;">Cancel</a>
+                    <a href="{{ app_path('/codebases') }}" style="margin-left:0.5rem;">Cancel</a>
                     {% else %}
-                    <a href="/codebases?confirm=archive&codebase_id={{ cb.id }}">Archive</a> |
-                    <a href="/codebases?confirm=delete&codebase_id={{ cb.id }}">Delete</a>
+                    <a href="{{ app_path('/codebases?confirm=archive&codebase_id=' ~ cb.id) }}">Archive</a> |
+                    <a href="{{ app_path('/codebases?confirm=delete&codebase_id=' ~ cb.id) }}">Delete</a>
                     {% endif %}
                 </td>
             </tr>

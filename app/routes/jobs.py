@@ -22,7 +22,7 @@ from ..database import SessionLocal
 from ..config import get_jobs_root, get_presets_root, get_workspace_root, get_job_work_dir
 from ..recipes_catalog import list_recipes as catalog_list_recipes
 from ..system import get_disk_usage
-from ..web import render_page, TemplateUser
+from ..web import app_path, redirect_to, render_page, TemplateUser
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ def _current_user(request: Request) -> Optional[TemplateUser]:
 
 def _require_login(request: Request) -> Optional[RedirectResponse]:
     if not _current_user(request):
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
     return None
 
 
@@ -392,7 +392,7 @@ async def pin_job(request: Request, job_id: int):
     await validate_csrf(request)
     job = crud_jobs.auto_get_job(job_id)
     if not job:
-        return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+        return redirect_to("/jobs?error=not_found")
     try:
         form = await request.form()
     except Exception:
@@ -403,7 +403,7 @@ async def pin_job(request: Request, job_id: int):
     else:
         desired = str(pinned_raw).strip().lower() in {"1", "true", "yes", "on", "pin", "pinned"}
     crud_jobs.auto_set_job_pin(job_id, desired)
-    referer = request.headers.get("referer") or "/jobs"
+    referer = request.headers.get("referer") or app_path("/jobs")
     return RedirectResponse(url=referer, status_code=303)
 
 
@@ -415,22 +415,22 @@ async def prune_job(request: Request, job_id: int):
     await validate_csrf(request)
     job = crud_jobs.auto_get_job(job_id)
     if not job:
-        return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+        return redirect_to("/jobs?error=not_found")
     if job.get("pinned"):
-        return RedirectResponse(url="/jobs?error=Cannot+prune+a+pinned+job.+Unpin+it+first.", status_code=303)
+        return redirect_to("/jobs?error=Cannot+prune+a+pinned+job.+Unpin+it+first.")
     status_val = (job.get("status") or "").lower()
     if status_val not in {"success", "failed"}:
-        return RedirectResponse(url=f"/jobs/{job_id}?error=not_finished", status_code=303)
+        return redirect_to(f"/jobs/{job_id}?error=not_finished")
     base_dir = _safe_job_dir(job_id)
     if base_dir is None:
-        return RedirectResponse(url=f"/jobs/{job_id}?error=invalid_path", status_code=303)
+        return redirect_to(f"/jobs/{job_id}?error=invalid_path")
     workspace_dir = (base_dir / "work").resolve()
     if workspace_dir.exists():
         try:
             shutil.rmtree(workspace_dir)
         except Exception as exc:
             logger.warning("Failed to prune workspace for job %s: %s", job_id, exc)
-            return RedirectResponse(url=f"/jobs/{job_id}?error=prune_failed", status_code=303)
+            return redirect_to(f"/jobs/{job_id}?error=prune_failed")
     def _mutate(data: Dict[str, object]) -> None:
         data["disk_usage"] = "Pruned"
         data["is_pruned"] = True
@@ -441,7 +441,7 @@ async def prune_job(request: Request, job_id: int):
             data["snapshot"] = snap
 
     _update_job_json(job_id, _mutate)
-    return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
+    return redirect_to(f"/jobs/{job_id}")
 
 
 @router.post("/jobs/{job_id}/stop")
@@ -452,13 +452,13 @@ async def stop_job(request: Request, job_id: int):
     await validate_csrf(request)
     job = crud_jobs.auto_get_job(job_id)
     if not job:
-        return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+        return redirect_to("/jobs?error=not_found")
     status_val = (job.get("status") or "").lower()
     if status_val not in {"running", "pending"}:
-        return RedirectResponse(url=f"/jobs/{job_id}?error=not_running", status_code=303)
+        return redirect_to(f"/jobs/{job_id}?error=not_running")
     if not jobs.stop_job(job_id):
-        return RedirectResponse(url=f"/jobs/{job_id}?error=stop_failed", status_code=303)
-    return RedirectResponse(url=f"/jobs/{job_id}?success=stopped", status_code=303)
+        return redirect_to(f"/jobs/{job_id}?error=stop_failed")
+    return redirect_to(f"/jobs/{job_id}?success=stopped")
 
 
 @router.post("/jobs/{job_id}/retry")
@@ -469,14 +469,14 @@ async def retry_job(request: Request, job_id: int, background_tasks: BackgroundT
     await validate_csrf(request)
     job = crud_jobs.auto_get_job(job_id)
     if not job:
-        return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+        return redirect_to("/jobs?error=not_found")
     status_val = (job.get("status") or "").lower()
     if status_val in {"running", "pending"}:
-        return RedirectResponse(url=f"/jobs/{job_id}?error=job_running", status_code=303)
+        return redirect_to(f"/jobs/{job_id}?error=job_running")
     if not jobs.retry_job(job_id, owner=job.get("created_by") or job.get("owner")):
-        return RedirectResponse(url=f"/jobs/{job_id}?error=retry_failed", status_code=303)
+        return redirect_to(f"/jobs/{job_id}?error=retry_failed")
     background_tasks.add_task(jobs.start_job_runner, job_id)
-    return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
+    return redirect_to(f"/jobs/{job_id}")
 
 
 
@@ -488,9 +488,9 @@ async def delete_job(request: Request, job_id: int):
     await validate_csrf(request)
     job = crud_jobs.auto_get_job(job_id)
     if not job:
-        return RedirectResponse(url="/jobs?error=not_found", status_code=303)
+        return redirect_to("/jobs?error=not_found")
     if job.get("pinned"):
-        return RedirectResponse(url="/jobs?error=Cannot+delete+a+pinned+job.+Unpin+it+first.", status_code=303)
+        return redirect_to("/jobs?error=Cannot+delete+a+pinned+job.+Unpin+it+first.")
 
     job_dir = _safe_job_dir(job_id)
     if job_dir and job_dir.exists():
@@ -498,16 +498,16 @@ async def delete_job(request: Request, job_id: int):
             shutil.rmtree(job_dir)
         except Exception as exc:
             logger.warning("Failed to delete job dir %s: %s", job_dir, exc)
-            return RedirectResponse(url=f"/jobs/{job_id}?error=delete_failed", status_code=303)
+            return redirect_to(f"/jobs/{job_id}?error=delete_failed")
 
     try:
         if hasattr(db, "delete_job"):
             crud_jobs.auto_delete_job(job_id)
     except Exception as exc:
         logger.warning("Failed to delete DB record for job %s: %s", job_id, exc)
-        return RedirectResponse(url=f"/jobs/{job_id}?error=delete_failed", status_code=303)
+        return redirect_to(f"/jobs/{job_id}?error=delete_failed")
 
-    return RedirectResponse(url="/jobs", status_code=303)
+    return redirect_to("/jobs")
 
 
 @router.post("/jobs/batch")
@@ -519,10 +519,10 @@ async def jobs_batch_action(request: Request):
     try:
         form = await request.form()
     except Exception:
-        return RedirectResponse(url="/jobs?error=invalid_form", status_code=303)
+        return redirect_to("/jobs?error=invalid_form")
     action = (str(form.get("action") or "")).lower()
     if action not in {"prune", "delete"}:
-        return RedirectResponse(url="/jobs?error=invalid_action", status_code=303)
+        return redirect_to("/jobs?error=invalid_action")
     raw_ids = form.getlist("job_ids")
     job_ids: List[int] = []
     for raw in raw_ids:
@@ -531,7 +531,7 @@ async def jobs_batch_action(request: Request):
         except Exception:
             continue
     if not job_ids:
-        return RedirectResponse(url="/jobs?error=no_selection", status_code=303)
+        return redirect_to("/jobs?error=no_selection")
 
     processed = 0
     skipped_pinned = 0
@@ -583,7 +583,7 @@ async def jobs_batch_action(request: Request):
     msg = f"{action.title()}d {processed} jobs"
     if skipped_pinned:
         msg += f" ({skipped_pinned} pinned jobs skipped)"
-    return RedirectResponse(url=f"/jobs?success={quote_plus(msg)}", status_code=303)
+    return redirect_to(f"/jobs?success={quote_plus(msg)}")
 
 
 @router.post("/new")
@@ -1148,7 +1148,7 @@ async def create_job(
             codebase_id=codebase_id,
         )
     background_tasks.add_task(jobs.start_job_runner, job_id)
-    return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
+    return redirect_to(f"/jobs/{job_id}")
 
 
 @router.get("/jobs/{job_id}/log/stream")

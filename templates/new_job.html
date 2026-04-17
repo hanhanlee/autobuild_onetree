@@ -17,7 +17,7 @@
   </div>
   {% endif %}
 
-  <form method="post" action="/new" class="row g-3">
+  <form method="post" action="{{ app_path('/new') }}" class="row g-3">
       {{ csrf_input(csrf_token) }}
     <div class="col-md-3">
       <div class="card h-100">
@@ -60,7 +60,7 @@
               <div class="d-flex justify-content-between align-items-center">
                 <label class="form-label fw-semibold mb-0" for="recipe-select">Recipe Template</label>
                 <div class="d-flex align-items-center gap-2">
-                  <a class="btn btn-link btn-sm text-decoration-none" href="/recipes/new" target="_blank" rel="noopener">
+                  <a class="btn btn-link btn-sm text-decoration-none" href="{{ app_path('/recipes/new') }}" target="_blank" rel="noopener">
                     <i class="bi bi-plus-circle me-1"></i>Create New Recipe
                   </a>
                   <button type="button" class="btn btn-link btn-sm text-decoration-none" onclick="refreshRecipes()" title="Refresh recipe list">

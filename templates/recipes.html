@@ -3,13 +3,13 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="mb-0">Recipes</h1>
-  <a class="btn btn-success" href="/recipes/new">
+    <a class="btn btn-success" href="{{ app_path('/recipes/new') }}">
     <i class="bi bi-plus-lg me-1"></i>Create New Recipe
   </a>
 </div>
 {% if error %}<p class="text-danger">{{ error }}</p>{% endif %}
 <div class="card mb-3">
-    <form method="get" action="/recipes" class="p-3 d-flex flex-wrap gap-3 align-items-center">
+    <form method="get" action="{{ app_path('/recipes') }}" class="p-3 d-flex flex-wrap gap-3 align-items-center">
         <div><strong>presets_root:</strong> {{ presets_root }}</div>
         <label class="d-flex align-items-center gap-2 mb-0">Platform
             <select name="platform" class="form-select form-select-sm" style="min-width:160px;">
@@ -20,7 +20,7 @@
             </select>
         </label>
         <button type="submit" class="btn btn-primary btn-sm">Apply</button>
-        <a href="/recipes" class="btn btn-outline-secondary btn-sm">Reset</a>
+        <a href="{{ app_path('/recipes') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
     </form>
 </div>
 
@@ -51,8 +51,8 @@
                     <td>{{ file.mtime }}</td>
                     <td>{{ file.size if file.size is not none else "?" }} bytes</td>
                     <td class="d-flex gap-2 align-items-center">
-                        <a class="btn btn-sm btn-outline-primary" href="/recipes/edit?rid={{ file.rid }}">Edit</a>
-                        <form method="post" action="/recipes/delete" class="m-0">
+                        <a class="btn btn-sm btn-outline-primary" href="{{ app_path('/recipes/edit?rid=' ~ file.rid) }}">Edit</a>
+                        <form method="post" action="{{ app_path('/recipes/delete') }}" class="m-0">
       {{ csrf_input(csrf_token) }}
                             <input type="hidden" name="rid" value="{{ file.rid }}">
                             <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to PERMANENTLY delete this recipe? This cannot be undone.');">Delete</button>

@@ -36,7 +36,7 @@
               {% set badge_class = 'bg-secondary' %}
               {% if st == 'success' %}{% set badge_class = 'bg-success' %}{% elif st == 'failed' %}{% set badge_class = 'bg-danger' %}{% elif st == 'running' %}{% set badge_class = 'bg-primary' %}{% elif st == 'pending' %}{% set badge_class = 'bg-warning text-dark' %}{% endif %}
               <tr>
-                <td><a href="/jobs/{{ j.id }}" class="text-primary text-decoration-underline fw-semibold">{{ j.id }}</a></td>
+                <td><a href="{{ app_path('/jobs/' ~ j.id) }}" class="text-primary text-decoration-underline fw-semibold">{{ j.id }}</a></td>
                 <td>{{ j.owner or '-' }}</td>
                 <td>{{ j.machine or '-' }} / {{ j.target or '-' }}</td>
                 <td><span class="badge {{ badge_class }} text-uppercase">{{ j.status }}</span></td>
@@ -88,7 +88,7 @@
               {% set badge_class = 'bg-secondary' %}
               {% if st == 'success' %}{% set badge_class = 'bg-success' %}{% elif st == 'failed' %}{% set badge_class = 'bg-danger' %}{% elif st == 'running' %}{% set badge_class = 'bg-primary' %}{% elif st == 'pending' %}{% set badge_class = 'bg-warning text-dark' %}{% endif %}
               <tr>
-                <td><a href="/jobs/{{ j.id }}" class="text-primary text-decoration-underline fw-semibold">{{ j.id }}</a></td>
+                <td><a href="{{ app_path('/jobs/' ~ j.id) }}" class="text-primary text-decoration-underline fw-semibold">{{ j.id }}</a></td>
                 <td>
                   <div class="fw-semibold">{{ j.recipe_id or '-' }}</div>
                   <div class="text-muted small">{{ j.target or '-' }}</div>

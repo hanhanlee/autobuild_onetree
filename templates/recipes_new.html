@@ -6,13 +6,13 @@
     <h1 class="mb-0">Create Recipe</h1>
     <div class="text-muted">Structured form on the left, live YAML preview on the right.</div>
   </div>
-  <a class="btn btn-outline-secondary" href="/recipes">
+  <a class="btn btn-outline-secondary" href="{{ app_path('/recipes') }}">
     <i class="bi bi-arrow-left me-1"></i>Back to Recipes
   </a>
 </div>
 {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
 
-<form method="post" action="/recipes/new" class="row g-3">
+<form method="post" action="{{ app_path('/recipes/new') }}" class="row g-3">
       {{ csrf_input(csrf_token) }}
   <div class="col-lg-7">
     <div class="card mb-3">

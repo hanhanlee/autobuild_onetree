@@ -8,6 +8,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from dotenv import load_dotenv
 
+load_dotenv()
+
 from . import db, models, projects
 from .config import get_secret_key
 from .database import engine
@@ -22,12 +24,19 @@ from .routes import projects as projects_routes
 from .routes import recipes as recipes_routes
 from .routes import token as token_routes
 from .routes import help as help_routes
+from .web import get_app_base_path
 
 
-app = FastAPI()
-# Load environment variables from .env at startup
-load_dotenv()
-app.add_middleware(SessionMiddleware, secret_key=get_secret_key(), session_cookie="autobuild_session")
+app_base_path = get_app_base_path()
+
+
+app = FastAPI(root_path=app_base_path)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=get_secret_key(),
+    session_cookie="autobuild_session",
+    path=app_base_path or "/",
+)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(auth_routes.router)
 app.include_router(profile_routes.router)

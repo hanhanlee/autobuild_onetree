@@ -20,7 +20,7 @@
     <div class="card">
       <div class="card-body">
         <h6 class="text-muted text-uppercase small mb-3">GitLab Credentials</h6>
-        <form method="post" action="/profile" class="row g-3">
+        <form method="post" action="{{ app_path('/profile') }}" class="row g-3">
       {{ csrf_input(csrf_token) }}
           <div class="col-md-6">
             <label class="form-label fw-semibold" for="git_token_primary">Token for ami.com</label>

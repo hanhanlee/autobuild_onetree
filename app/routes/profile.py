@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 
 from .. import auth
 from ..csrf import validate_csrf
-from ..web import render_page
+from ..web import redirect_to, render_page
 
 router = APIRouter()
 
@@ -16,7 +16,7 @@ def _current_user(request: Request) -> Optional[str]:
 
 def _require_login(request: Request) -> Optional[RedirectResponse]:
     if not _current_user(request):
-        return RedirectResponse(url="/login", status_code=303)
+        return redirect_to("/login")
     return None
 
 

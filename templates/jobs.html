@@ -5,7 +5,7 @@
 
 <div class="card shadow-sm mb-3">
   <div class="card-body">
-    <form id="jobs-filters" class="row g-3 align-items-center" hx-get="/jobs" hx-target="#jobs-table-body" hx-select="#jobs-table-body" hx-trigger="change">
+    <form id="jobs-filters" class="row g-3 align-items-center" hx-get="{{ app_path('/jobs') }}" hx-target="#jobs-table-body" hx-select="#jobs-table-body" hx-trigger="change">
       <div class="col-md-3 col-sm-6">
         <label for="filter_status" class="form-label mb-1 text-muted small">Status</label>
         <select class="form-select" id="filter_status" name="filter_status">
@@ -88,7 +88,7 @@
 
 <div class="card shadow-sm">
   <div class="card-body">
-    <form method="post" action="/jobs/batch">
+    <form method="post" action="{{ app_path('/jobs/batch') }}">
       {{ csrf_input(csrf_token) }}
       <div class="d-flex gap-2 mb-3">
         <button type="submit" class="btn btn-outline-secondary btn-sm" name="action" value="prune"><i class="bi bi-eraser"></i> Prune Selected</button>
@@ -111,7 +111,7 @@
               <th style="width:240px;">Actions</th>
             </tr>
           </thead>
-          <tbody id="jobs-table-body" {% if active_total > 0 %}hx-get="/jobs" hx-trigger="every 5s" hx-select="#jobs-table-body" hx-swap="outerHTML" hx-include="#jobs-filters"{% endif %}>
+          <tbody id="jobs-table-body" {% if active_total > 0 %}hx-get="{{ app_path('/jobs') }}" hx-trigger="every 5s" hx-select="#jobs-table-body" hx-swap="outerHTML" hx-include="#jobs-filters"{% endif %}>
             {% for j in jobs %}
             {% set states = job_states or {} %}
             {% set state = states.get(j.id, {}) %}
@@ -123,14 +123,14 @@
             <tr class="{% if is_pinned %}border-start border-4 border-warning bg-warning bg-opacity-10{% endif %}">
               <td><input type="checkbox" name="job_ids" value="{{ j.id }}" data-job-id="{{ j.id }}" {% if is_pinned %}disabled{% endif %}></td>
               <td>
-                <a href="/jobs/{{ j.id }}" class="fw-semibold text-primary text-decoration-underline">{{ j.id }}</a>
-                <button type="submit" formaction="/jobs/{{ j.id }}/pin" formmethod="post" name="pinned" value="{% if is_pinned %}0{% else %}1{% endif %}" class="btn btn-sm btn-outline-warning" title="Toggle pin">
+                <a href="{{ app_path('/jobs/' ~ j.id) }}" class="fw-semibold text-primary text-decoration-underline">{{ j.id }}</a>
+                <button type="submit" formaction="{{ app_path('/jobs/' ~ j.id ~ '/pin') }}" formmethod="post" name="pinned" value="{% if is_pinned %}0{% else %}1{% endif %}" class="btn btn-sm btn-outline-warning" title="Toggle pin">
                   <i class="bi {% if is_pinned %}bi-pin-fill{% else %}bi-pin-angle{% endif %}"></i>
                 </button>
               </td>
               <td>
                 {% if j.recipe_id %}
-                  <a href="/jobs/{{ j.id }}" class="text-primary text-decoration-underline">{{ j.recipe_id }}</a>
+                  <a href="{{ app_path('/jobs/' ~ j.id) }}" class="text-primary text-decoration-underline">{{ j.recipe_id }}</a>
                 {% else %}
                   -
                 {% endif %}
@@ -147,20 +147,20 @@
                 </button>
               </td>
               <td class="d-flex gap-1">
-                <a href="/jobs/{{ j.id }}" class="btn btn-sm btn-outline-primary" title="View details"><i class="bi bi-eye"></i></a>
+                <a href="{{ app_path('/jobs/' ~ j.id) }}" class="btn btn-sm btn-outline-primary" title="View details"><i class="bi bi-eye"></i></a>
                 <button type="button" class="btn btn-sm btn-outline-secondary" title="Copy workspace path" data-copy-path="{{ state.workspace_path or '' }}"><i class="bi bi-clipboard"></i></button>
                 {% if st in ['running', 'pending'] %}
-                <button type="submit" formaction="/jobs/{{ j.id }}/stop" formmethod="post" class="btn btn-sm btn-outline-warning" title="Stop job"><i class="bi bi-stop-circle"></i></button>
+                <button type="submit" formaction="{{ app_path('/jobs/' ~ j.id ~ '/stop') }}" formmethod="post" class="btn btn-sm btn-outline-warning" title="Stop job"><i class="bi bi-stop-circle"></i></button>
                 {% else %}
                 <button type="button" class="btn btn-sm btn-outline-warning disabled" title="Stop available for running jobs"><i class="bi bi-stop-circle"></i></button>
                 {% endif %}
                 {% if st in ['success', 'failed'] %}
-                <button type="submit" formaction="/jobs/{{ j.id }}/retry" formmethod="post" class="btn btn-sm btn-outline-success" title="Retry job in place"><i class="bi bi-arrow-repeat"></i></button>
+                <button type="submit" formaction="{{ app_path('/jobs/' ~ j.id ~ '/retry') }}" formmethod="post" class="btn btn-sm btn-outline-success" title="Retry job in place"><i class="bi bi-arrow-repeat"></i></button>
                 {% else %}
                 <button type="button" class="btn btn-sm btn-outline-success disabled" title="Retry after job finishes"><i class="bi bi-arrow-repeat"></i></button>
                 {% endif %}
                 {% if st in ['success', 'failed'] and not is_pruned and not is_pinned %}
-                <button type="submit" formaction="/jobs/{{ j.id }}/prune" formmethod="post" class="btn btn-sm btn-outline-secondary" title="Prune workspace"><i class="bi bi-eraser"></i></button>
+                <button type="submit" formaction="{{ app_path('/jobs/' ~ j.id ~ '/prune') }}" formmethod="post" class="btn btn-sm btn-outline-secondary" title="Prune workspace"><i class="bi bi-eraser"></i></button>
                 {% else %}
                 {% if is_pinned %}
                 <button type="button" class="btn btn-sm btn-outline-secondary disabled" title="Pinned jobs cannot be pruned"><i class="bi bi-eraser"></i></button>
@@ -168,7 +168,7 @@
                 <button type="button" class="btn btn-sm btn-outline-secondary disabled" title="Prune unavailable"><i class="bi bi-eraser"></i></button>
                 {% endif %}
                 {% endif %}
-                <button type="submit" formaction="/jobs/{{ j.id }}/delete" formmethod="post" class="btn btn-sm btn-outline-danger" title="{% if is_pinned %}Pinned jobs cannot be deleted{% else %}Delete job{% endif %}" {% if is_pinned %}disabled{% endif %}><i class="bi bi-trash"></i></button>
+                <button type="submit" formaction="{{ app_path('/jobs/' ~ j.id ~ '/delete') }}" formmethod="post" class="btn btn-sm btn-outline-danger" title="{% if is_pinned %}Pinned jobs cannot be deleted{% else %}Delete job{% endif %}" {% if is_pinned %}disabled{% endif %}><i class="bi bi-trash"></i></button>
               </td>
             </tr>
             {% else %}

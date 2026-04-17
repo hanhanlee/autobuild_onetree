@@ -1,4 +1,6 @@
 (() => {
+    const appBasePath = document.body?.dataset.basePath || "";
+    const appUrl = (path) => `${appBasePath}${path}`;
     const jobEl = document.getElementById("job");
     if (!jobEl) {
         return;
@@ -8,7 +10,7 @@
     const statusEl = document.getElementById("job-status");
     const artifactList = document.getElementById("artifact-list");
 
-    const es = new EventSource(`/api/jobs/${jobId}/log/stream`);
+    const es = new EventSource(appUrl(`/api/jobs/${jobId}/log/stream`));
     es.onmessage = (event) => {
         logEl.textContent += event.data + "\n";
         logEl.scrollTop = logEl.scrollHeight;
@@ -19,7 +21,7 @@
 
     async function refreshStatus() {
         try {
-            const res = await fetch(`/jobs/${jobId}/refresh`);
+            const res = await fetch(appUrl(`/jobs/${jobId}/refresh`));
             if (!res.ok) return;
             const data = await res.json();
             statusEl.textContent = data.status;
@@ -30,7 +32,7 @@
 
     async function refreshArtifacts() {
         try {
-            const res = await fetch(`/api/jobs/${jobId}/artifacts`);
+            const res = await fetch(appUrl(`/api/jobs/${jobId}/artifacts`));
             if (!res.ok) return;
             const items = await res.json();
             artifactList.innerHTML = "";
@@ -43,7 +45,7 @@
             items.forEach((item) => {
                 const li = document.createElement("li");
                 const link = document.createElement("a");
-                link.href = `/api/jobs/${jobId}/artifacts/${encodeURIComponent(item.name)}`;
+                link.href = appUrl(`/api/jobs/${jobId}/artifacts/${encodeURIComponent(item.name)}`);
                 link.textContent = item.name;
                 li.appendChild(link);
                 li.appendChild(document.createTextNode(` (${item.size} bytes)`));
