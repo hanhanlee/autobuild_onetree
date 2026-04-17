@@ -7,8 +7,8 @@ from typing import Optional
 
 from .app_settings import app_settings
 from .crud_settings import get_system_settings
+from .crud_jobs import delete_job as _orm_delete_job, list_all_jobs_for_housekeeping
 from .database import SessionLocal
-from .db import delete_job, get_connection
 from .config import get_job_work_dir, get_job_dir
 from . import jobs
 
@@ -79,14 +79,14 @@ def _prune_workspace(job_id: int) -> None:
     _mark_pruned(job_id)
 
 
-def _delete_job(job_id: int) -> None:
+def _delete_job(job_id: int, session) -> None:
     """
     徹底刪除任務及其所有資料
     """
     job_path = get_job_dir(job_id)
     with suppress(Exception):
         shutil.rmtree(job_path, ignore_errors=True)
-    delete_job(job_id)
+    _orm_delete_job(session, job_id)
     logger.info("[housekeeping] 已刪除任務 %s", job_id)
 
 
@@ -109,8 +109,8 @@ def run_housekeeping_once() -> None:
     if not prune_cutoff and not delete_cutoff:
         return
     try:
-        with get_connection() as conn:
-            rows = conn.execute("SELECT id, created_at, pinned, status FROM jobs").fetchall()
+        with SessionLocal() as session:
+            rows = list_all_jobs_for_housekeeping(session)
     except Exception:
         logger.warning("[housekeeping] 無法查詢任務列表", exc_info=True)
         return
@@ -123,7 +123,8 @@ def run_housekeeping_once() -> None:
         if status in {"running", "pending"}:
             continue
         if delete_cutoff and created <= delete_cutoff and not row["pinned"]:
-            _delete_job(job_id)
+            with SessionLocal() as session:
+                _delete_job(job_id, session)
             continue
         if prune_cutoff and created <= prune_cutoff and not row["pinned"] and not _job_is_pruned(job_id):
             _prune_workspace(job_id)

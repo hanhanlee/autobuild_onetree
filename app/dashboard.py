@@ -5,7 +5,8 @@ from typing import Dict, List, Optional
 
 from .app_settings import app_settings
 from .config import get_workspace_root
-from .db import get_connection
+from .crud_jobs import get_live_jobs as _orm_get_live_jobs, get_jobs_today as _orm_get_jobs_today, get_recent_jobs as _orm_get_recent_jobs
+from .database import SessionLocal
 from .system import get_disk_usage
 
 
@@ -53,56 +54,25 @@ def _format_ts_local(ts: Optional[str]) -> str:
 
 
 def get_live_jobs(limit: int = 100) -> List[Dict[str, object]]:
-    query = """
-        SELECT id, owner, machine, target, status, started_at, created_at
-          FROM jobs
-         WHERE LOWER(status) IN ('running', 'pending')
-         ORDER BY COALESCE(created_at, '') DESC, id DESC
-         LIMIT ?
-    """
-    with get_connection() as conn:
-        rows = conn.execute(query, (limit,)).fetchall()
+    with SessionLocal() as session:
+        rows = _orm_get_live_jobs(session, limit=limit)
     live: List[Dict[str, object]] = []
-    for row in rows:
-        item = dict(row)
+    for item in rows:
         item["started_ago"] = _time_ago(item.get("started_at") or item.get("created_at"))
         live.append(item)
     return live
 
 
 def get_jobs_today() -> int:
-    with get_connection() as conn:
-        cur = conn.execute(
-            """
-            SELECT COUNT(*) FROM jobs
-             WHERE date(substr(created_at,1,10)) = date('now')
-            """
-        )
-        row = cur.fetchone()
-        return int(row[0]) if row else 0
+    with SessionLocal() as session:
+        return _orm_get_jobs_today(session)
 
 
 def get_recent_jobs(limit: int = 5) -> List[Dict[str, object]]:
-    with get_connection() as conn:
-        cur = conn.execute(
-            """
-            SELECT id,
-                   recipe_id,
-                   target,
-                   status,
-                   created_at,
-                   started_at,
-                   finished_at
-              FROM jobs
-             ORDER BY COALESCE(finished_at, started_at, created_at, '') DESC, id DESC
-             LIMIT ?
-            """,
-            (limit,),
-        )
-        rows = cur.fetchall()
+    with SessionLocal() as session:
+        rows = _orm_get_recent_jobs(session, limit=limit)
     recent: List[Dict[str, object]] = []
-    for row in rows:
-        item = dict(row)
+    for item in rows:
         ts = item.get("finished_at") or item.get("started_at") or item.get("created_at")
         item["timestamp"] = _format_ts_local(ts)
         item["time_ago"] = _time_ago(ts)

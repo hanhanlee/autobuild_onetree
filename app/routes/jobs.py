@@ -12,7 +12,8 @@ from urllib.parse import quote_plus
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 
-from .. import db, jobs
+from .. import jobs
+from .. import crud_jobs
 from ..auth import username_auth, has_gitlab_token
 from ..app_settings import app_settings
 from ..crud_settings import get_system_settings
@@ -271,7 +272,7 @@ async def new_job_page(request: Request):
     if cb_error and not debug_ctx.get("last_error"):
         debug_ctx["last_error"] = cb_error
     error_msg = debug_ctx.get("last_error")
-    recent_jobs = db.list_recent_jobs(limit=50)
+    recent_jobs = crud_jobs.auto_list_recent_jobs(limit=50)
     next_job_id = 1
     try:
         if recent_jobs and isinstance(recent_jobs, list):
@@ -321,7 +322,7 @@ async def jobs_page(request: Request):
         except Exception:
             days_filter = None
     user = _current_user(request)
-    recent = db.list_recent_jobs(limit=50, status=status_filter, days=days_filter)
+    recent = crud_jobs.auto_list_recent_jobs(limit=50, status=status_filter, days=days_filter)
     disk_usage = None
     try:
         disk_usage = get_disk_usage(str(WORKSPACES_ROOT))
@@ -364,7 +365,7 @@ async def job_detail(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
-    job = db.get_job(job_id)
+    job = crud_jobs.auto_get_job(job_id)
     if not job:
         return render_page(
             request,
@@ -387,7 +388,7 @@ async def pin_job(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
-    job = db.get_job(job_id)
+    job = crud_jobs.auto_get_job(job_id)
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
     try:
@@ -399,7 +400,7 @@ async def pin_job(request: Request, job_id: int):
         desired = not bool(job.get("pinned"))
     else:
         desired = str(pinned_raw).strip().lower() in {"1", "true", "yes", "on", "pin", "pinned"}
-    db.set_job_pin(job_id, desired)
+    crud_jobs.auto_set_job_pin(job_id, desired)
     referer = request.headers.get("referer") or "/jobs"
     return RedirectResponse(url=referer, status_code=303)
 
@@ -409,7 +410,7 @@ async def prune_job(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
-    job = db.get_job(job_id)
+    job = crud_jobs.auto_get_job(job_id)
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
     if job.get("pinned"):
@@ -445,7 +446,7 @@ async def stop_job(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
-    job = db.get_job(job_id)
+    job = crud_jobs.auto_get_job(job_id)
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
     status_val = (job.get("status") or "").lower()
@@ -461,7 +462,7 @@ async def retry_job(request: Request, job_id: int, background_tasks: BackgroundT
     redirect = _require_login(request)
     if redirect:
         return redirect
-    job = db.get_job(job_id)
+    job = crud_jobs.auto_get_job(job_id)
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
     status_val = (job.get("status") or "").lower()
@@ -479,7 +480,7 @@ async def delete_job(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
-    job = db.get_job(job_id)
+    job = crud_jobs.auto_get_job(job_id)
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
     if job.get("pinned"):
@@ -495,7 +496,7 @@ async def delete_job(request: Request, job_id: int):
 
     try:
         if hasattr(db, "delete_job"):
-            db.delete_job(job_id)
+            crud_jobs.auto_delete_job(job_id)
     except Exception as exc:
         logger.warning("Failed to delete DB record for job %s: %s", job_id, exc)
         return RedirectResponse(url=f"/jobs/{job_id}?error=delete_failed", status_code=303)
@@ -529,7 +530,7 @@ async def jobs_batch_action(request: Request):
     skipped_pinned = 0
 
     for job_id in job_ids:
-        job = db.get_job(job_id)
+        job = crud_jobs.auto_get_job(job_id)
         if not job:
             continue
         if job.get("pinned"):
@@ -567,7 +568,7 @@ async def jobs_batch_action(request: Request):
                     continue
             try:
                 if hasattr(db, "delete_job"):
-                    db.delete_job(job_id)
+                    crud_jobs.auto_delete_job(job_id)
             except Exception:
                 continue
             processed += 1
@@ -589,7 +590,7 @@ async def create_job(
     user = _current_user(request)
     recipes, debug_ctx_raw = _list_recipes_from_presets()
     codebases, cb_error = _list_codebases()
-    recent_jobs = db.list_recent_jobs(limit=50)
+    recent_jobs = crud_jobs.auto_list_recent_jobs(limit=50)
     debug_ctx = debug_ctx_raw
     debug_ctx["workspaces_root"] = str(WORKSPACES_ROOT)
     debug_ctx["codebases_count"] = len(codebases)
@@ -716,7 +717,7 @@ async def create_job(
                 last_error=debug_ctx.get("last_error"),
                 debug_context=debug_ctx,
                 codebase_id=codebase_id,
-                recent_jobs=db.list_recent_jobs(limit=50),
+                recent_jobs=crud_jobs.auto_list_recent_jobs(limit=50),
                 base_job_id=base_job_id_raw,
                 user=user,
                 token_ok=None,
@@ -742,7 +743,7 @@ async def create_job(
                 last_error=debug_ctx.get("last_error"),
                 debug_context=debug_ctx,
                 codebase_id=codebase_id,
-                recent_jobs=db.list_recent_jobs(limit=50),
+                recent_jobs=crud_jobs.auto_list_recent_jobs(limit=50),
                 user=user,
                 token_ok=None,
             )
@@ -769,7 +770,7 @@ async def create_job(
                 last_error=debug_ctx.get("last_error"),
                 debug_context=debug_ctx,
                 codebase_id=codebase_id,
-                recent_jobs=db.list_recent_jobs(limit=50),
+                recent_jobs=crud_jobs.auto_list_recent_jobs(limit=50),
                 user=user,
                 token_ok=None,
             )
@@ -791,7 +792,7 @@ async def create_job(
                 last_error=debug_ctx.get("last_error"),
                 debug_context=debug_ctx,
                 codebase_id=codebase_id,
-                recent_jobs=db.list_recent_jobs(limit=50),
+                recent_jobs=crud_jobs.auto_list_recent_jobs(limit=50),
                 user=user,
                 token_ok=None,
             )
@@ -813,7 +814,7 @@ async def create_job(
                 last_error=debug_ctx.get("last_error"),
                 debug_context=debug_ctx,
                 codebase_id=codebase_id,
-                recent_jobs=db.list_recent_jobs(limit=50),
+                recent_jobs=crud_jobs.auto_list_recent_jobs(limit=50),
                 user=user,
                 token_ok=None,
             )
@@ -1114,7 +1115,7 @@ async def create_job(
     except Exception as exc:
         logger.error("Failed to write job spec for %s: %s", job_id, exc)
         try:
-            db.update_job_status(job_id, jobs.STATUS_FAILED, finished_at=jobs.now_iso(), exit_code=-1)
+            crud_jobs.auto_update_job_status(job_id, jobs.STATUS_FAILED, finished_at=jobs.now_iso(), exit_code=-1)
         except Exception:
             logger.warning("Failed to mark job %s as failed after spec write error", job_id)
         debug_ctx["last_error"] = debug_ctx.get("last_error") or "Failed to persist job snapshot"
@@ -1188,7 +1189,7 @@ async def api_artifacts(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
-    if not db.get_job(job_id):
+    if not crud_jobs.auto_get_job(job_id):
         return JSONResponse({"detail": "Job not found"}, status_code=404)
     return list(jobs.list_artifacts(job_id).values())
 
@@ -1198,7 +1199,7 @@ async def api_artifact_download(request: Request, job_id: int, name: str):
     redirect = _require_login(request)
     if redirect:
         return redirect
-    job = db.get_job(job_id)
+    job = crud_jobs.auto_get_job(job_id)
     if not job:
         return render_page(
             request,
@@ -1241,7 +1242,7 @@ async def stream_log(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
-    if not db.get_job(job_id):
+    if not crud_jobs.auto_get_job(job_id):
         return JSONResponse({"detail": "Job not found"}, status_code=404)
 
     async def event_stream():
@@ -1269,7 +1270,7 @@ async def job_status(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
-    job = db.get_job(job_id)
+    job = crud_jobs.auto_get_job(job_id)
     if not job:
         return JSONResponse({"detail": "Job not found"}, status_code=404)
     return JSONResponse({
@@ -1284,7 +1285,7 @@ async def refresh_job(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
-    job = db.get_job(job_id)
+    job = crud_jobs.auto_get_job(job_id)
     if not job:
         return JSONResponse({"detail": "Job not found"}, status_code=404)
     return JSONResponse(job)

@@ -16,7 +16,13 @@ from urllib.parse import urlparse
 from .auth import load_user_tokens
 from .config import get_git_host, get_jobs_root, get_token_root, get_job_dir, get_job_work_dir
 from .app_settings import app_settings
-from .db import get_connection, update_job_status, get_job
+from .crud_jobs import (
+    auto_get_job as get_job,
+    auto_update_job_status as update_job_status,
+    auto_create_job as _orm_create_job,
+    auto_get_job_owner,
+    auto_reset_job_for_retry,
+)
 from .email import send_job_notification
 
 logger = logging.getLogger(__name__)
@@ -191,16 +197,14 @@ def create_job(
     base_job_path: Optional[str] = None,
 ) -> int:
     created_at = created_at or now_iso()
-    with get_connection() as conn:
-        cur = conn.execute(
-            """
-            INSERT INTO jobs (owner, repo_url, ref, machine, target, status, created_at, recipe_id, raw_recipe_yaml, note, created_by, cc_emails)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (created_by, "", "", "", "", STATUS_PENDING, created_at, recipe_id, raw_recipe_yaml, note or "", created_by, cc_emails or ""),
-        )
-        conn.commit()
-        job_id = cur.lastrowid
+    job_id = _orm_create_job(
+        created_by=created_by,
+        recipe_id=recipe_id,
+        raw_recipe_yaml=raw_recipe_yaml,
+        note=note,
+        created_at=created_at,
+        cc_emails=cc_emails,
+    )
     prepare_job_dirs(job_id)
     # Clone workspace from base_job if requested
     try:
@@ -303,11 +307,7 @@ def start_job_runner(job_id: int, owner: Optional[str] = None) -> None:
         owner = spec_owner
         if owner is None:
             try:
-                with get_connection() as conn:
-                    cur = conn.execute("SELECT created_by, owner FROM jobs WHERE id = ?", (job_id,))
-                    row = cur.fetchone()
-                    if row:
-                        owner = row[0] or row[1]
+                owner = auto_get_job_owner(job_id)
             except Exception:
                 owner = None
     owner = owner or os.environ.get("USER") or "autobuild"
@@ -670,24 +670,12 @@ def retry_job(job_id: int, owner: Optional[str] = None) -> bool:
         job_data = None
     retry_created_at = now_iso()
     try:
-        with get_connection() as conn:
-            db_owner = None
-            if job_data:
-                db_owner = job_data.get("created_by") or job_data.get("owner")
-            owner = owner or db_owner
-            conn.execute(
-                """
-                UPDATE jobs
-                   SET status = ?,
-                       started_at = NULL,
-                       finished_at = NULL,
-                       exit_code = NULL,
-                       created_at = ?
-                 WHERE id = ?
-                """,
-                (STATUS_PENDING, retry_created_at, job_id),
-            )
-            conn.commit()
+        db_owner = None
+        if job_data:
+            db_owner = job_data.get("created_by") or job_data.get("owner")
+        owner = owner or db_owner
+        if not auto_reset_job_for_retry(job_id, retry_created_at):
+            return False
     except Exception:
         logger.warning("Failed to reset job state for retry (job=%s)", job_id, exc_info=True)
         return False

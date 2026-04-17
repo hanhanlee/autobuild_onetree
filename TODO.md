@@ -23,7 +23,7 @@
 
 - [x] **時間設定收斂**：確認 jobs 頁面的雙重轉換 bug 已不存在；dashboard 改為使用統一 app timezone，移除硬編碼 `GMT+8`
 - [x] **`requirements.txt` 版本鎖定**：已依 deployed virtualenv 版本鎖定，避免下次部署拉到 breaking change
-- [ ] **Dual DB 架構統一**：SQLAlchemy ORM（SystemSettings）+ raw sqlite3（jobs）並存，增加維護複雜度。長期應統一
+- [x] **Dual DB 架構統一**：jobs 表已遷移至 SQLAlchemy ORM（`crud_jobs.py`），db.py 僅保留 migration DDL 和 projects.py 相容層
 - [x] **`_spec_locks` dict 記憶體洩漏**：已加上限 200 + 自動清理未持有的 lock
 - [x] **減少 jobs 頁輪詢負擔**：badge 改用輕量 `/jobs/{id}/status` endpoint（~100B）取代 HTMX 全頁重渲染；log 完成後停止輪詢；jobs 列表頁無 active job 時停止自動刷新
 
