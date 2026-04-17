@@ -8,8 +8,13 @@
 - 已完成本地 commit：`5730357` `Stabilize housekeeping and runtime behavior`
 - 已建立本地 tag：`v0.9.1`
 - 已完成本地 commit：`dc11cb4` `Pin dependencies and align dashboard timezone`
+- 已完成本地 commit：`b317825` `Unify DB: migrate jobs table from raw sqlite3 to SQLAlchemy ORM`
+- 已完成本地 commit：`a08d3ad` `P2: CSRF protection, SQL injection fix, .env hardening, systemd security`
+- 已完成本地 commit：`5382650` `Fix cleanup feedback, pin toggle, and duplicate build logs`
 - `git push origin master` / `git push origin v0.9.1` 失敗：GitHub 回覆 `403 Permission denied to NathanLee_amient`
-- 工作樹目前僅剩未追蹤檔案：`docs/prompt.txt`（未納入 commit）
+- 工作樹目前為乾淨狀態
+- 實機已部署並驗證：CSRF、SQL injection guard、jobs pin 修正、settings cleanup 回應修正、runner duplicate log 修正
+- 實機尚未落地：`.env` 仍為 `0644`；systemd hardening / `RuntimeMaxSec` 仍未套用；8080 file server 仍在執行
 
 ---
 
@@ -34,11 +39,11 @@
 
 ## P2 — 良好實踐，有空再做
 
-- [x] **`.env` 權限收緊**：deploy script 已加 `chmod 600` 與 `chown`
+- [ ] **`.env` 權限收緊**：repo 的 deploy script 已加 `chmod 600` 與 `chown`，但實機 `/opt/autobuild/.env` 目前仍為 `0644`
 - [ ] **GitLab token 儲存**：明文 JSON 存在 filesystem，目前 secrets 目錄已限 `scm-bmc` group，風險可控
 - [x] **SQL injection in db migration**：`_validate_identifier()` + `_DDL_RE` 防禦已加入 `db.py`
 - [x] **Path traversal 檢查**：`routes/jobs.py` `_safe_job_dir()` 改用 `Path.is_relative_to()`，移除 debug print
-- [x] **CSRF 保護**：Synchronizer Token Pattern 已實作（`csrf.py`），所有 POST handler 已加 `validate_csrf`
+- [x] **CSRF 保護**：Synchronizer Token Pattern 已實作（`csrf.py`），已部署並完成基本 smoke 驗證
 - [ ] **HTTPS**：純內網可接受，若需要可加自簽憑證
-- [x] **Systemd security directives**：已加 NoNewPrivileges, ProtectSystem=strict, ProtectHome, PrivateTmp
+- [ ] **Systemd security directives**：repo 內已有候選設定，但實機目前仍為 `ProtectSystem=no`、`ProtectHome=no`、`PrivateTmp=no`、`NoNewPrivileges=no`；現有版本不建議直接部署
 - [ ] **Port 8080 file server**：`python3 -m http.server 8080` 由 nathan 跑在 0.0.0.0，確認是否仍需要

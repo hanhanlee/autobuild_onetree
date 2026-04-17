@@ -1,6 +1,19 @@
 Project Status Summary (for AI helper)
 ======================================
 
+Verified State (2026-04-17)
+---------------------------
+- Repo HEAD: `5382650` (`Fix cleanup feedback, pin toggle, and duplicate build logs`).
+- Live app code deployed to `/opt/autobuild`: CSRF protection, SQL injection guard in `db.py`, settings cleanup feedback fix, jobs pin UI fix, and runner duplicate-log fix.
+- Live machine state still differs from repo deployment assets:
+  - `/opt/autobuild/.env` is still mode `0644` (deploy script fix exists in repo but has not been applied to the file on disk).
+  - Active systemd unit still has `ProtectSystem=no`, `ProtectHome=no`, `PrivateTmp=no`, `NoNewPrivileges=no`, and `RuntimeMaxUSec=infinity`.
+  - A separate `python3 -m http.server 8080` process owned by `nathan` is still listening on `0.0.0.0:8080`.
+- Practical conclusion:
+  - CSRF is deployed and smoke-tested.
+  - `.env` hardening is repo-only for now.
+  - The current repo version of systemd hardening should not be deployed unchanged because it likely conflicts with the `sudo` + user-home credential flow in `app/auth.py`.
+
 Purpose
 -------
 - FastAPI + Jinja2 web app for Yocto build job submission, logs, artifacts.
@@ -63,6 +76,11 @@ Known Issues / Gaps (from review)
   - README/UI mention ~/.autobuild or /opt/autobuild/workspace.
   - Actual code uses {workspace_root}/secrets/gitlab/{user}.token.
 - [Low] SSE log stream exists but UI uses JSON polling; static/app.js unused.
+- [Operational] Status docs must distinguish repo changes from live deployment state.
+- [Operational] Recent UI/runtime fixes already deployed and verified:
+  - settings cleanup feedback now renders beside the cleanup controls
+  - jobs pin toggle no longer uses nested forms
+  - new jobs should no longer duplicate every build log line
 
 Consistency Notes
 -----------------
