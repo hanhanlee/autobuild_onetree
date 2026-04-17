@@ -11,6 +11,7 @@
 <div id="settings-response" class="mb-3"></div>
 
 <form class="row g-3" hx-post="/settings/update" hx-target="#settings-response">
+      {{ csrf_input(csrf_token) }}
   <div class="col-md-8 col-lg-6">
     <div class="card h-100">
       <div class="card-body">
@@ -60,6 +61,7 @@
             <span class="badge bg-light text-dark">/work/sstate-cache</span>
           </div>
           <form class="row g-2 align-items-end" hx-post="/settings/cleanup" hx-target="#settings-response">
+      {{ csrf_input(csrf_token) }}
             <input type="hidden" name="target" value="sstate">
             <div class="col-8">
               <label class="form-label" for="sstate_days">Days Unused</label>
@@ -77,6 +79,7 @@
             <span class="badge bg-light text-dark">/work/downloads</span>
           </div>
           <form class="row g-2 align-items-end" hx-post="/settings/cleanup" hx-target="#settings-response">
+      {{ csrf_input(csrf_token) }}
             <input type="hidden" name="target" value="downloads">
             <div class="col-8">
               <label class="form-label" for="downloads_days">Days Unused</label>

@@ -17,6 +17,7 @@ from .. import crud_jobs
 from ..auth import username_auth, has_gitlab_token
 from ..app_settings import app_settings
 from ..crud_settings import get_system_settings
+from ..csrf import validate_csrf
 from ..database import SessionLocal
 from ..config import get_jobs_root, get_presets_root, get_workspace_root, get_job_work_dir
 from ..recipes_catalog import list_recipes as catalog_list_recipes
@@ -388,6 +389,7 @@ async def pin_job(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
+    await validate_csrf(request)
     job = crud_jobs.auto_get_job(job_id)
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
@@ -410,6 +412,7 @@ async def prune_job(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
+    await validate_csrf(request)
     job = crud_jobs.auto_get_job(job_id)
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
@@ -446,6 +449,7 @@ async def stop_job(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
+    await validate_csrf(request)
     job = crud_jobs.auto_get_job(job_id)
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
@@ -462,6 +466,7 @@ async def retry_job(request: Request, job_id: int, background_tasks: BackgroundT
     redirect = _require_login(request)
     if redirect:
         return redirect
+    await validate_csrf(request)
     job = crud_jobs.auto_get_job(job_id)
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
@@ -480,6 +485,7 @@ async def delete_job(request: Request, job_id: int):
     redirect = _require_login(request)
     if redirect:
         return redirect
+    await validate_csrf(request)
     job = crud_jobs.auto_get_job(job_id)
     if not job:
         return RedirectResponse(url="/jobs?error=not_found", status_code=303)
@@ -509,6 +515,7 @@ async def jobs_batch_action(request: Request):
     redirect = _require_login(request)
     if redirect:
         return redirect
+    await validate_csrf(request)
     try:
         form = await request.form()
     except Exception:
@@ -587,6 +594,7 @@ async def create_job(
     redirect = _require_login(request)
     if redirect:
         return redirect
+    await validate_csrf(request)
     user = _current_user(request)
     recipes, debug_ctx_raw = _list_recipes_from_presets()
     codebases, cb_error = _list_codebases()

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
 from ..config import get_presets_root
+from ..csrf import validate_csrf
 from ..recipes.generator import generate_recipe_yaml
 from ..web import render_page
 
@@ -287,6 +288,7 @@ async def save_project_recipe(request: Request):
     user = _current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
+    await validate_csrf(request)
 
     try:
         form = await request.form()
@@ -445,6 +447,7 @@ async def create_project_form(
     request: Request,
 ):
     user = _current_user(request)
+    await validate_csrf(request)
     return render_page(
         request,
         "projects.html",
@@ -461,6 +464,7 @@ async def create_version_form(
     request: Request,
 ):
     user = _current_user(request)
+    await validate_csrf(request)
     return render_page(
         request,
         "projects.html",
@@ -477,6 +481,7 @@ async def fork_project_form(
     request: Request,
 ):
     user = _current_user(request)
+    await validate_csrf(request)
     return render_page(
         request,
         "projects.html",
@@ -507,6 +512,7 @@ async def new_project_template_post(
     request: Request,
 ):
     user = _current_user(request)
+    await validate_csrf(request)
     return render_page(
         request,
         "projects.html",

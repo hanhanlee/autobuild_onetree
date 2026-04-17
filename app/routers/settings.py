@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..crud_settings import get_system_settings, update_system_settings
+from ..csrf import validate_csrf
 from ..database import SessionLocal
 from ..web import render_page
 
@@ -59,6 +60,7 @@ async def update_settings(
     redirect = _require_login(request)
     if redirect:
         return redirect
+    await validate_csrf(request)
     errors = []
     if prune_days < 0:
         errors.append("Prune days must be 0 or greater.")
@@ -92,6 +94,7 @@ async def cleanup_cache(request: Request):
     redirect = _require_login(request)
     if redirect:
         return redirect
+    await validate_csrf(request)
     data = {}
     try:
         form = await request.form()

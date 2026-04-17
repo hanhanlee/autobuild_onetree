@@ -89,6 +89,7 @@
 <div class="card shadow-sm">
   <div class="card-body">
     <form method="post" action="/jobs/batch">
+      {{ csrf_input(csrf_token) }}
       <div class="d-flex gap-2 mb-3">
         <button type="submit" class="btn btn-outline-secondary btn-sm" name="action" value="prune"><i class="bi bi-eraser"></i> Prune Selected</button>
         <button type="submit" class="btn btn-outline-danger btn-sm" name="action" value="delete"><i class="bi bi-trash"></i> Delete Selected</button>
@@ -124,6 +125,7 @@
               <td>
                 <a href="/jobs/{{ j.id }}" class="fw-semibold text-primary text-decoration-underline">{{ j.id }}</a>
                 <form method="post" action="/jobs/{{ j.id }}/pin" class="d-inline">
+      {{ csrf_input(csrf_token) }}
                   <button type="submit" name="pinned" value="{% if is_pinned %}0{% else %}1{% endif %}" class="btn btn-sm btn-outline-warning" title="Toggle pin">
                     <i class="bi {% if is_pinned %}bi-pin-fill{% else %}bi-pin-angle{% endif %}"></i>
                   </button>

@@ -18,6 +18,7 @@
   {% endif %}
 
   <form method="post" action="/new" class="row g-3">
+      {{ csrf_input(csrf_token) }}
     <div class="col-md-3">
       <div class="card h-100">
         <div class="card-body">

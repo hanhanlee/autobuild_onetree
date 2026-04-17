@@ -4,10 +4,12 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 
 from . import auth
 from .app_settings import app_settings
 from .config import get_git_host
+from .csrf import get_or_create_token
 from .version import __version__ as APP_VERSION
 
 
@@ -21,6 +23,14 @@ class TemplateUser(str):
 
 templates = Jinja2Templates(directory="templates")
 templates.env.globals["app_version"] = APP_VERSION
+
+
+def _csrf_input(token: str = "") -> Markup:
+    """Generate a hidden CSRF input field for use in templates: {{ csrf_input(csrf_token) }}"""
+    return Markup(f'<input type="hidden" name="csrf_token" value="{token}">')
+
+
+templates.env.globals["csrf_input"] = _csrf_input
 
 
 def format_datetime_taipei(value: Optional[str]) -> str:
@@ -72,6 +82,7 @@ def render_page(
         "current_page": current_page or "",
         "git_host": get_git_host(),
         "token_ok": token_ok,
+        "csrf_token": get_or_create_token(request),
     }
     base.update(ctx)
     # Ensure user is always a TemplateUser (or None) even if ctx provided its own value.

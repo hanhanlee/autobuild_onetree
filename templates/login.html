@@ -5,6 +5,7 @@
     {% if error %}<div class="alert alert-danger py-2">{{ error }}</div>{% endif %}
     {% if message %}<div class="alert alert-success py-2">{{ message }}</div>{% endif %}
     <form method="post" action="/login" style="display:flex;flex-direction:column;max-width:300px;gap:0.5rem;">
+      {{ csrf_input(csrf_token) }}
         <label>Username <input type="text" name="username" required autocomplete="username"></label>
         <label>Password <input type="password" name="password" required autocomplete="current-password"></label>
         <button type="submit">Login</button>

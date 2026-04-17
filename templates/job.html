@@ -17,6 +17,7 @@
         <div class="d-flex align-items-center gap-2">
           <a href="/new" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus-circle"></i> New Job</a>
           <form method="post" action="/jobs/{{ job.id }}/pin">
+      {{ csrf_input(csrf_token) }}
             <button type="submit" name="pinned" value="{% if job.pinned %}0{% else %}1{% endif %}" class="btn btn-outline-warning">
               <i class="bi {% if job.pinned %}bi-pin-fill{% else %}bi-pin-angle{% endif %}"></i> {% if job.pinned %}Pinned{% else %}Pin{% endif %}
             </button>

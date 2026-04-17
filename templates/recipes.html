@@ -53,6 +53,7 @@
                     <td class="d-flex gap-2 align-items-center">
                         <a class="btn btn-sm btn-outline-primary" href="/recipes/edit?rid={{ file.rid }}">Edit</a>
                         <form method="post" action="/recipes/delete" class="m-0">
+      {{ csrf_input(csrf_token) }}
                             <input type="hidden" name="rid" value="{{ file.rid }}">
                             <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to PERMANENTLY delete this recipe? This cannot be undone.');">Delete</button>
                         </form>

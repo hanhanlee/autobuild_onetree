@@ -10,6 +10,7 @@ from fastapi.responses import RedirectResponse
 
 from .. import auth
 from ..config import get_presets_root
+from ..csrf import validate_csrf
 from ..web import render_page
 
 router = APIRouter()
@@ -275,6 +276,7 @@ async def recipe_save(request: Request):
     user = _current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
+    await validate_csrf(request)
     try:
         form = await request.form()
     except Exception:
@@ -354,6 +356,7 @@ async def recipe_archive(request: Request):
     user = _current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
+    await validate_csrf(request)
     presets_root = get_presets_root()
     try:
         form = await request.form()
@@ -426,6 +429,7 @@ async def recipe_delete(request: Request):
     user = _current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
+    await validate_csrf(request)
     presets_root = get_presets_root()
     try:
         form = await request.form()
@@ -450,6 +454,7 @@ async def recipe_copy(request: Request):
     user = _current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
+    await validate_csrf(request)
     try:
         form = await request.form()
     except Exception:
@@ -584,6 +589,7 @@ async def recipes_new_post(
     user = _current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
+    await validate_csrf(request)
     if not auth.username_auth(user):
         return render_page(request, "recipes_new.html", user=user, token_ok=None, current_page="projects", status_code=403, error="Forbidden")
 

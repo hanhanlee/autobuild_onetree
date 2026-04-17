@@ -146,6 +146,10 @@ fix_permissions() {
 
     if [ ! -f "$DEST_DIR/.env" ]; then
         echo -e "${YELLOW}⚠️  .env file missing in production! Please create $DEST_DIR/.env manually.${NC}"
+    else
+        chmod 600 "$DEST_DIR/.env"
+        chown "${TARGET_USER}:${TARGET_GROUP}" "$DEST_DIR/.env"
+        echo -e "${GREEN}.env permissions set to 600.${NC}"
     fi
 
     echo -e "${GREEN}Permissions fixed.${NC}"

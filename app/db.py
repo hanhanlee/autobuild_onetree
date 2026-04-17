@@ -1,7 +1,17 @@
+import re
 import sqlite3
 from typing import Any, Dict, List, Optional
 
 from .config import get_db_path
+
+_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_DDL_RE = re.compile(r"^[A-Za-z0-9_ '()]+$")
+
+
+def _validate_identifier(name: str) -> str:
+    if not _IDENT_RE.match(name):
+        raise ValueError(f"Invalid SQL identifier: {name!r}")
+    return name
 
 
 def _enable_foreign_keys(conn: sqlite3.Connection) -> None:
@@ -12,6 +22,7 @@ def _enable_foreign_keys(conn: sqlite3.Connection) -> None:
 
 
 def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    table = _validate_identifier(table)
     cur = conn.execute(f"PRAGMA table_info({table})")
     for row in cur.fetchall():
         # PRAGMA table_info returns: cid, name, type, notnull, dflt_value, pk
@@ -21,6 +32,10 @@ def _has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
 
 
 def _add_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    table = _validate_identifier(table)
+    column = _validate_identifier(column)
+    if not _DDL_RE.match(ddl):
+        raise ValueError(f"Invalid DDL fragment: {ddl!r}")
     if not _has_column(conn, table, column):
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 

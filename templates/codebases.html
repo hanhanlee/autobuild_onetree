@@ -30,6 +30,7 @@
                 <td>
                     {% if confirm_action and confirm_codebase == cb.id %}
                     <form method="post" action="/codebases/action" style="display:inline;">
+      {{ csrf_input(csrf_token) }}
                         <input type="hidden" name="action" value="{{ confirm_action }}">
                         <input type="hidden" name="codebase_id" value="{{ cb.id }}">
                         <button type="submit">Confirm {{ confirm_action }}</button>

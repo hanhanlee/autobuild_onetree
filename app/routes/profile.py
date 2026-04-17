@@ -4,6 +4,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from .. import auth
+from ..csrf import validate_csrf
 from ..web import render_page
 
 router = APIRouter()
@@ -53,6 +54,7 @@ async def profile_update(
     redirect = _require_login(request)
     if redirect:
         return redirect
+    await validate_csrf(request)
     user = _current_user(request)
     try:
         auth.save_user_tokens(user, git_token_primary, git_token_secondary, git_username_primary, git_username_secondary, email)

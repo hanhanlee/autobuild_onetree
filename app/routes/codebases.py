@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Tuple
 from fastapi import APIRouter, Request, Response
 
 from ..config import get_workspace_root
+from ..csrf import validate_csrf
 from ..web import render_page
 
 router = APIRouter()
@@ -157,6 +158,7 @@ async def codebases_action(request: Request):
     auth_resp = _require_login(request)
     if auth_resp:
         return auth_resp
+    await validate_csrf(request)
     user = _current_user(request)
     try:
         form = await request.form()

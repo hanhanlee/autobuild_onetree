@@ -12,6 +12,7 @@
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     <form method="post" action="/recipes/save" style="display:flex;flex-direction:column;gap:0.75rem;">
+      {{ csrf_input(csrf_token) }}
         <input type="hidden" name="rid" value="{{ rid }}">
         <label>Content (YAML)
             <textarea name="content" style="width:100%; height: 500px; font-family:monospace;">{{ content }}</textarea>
@@ -28,6 +29,7 @@
     <div class="card" style="flex:1;min-width:260px;">
         <h3>Copy</h3>
         <form method="post" action="/recipes/copy" style="display:flex;flex-direction:column;gap:0.5rem;">
+      {{ csrf_input(csrf_token) }}
             <input type="hidden" name="rid" value="{{ rid }}">
             <label>New filename (same platform)
                 <input type="text" name="new_name" value="{{ filename|replace('.yaml','') }}_copy.yaml">
@@ -38,6 +40,7 @@
     <div class="card" style="flex:1;min-width:200px;">
         <h3>Archive</h3>
         <form method="post" action="/recipes/archive" style="display:flex;flex-direction:column;gap:0.5rem;">
+      {{ csrf_input(csrf_token) }}
             <input type="hidden" name="rid" value="{{ rid }}">
             <button type="submit">Move to .archived</button>
         </form>
