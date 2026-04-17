@@ -124,12 +124,9 @@
               <td><input type="checkbox" name="job_ids" value="{{ j.id }}" data-job-id="{{ j.id }}" {% if is_pinned %}disabled{% endif %}></td>
               <td>
                 <a href="/jobs/{{ j.id }}" class="fw-semibold text-primary text-decoration-underline">{{ j.id }}</a>
-                <form method="post" action="/jobs/{{ j.id }}/pin" class="d-inline">
-      {{ csrf_input(csrf_token) }}
-                  <button type="submit" name="pinned" value="{% if is_pinned %}0{% else %}1{% endif %}" class="btn btn-sm btn-outline-warning" title="Toggle pin">
-                    <i class="bi {% if is_pinned %}bi-pin-fill{% else %}bi-pin-angle{% endif %}"></i>
-                  </button>
-                </form>
+                <button type="submit" formaction="/jobs/{{ j.id }}/pin" formmethod="post" name="pinned" value="{% if is_pinned %}0{% else %}1{% endif %}" class="btn btn-sm btn-outline-warning" title="Toggle pin">
+                  <i class="bi {% if is_pinned %}bi-pin-fill{% else %}bi-pin-angle{% endif %}"></i>
+                </button>
               </td>
               <td>
                 {% if j.recipe_id %}

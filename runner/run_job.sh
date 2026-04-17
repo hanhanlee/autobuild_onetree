@@ -212,7 +212,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
-exec > >(tee -a "${LOG_FILE}") 2>&1
+# When the parent process already redirects stdout/stderr to LOG_FILE,
+# tee would append the same output a second time.
+stdout_target="$(readlink -f /proc/$$/fd/1 2>/dev/null || true)"
+log_target="$(readlink -f "${LOG_FILE}" 2>/dev/null || true)"
+if [[ -n "${stdout_target}" && -n "${log_target}" && "${stdout_target}" == "${log_target}" ]]; then
+  :
+else
+  exec > >(tee -a "${LOG_FILE}") 2>&1
+fi
 
 echo "Starting job ${JOB_ID} at $(timestamp)"
 

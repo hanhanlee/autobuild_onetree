@@ -55,12 +55,13 @@
             <small class="text-muted">Manual cleanup for shared Yocto caches.</small>
           </div>
         </div>
+        <div id="cleanup-response" class="mb-3"></div>
         <div class="mb-4">
           <div class="d-flex align-items-center justify-content-between mb-2">
             <div class="fw-semibold">SState Cache</div>
             <span class="badge bg-light text-dark">/work/sstate-cache</span>
           </div>
-          <form class="row g-2 align-items-end" hx-post="/settings/cleanup" hx-target="#settings-response">
+          <form class="row g-2 align-items-end" hx-post="/settings/cleanup" hx-target="#cleanup-response">
       {{ csrf_input(csrf_token) }}
             <input type="hidden" name="target" value="sstate">
             <div class="col-8">
@@ -78,7 +79,7 @@
             <div class="fw-semibold">Downloads</div>
             <span class="badge bg-light text-dark">/work/downloads</span>
           </div>
-          <form class="row g-2 align-items-end" hx-post="/settings/cleanup" hx-target="#settings-response">
+          <form class="row g-2 align-items-end" hx-post="/settings/cleanup" hx-target="#cleanup-response">
       {{ csrf_input(csrf_token) }}
             <input type="hidden" name="target" value="downloads">
             <div class="col-8">
