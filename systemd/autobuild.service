@@ -1,6 +1,7 @@
 [Unit]
 Description=Autobuild Web Service
 After=network.target
+RequiresMountsFor=/work
 
 [Service]
 User=autobuild
@@ -16,12 +17,10 @@ Environment="AUTOBUILD_DB=/work/autobuild_workspace/data/jobs.db"
 # --- 記憶體洩漏止血：每 24 小時自動重啟 ---
 RuntimeMaxSec=86400
 
-# --- 安全強化 ---
-NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=yes
-PrivateTmp=yes
-ReadWritePaths=/work/autobuild_workspace /opt/autobuild
+# --- 內網保守設定 ---
+# 保留低風險穩定性設定；避免使用會干擾 sudo / user-home 流程的硬化項。
+RestartSec=3
+TimeoutStopSec=30
 
 # --- 啟動指令 ---
 ExecStart=/opt/autobuild/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers
