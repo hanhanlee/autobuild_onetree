@@ -5,6 +5,7 @@ Getting Started
 ---------------
 - Login: Use your Linux system account (PAM). Only users in the allowed group can sign in.
 - Navigation: Use the left sidebar to move between Dashboard, Create Job, Jobs, Recipes, Profile, and Settings.
+- This service is intended for internal use on the local network.
 
 Job Management
 --------------
@@ -27,12 +28,14 @@ Job Details
   - .bin
   - .img
   - .mtd / .static.mtd
+- New jobs should no longer show every log line twice; older logs may still contain duplicate lines from before the runner fix.
 
 Pinning (New)
 - Click the pin icon in the job list or detail header.
 - Pinned jobs:
   - Stay at the top of the Jobs list.
   - Cannot be pruned or deleted until unpinned.
+- Pin/unpin now uses the main Jobs form correctly and should update consistently in the list view.
 
 Disk Space Management
 ---------------------
@@ -49,4 +52,11 @@ Storage Maintenance (Global Settings)
 - Downloads cleanup:
   - Deletes only root-level files in /work/downloads.
   - Does not enter subdirectories to protect git repositories.
+- Cleanup results are shown directly in the Settings page near the cleanup controls.
+
+Profile / Tokens
+----------------
+- GitLab tokens are managed in the Profile page.
+- Tokens are stored on the server under `/work/autobuild_workspace/secrets/gitlab/<username>.token`.
+- The `.env` file for the service is `/opt/autobuild/.env`.
 

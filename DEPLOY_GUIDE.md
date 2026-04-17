@@ -37,13 +37,17 @@ Section 3: Directory Structure & Permissions
 Required paths:
 - App directory: /opt/autobuild
 - Work directory: /work (mount a large SSD/NVMe volume here)
+- Workspace root: /work/autobuild_workspace
+- Jobs root: /work/autobuild_workspace/jobs
+- DB path: /work/autobuild_workspace/data/jobs.db
+- Token root: /work/autobuild_workspace/secrets/gitlab
 
 Set ownership, permissions, and SetGID (g+s):
 ```bash
-sudo mkdir -p /opt/autobuild /work
-sudo chown -R $USER:scm-bmc /opt/autobuild /work
-sudo chmod -R 775 /opt/autobuild /work
-sudo chmod g+s /opt/autobuild /work
+sudo mkdir -p /opt/autobuild /work/autobuild_workspace/jobs /work/autobuild_workspace/data /work/autobuild_workspace/secrets/gitlab
+sudo chown -R autobuild:scm-bmc /opt/autobuild /work/autobuild_workspace
+sudo find /opt/autobuild /work/autobuild_workspace -type d -exec chmod 2775 {} +
+sudo find /opt/autobuild /work/autobuild_workspace -type f -exec chmod 664 {} +
 ```
 
 Section 4: Installation
@@ -56,6 +60,11 @@ cd /opt/autobuild
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+```
+
+Create the environment file:
+```bash
+sudo install -o autobuild -g scm-bmc -m 600 /dev/null /opt/autobuild/.env
 ```
 
 Section 4.1: Optional - Deployment Script (tools/)
@@ -82,25 +91,47 @@ Section 5: Configuration
 Systemd Service
 - Copy the service file from the repo:
 ```bash
-sudo cp /opt/autobuild/systemd/autobuild.service /etc/systemd/system/autobuild-onetree.service
-```
-- Edit the service file and set the correct user:
-```bash
-sudo sed -i "s/^User=.*/User=$USER/" /etc/systemd/system/autobuild-onetree.service
+sudo cp /opt/autobuild/systemd/autobuild.service /etc/systemd/system/autobuild.service
 ```
 - Reload and start:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now autobuild-onetree
+sudo systemctl enable --now autobuild
+```
+- Current recommended unit style for this project is conservative internal-use:
+  - keep `RequiresMountsFor=/work`
+  - keep `RuntimeMaxSec=86400`
+  - keep `RestartSec=3`
+  - keep `TimeoutStopSec=30`
+  - do not enable `ProtectSystem=strict`, `ProtectHome=yes`, or `NoNewPrivileges=yes` unless the `sudo` + user-home credential flow is removed first
+
+Optional override file already seen on the current internal host:
+```bash
+sudo mkdir -p /etc/systemd/system/autobuild.service.d
+sudoedit /etc/systemd/system/autobuild.service.d/override.conf
+```
+
+Example conservative override:
+```ini
+[Service]
+ReadWritePaths=/work
+ProtectSystem=off
+ProtectHome=off
+PrivateTmp=false
+
+[Unit]
+RequiresMountsFor=/work
 ```
 
 Nginx (Optional)
 - Use `nginx/autobuild.conf` as a reverse proxy (port 80 -> 8000).
+- HTTPS is not enabled by default in the current internal deployment.
 
 Section 6: Verification
 -----------------------
 ```bash
-systemctl status autobuild-onetree
+systemctl status autobuild
+systemctl show autobuild -p RuntimeMaxUSec -p RestartUSec -p TimeoutStopUSec -p RequiresMountsFor
 ```
 
 Access the Web UI:
@@ -115,3 +146,9 @@ Section 7: Troubleshooting
   - Confirm the user is in the `scm-bmc` group and re-login.
 - Bitbake command not found:
   - Confirm Yocto dependencies were installed in Section 1.
+- `.env` still too open:
+  - Run `sudo chmod 600 /opt/autobuild/.env && sudo chown autobuild:scm-bmc /opt/autobuild/.env`
+- Build log lines appear twice:
+  - Confirm `/opt/autobuild/runner/run_job.sh` includes the stdout/log-file duplicate guard and test with a new job.
+- Extra port 8080 open:
+  - `python3 -m http.server 8080` is not part of the main app; stop it if not needed.
