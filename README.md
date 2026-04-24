@@ -1,14 +1,20 @@
-# Yocto Auto Build Web (MVP)
+# Autobuild Onetree
 
-FastAPI + Jinja2 service to submit Yocto build jobs, stream logs, and fetch artifacts. The current internal deployment target is Ubuntu 24.04 with app code under `/opt/autobuild` and shared workspace data under `/work/autobuild_workspace`.
+FastAPI + Jinja2 service for internal Yocto build operations, including job submission, log streaming, artifact access, token management, and shared workspace maintenance. The current deployment target is Ubuntu 24.04 with app code under `/opt/autobuild` and shared workspace data under `/work/autobuild_workspace`.
+
+## Docs
+
+- `DEPLOY_GUIDE.md`: full deployment, redeployment, systemd, nginx, `.env`, and verification.
+- `USER_GUIDE.md`: day-to-day operator workflow, jobs, tokens, cleanup, and common usage issues.
 
 ## Quick Start (Ubuntu 24.04)
 
-1) **Create user and directories**
+1) **Create user, group, and directories**
    ```bash
    sudo adduser --system --group autobuild
-   sudo groupadd scm-bmc
+   getent group scm-bmc >/dev/null || sudo groupadd scm-bmc
    sudo usermod -aG scm-bmc autobuild
+   sudo usermod -aG scm-bmc <your-linux-login-user>
    sudo mkdir -p /opt/autobuild /work/autobuild_workspace/jobs /work/autobuild_workspace/data
    sudo chown -R autobuild:scm-bmc /opt/autobuild /work/autobuild_workspace
    ```
@@ -16,7 +22,7 @@ FastAPI + Jinja2 service to submit Yocto build jobs, stream logs, and fetch arti
 2) **Copy code**
    ```bash
    sudo rsync -a ./ /opt/autobuild/
-   sudo chown -R autobuild:autobuild /opt/autobuild
+   sudo chown -R autobuild:scm-bmc /opt/autobuild
    ```
 
 3) **Python env**
@@ -26,22 +32,25 @@ FastAPI + Jinja2 service to submit Yocto build jobs, stream logs, and fetch arti
    sudo -u autobuild /opt/autobuild/venv/bin/pip install -r /opt/autobuild/requirements.txt
    ```
 
-4) **Sudoers (allow run_job.sh only)**
+4) **Environment file**
    ```bash
-   sudo visudo -f /etc/sudoers.d/autobuild
-   # content:
-   autobuild ALL=(ALL) NOPASSWD: /opt/autobuild/runner/run_job.sh
+   sudo install -o autobuild -g scm-bmc -m 600 /dev/null /opt/autobuild/.env
+   sudoedit /opt/autobuild/.env
    ```
+   Recommended minimum content:
+   ```env
+   AUTOBUILD_SECRET_KEY=replace-with-a-long-random-secret
+   AUTOBUILD_ALLOWED_GROUP=scm-bmc
+   AUTOBUILD_GIT_HOST=gitlab.example.com
+   AUTOBUILD_TIMEZONE=Asia/Taipei
+   ```
+   Note: `AUTOBUILD_WORKSPACE_ROOT`, `AUTOBUILD_JOBS_ROOT`, and `AUTOBUILD_DB` are set by the systemd unit. Changing only `.env` will not override those values.
 
 5) **Per-user GitLab token**
    - Default token root is `/work/autobuild_workspace/secrets/gitlab/` and files are stored as `<username>.token`.
    - Tokens are saved via the UI at `/profile` (preferred), or by writing a JSON payload to the token file.
 
-6) **Environment file**
-   - Production uses `/opt/autobuild/.env`.
-   - The deploy script now enforces mode `0600`, but verify the file permissions on the machine after deployment.
-
-7) **Systemd service**
+6) **Systemd service**
    ```bash
    sudo cp /opt/autobuild/systemd/autobuild.service /etc/systemd/system/
    sudo systemctl daemon-reload
@@ -49,9 +58,9 @@ FastAPI + Jinja2 service to submit Yocto build jobs, stream logs, and fetch arti
    ```
    - The repo service file is now a conservative internal-use version.
    - It keeps `RequiresMountsFor=/work`, `RuntimeMaxSec=86400`, `RestartSec=3`, and `TimeoutStopSec=30`.
-   - It intentionally does not enable aggressive sandboxing such as `ProtectSystem=strict` or `NoNewPrivileges=yes` because the current app still uses `sudo` and per-user home directory credential flows.
+   - It intentionally does not enable aggressive sandboxing such as `ProtectSystem=strict` or `NoNewPrivileges=yes` until Yocto workspace access, git access, and reverse proxy behavior have been validated under those restrictions.
 
-8) **Nginx reverse proxy**
+7) **Nginx reverse proxy**
    ```bash
    sudo cp /opt/autobuild/nginx/autobuild.conf /etc/nginx/sites-available/
    sudo ln -s /etc/nginx/sites-available/autobuild.conf /etc/nginx/sites-enabled/autobuild.conf
@@ -68,7 +77,7 @@ FastAPI + Jinja2 service to submit Yocto build jobs, stream logs, and fetch arti
 
 ## Job flow
 1. Web inserts job into SQLite at `/work/autobuild_workspace/data/jobs.db` (override with `AUTOBUILD_DB` or `AUTO_BUILD_DB`).
-2. Background task runs `sudo -u <owner> /opt/autobuild/runner/run_job.sh <id> <repo> <ref> <machine> <target>`.
+2. Background task runs `/opt/autobuild/runner/run_job.sh <id>` as the `autobuild` service user.
 3. Runner logs to `/work/autobuild_workspace/jobs/<id>/logs/build.log`, updates `status.json` and `exit_code`.
 4. Runner workspace is `/work/autobuild_workspace/jobs/<id>/work`.
 5. Runner collects artifacts into `/work/autobuild_workspace/jobs/<id>/artifacts/`.
@@ -79,7 +88,8 @@ FastAPI + Jinja2 service to submit Yocto build jobs, stream logs, and fetch arti
    - `AUTOBUILD_JOBS_ROOT` / `AUTO_BUILD_JOBS_ROOT` (default `/work/autobuild_workspace/jobs`)
    - `AUTOBUILD_WORKSPACE_ROOT` / `AUTO_BUILD_WORKSPACE_ROOT` (default `/work/autobuild_workspace`)
    - `AUTOBUILD_SECRET_KEY` / `AUTO_BUILD_SECRET_KEY` (session signing; set to a strong value)
-- Runner currently contains a placeholder build step; replace with real Yocto build command.
+   - `AUTOBUILD_ALLOWED_GROUP` (default `scm-bmc`; Linux users in this group can log in)
+- Job execution behavior is driven by stored recipes and the runner script under `runner/run_job.sh`; verify recipe content and environment-specific build commands during deployment.
 - Linux files use LF; runner/systemd/nginx files are ready for deployment.
 - Recent runtime fixes already deployed internally:
    - POST forms now use CSRF protection.

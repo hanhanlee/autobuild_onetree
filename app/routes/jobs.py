@@ -653,7 +653,6 @@ async def create_job(
         )
     recipe_id_val = str(form.get("recipe_id") or "").strip()
     note = str(form.get("note") or "").strip()
-    codebase_id = str(form.get("codebase_id") or "").strip()
     base_job_id_raw = str(form.get("base_job_id") or "").strip()
     base_job_path: Optional[str] = None
     repo_url = str(form.get("repo_url") or "").strip()
@@ -705,7 +704,6 @@ async def create_job(
             resolved = jobs.resolve_base_job_path(base_job_id_int)
             base_job_id = base_job_id_int
             base_job_path = str(resolved)
-            codebase_id = base_job_path
             # If reusing a base job workspace, skip clone to avoid runner cleanup
             do_clone = False
         except ValueError as exc:
@@ -724,112 +722,11 @@ async def create_job(
                 workspaces_root=str(WORKSPACES_ROOT),
                 last_error=debug_ctx.get("last_error"),
                 debug_context=debug_ctx,
-                codebase_id=codebase_id,
                 recent_jobs=crud_jobs.auto_list_recent_jobs(limit=50),
                 base_job_id=base_job_id_raw,
                 user=user,
                 token_ok=None,
             )
-
-    if codebase_id and base_job_id is None:
-        codebase_id_val, codebase_err = _sanitize_segment(codebase_id)
-        if codebase_err:
-            err_msg = f"Invalid codebase_id: {codebase_err}"
-            debug_ctx["last_error"] = debug_ctx.get("last_error") or err_msg
-            return render_page(
-                request,
-                "new_job.html",
-                current_page="new",
-                status_code=400,
-                error=err_msg,
-                recipes=recipes,
-                presets_root=str(PRESETS_ROOT),
-                recipes_count=debug_ctx.get("recipes_count", len(recipes)),
-                codebases=codebases,
-                codebases_count=len(codebases),
-                workspaces_root=str(WORKSPACES_ROOT),
-                last_error=debug_ctx.get("last_error"),
-                debug_context=debug_ctx,
-                codebase_id=codebase_id,
-                recent_jobs=crud_jobs.auto_list_recent_jobs(limit=50),
-                user=user,
-                token_ok=None,
-            )
-        codebase_dir = (WORKSPACES_ROOT / codebase_id_val).resolve()
-        try:
-            root = WORKSPACES_ROOT.resolve()
-            if root not in codebase_dir.parents and codebase_dir != root:
-                raise ValueError("codebase path must stay under workspaces_root")
-        except Exception as exc:
-            err_msg = f"Invalid codebase path: {exc}"
-            debug_ctx["last_error"] = debug_ctx.get("last_error") or err_msg
-            return render_page(
-                request,
-                "new_job.html",
-                current_page="new",
-                status_code=400,
-                error=err_msg,
-                recipes=recipes,
-                presets_root=str(PRESETS_ROOT),
-                recipes_count=debug_ctx.get("recipes_count", len(recipes)),
-                codebases=codebases,
-                codebases_count=len(codebases),
-                workspaces_root=str(WORKSPACES_ROOT),
-                last_error=debug_ctx.get("last_error"),
-                debug_context=debug_ctx,
-                codebase_id=codebase_id,
-                recent_jobs=crud_jobs.auto_list_recent_jobs(limit=50),
-                user=user,
-                token_ok=None,
-            )
-        if not codebase_dir.exists() or not codebase_dir.is_dir():
-            err_msg = f"Codebase not found: {codebase_id_val}"
-            debug_ctx["last_error"] = debug_ctx.get("last_error") or err_msg
-            return render_page(
-                request,
-                "new_job.html",
-                current_page="new",
-                status_code=400,
-                error=err_msg,
-                recipes=recipes,
-                presets_root=str(PRESETS_ROOT),
-                recipes_count=debug_ctx.get("recipes_count", len(recipes)),
-                codebases=codebases,
-                codebases_count=len(codebases),
-                workspaces_root=str(WORKSPACES_ROOT),
-                last_error=debug_ctx.get("last_error"),
-                debug_context=debug_ctx,
-                codebase_id=codebase_id,
-                recent_jobs=crud_jobs.auto_list_recent_jobs(limit=50),
-                user=user,
-                token_ok=None,
-            )
-        if not (codebase_dir / "codebase.json").exists():
-            err_msg = f"Codebase metadata missing: {codebase_id_val}"
-            debug_ctx["last_error"] = debug_ctx.get("last_error") or err_msg
-            return render_page(
-                request,
-                "new_job.html",
-                current_page="new",
-                status_code=400,
-                error=err_msg,
-                recipes=recipes,
-                presets_root=str(PRESETS_ROOT),
-                recipes_count=debug_ctx.get("recipes_count", len(recipes)),
-                codebases=codebases,
-                codebases_count=len(codebases),
-                workspaces_root=str(WORKSPACES_ROOT),
-                last_error=debug_ctx.get("last_error"),
-                debug_context=debug_ctx,
-                codebase_id=codebase_id,
-                recent_jobs=crud_jobs.auto_list_recent_jobs(limit=50),
-                user=user,
-                token_ok=None,
-            )
-        base_job_path = str(codebase_dir)
-        codebase_id = codebase_id_val
-        # Reuse the codebase as a starting workspace; skip clone stage.
-        do_clone = False
 
     patch_paths = form.getlist("patch_paths") if hasattr(form, "getlist") else []
     patch_actions = form.getlist("patch_actions") if hasattr(form, "getlist") else []
@@ -847,7 +744,6 @@ async def create_job(
     allowed_fields = {
         "recipe_id",
         "note",
-        "codebase_id",
         "base_job_id",
         "do_clone",
         "do_edit",
@@ -886,7 +782,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            codebase_id=codebase_id,
         )
 
     platform, project, rid_error = _parse_recipe_id(recipe_id_val)
@@ -910,7 +805,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            codebase_id=codebase_id,
         )
 
     recipe_yaml, load_err = _load_recipe_yaml(platform, project)
@@ -934,7 +828,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            codebase_id=codebase_id,
         )
 
     if not isinstance(recipe_yaml, str):
@@ -957,7 +850,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            codebase_id=codebase_id,
         )
 
     settings = None
@@ -988,7 +880,6 @@ async def create_job(
                 token_ok=None,
                 recipe_id=recipe_id_val,
                 note=note,
-                codebase_id=codebase_id,
             )
     except Exception as exc:
         logger.warning("Disk safety check failed; proceeding without guard: %s", exc)
@@ -1026,7 +917,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            codebase_id=codebase_id,
         )
     if not has_gitlab_token(user):
         debug_ctx["last_error"] = debug_ctx.get("last_error") or "GitLab credentials are required for this user. Please set them in My Profile."
@@ -1048,7 +938,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            codebase_id=codebase_id,
         )
 
     snapshot = {
@@ -1059,7 +948,6 @@ async def create_job(
         "created_at": created_at,
         "status": jobs.STATUS_PENDING,
         "mode": "full",
-        "codebase_id": codebase_id,
         "base_job_id": base_job_id,
         "base_job_path": base_job_path,
         "run_clone": do_clone,
@@ -1081,7 +969,6 @@ async def create_job(
         "raw_recipe_yaml": recipe_yaml,
         "note": note,
         "mode": "full",
-        "codebase_id": codebase_id,
         "base_job_id": base_job_id,
         "base_job_path": base_job_path,
         "run_clone": do_clone,
@@ -1145,7 +1032,6 @@ async def create_job(
             token_ok=None,
             recipe_id=recipe_id_val,
             note=note,
-            codebase_id=codebase_id,
         )
     background_tasks.add_task(jobs.start_job_runner, job_id)
     return redirect_to(f"/jobs/{job_id}")

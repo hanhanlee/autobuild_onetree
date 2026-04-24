@@ -38,6 +38,7 @@ require_cmd() {
 
 require_cmd git
 require_cmd python3
+require_cmd rsync
 
 update_source_code() {
     echo -e "${YELLOW}[0/3] Updating source code (git pull)...${NC}"

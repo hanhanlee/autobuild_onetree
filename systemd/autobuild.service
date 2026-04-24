@@ -18,7 +18,7 @@ Environment="AUTOBUILD_DB=/work/autobuild_workspace/data/jobs.db"
 RuntimeMaxSec=86400
 
 # --- 內網保守設定 ---
-# 保留低風險穩定性設定；避免使用會干擾 sudo / user-home 流程的硬化項。
+# 保留低風險穩定性設定；目前不啟用可能干擾 Yocto 工作區、git 存取或反向代理行為的激進硬化項。
 RestartSec=3
 TimeoutStopSec=30
 
