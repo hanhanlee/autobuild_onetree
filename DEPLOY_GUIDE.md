@@ -3,6 +3,30 @@ Autobuild Onetree - Deployment Guide
 
 This guide reflects the current code path and the internal deployment layout. If you follow it on a clean Ubuntu host, you should be able to redeploy the full Autobuild system without guessing missing steps.
 
+Section 0: One-Command Host Bootstrap (Recommended)
+---------------------------------------------------
+For a brand-new Ubuntu host, `scripts/prepare_host.sh` performs everything in Sections 1, 2, and 3 below in a single idempotent run:
+
+```bash
+git clone <repo-url> /tmp/autobuild-src
+sudo bash /tmp/autobuild-src/scripts/prepare_host.sh
+```
+
+What it does:
+- Installs all OS / Yocto / app dependencies (apt)
+- Creates the `scm-bmc` group and the `autobuild` service user
+- Creates `/opt/autobuild` and `/work/autobuild_workspace/{jobs,data,secrets/gitlab}` with SetGID `2775` and `secrets/gitlab` at `2770`
+- Adds the invoking sudo user to `scm-bmc` (re-login required)
+
+What it intentionally does NOT do:
+- It does not place source code under `/opt/autobuild` — clone or rsync after this step, then run `tools/deploy_autobuild.sh`
+- It does not create `/opt/autobuild/.env` — create with `sudoedit` and reference `.env.example`
+- It does not install the systemd unit — do that once `.env` is in place
+
+Re-running `prepare_host.sh` is safe; it only adds what is missing. Use `--skip-apt` to skip the OS package step on hosts where you cannot run `apt-get install`.
+
+If you prefer doing things by hand, follow Sections 1-3 manually instead.
+
 Section 1: System Prerequisites
 -------------------------------
 OS
@@ -99,7 +123,14 @@ AUTOBUILD_TIMEZONE=Asia/Taipei
 AUTOBUILD_LOG_POLLING_MS=1000
 AUTOBUILD_HOUSEKEEPING_INTERVAL=3600
 AUTOBUILD_DISK_MIN_FREE_GB=5
+# Hostname or IP shown in the jobs UI "Copy SSH command" button.
+# If left empty, the app falls back to socket.gethostname(). On a standby
+# host, set this to the standby's own hostname so users do not get pointed
+# back to the primary.
+AUTOBUILD_SSH_HOST=
 ```
+
+See [`.env.example`](.env.example) for the full annotated list (build timeout, max concurrent jobs, SMTP, etc.).
 
 Optional `.env` values:
 - `AUTOBUILD_BASE_PATH` when Autobuild is served below a subpath such as `/autobuild`.
@@ -222,6 +253,21 @@ sudo systemctl status autobuild --no-pager
 ```
 
 If you are deploying from a developer checkout instead of the server copy, sync the repo to `/opt/autobuild` first and then run the same script.
+
+Section 6.2: Standby Host (A + B Topology)
+------------------------------------------
+The CEO project owns the cross-machine sync script. To bring up an Autobuild standby host:
+
+1. On the standby (host B), run `sudo bash scripts/prepare_host.sh` from a clone of this repo.
+2. Place the source code under `/opt/autobuild` (clone + `tools/deploy_autobuild.sh`).
+3. On the primary (host A), push the live secrets:
+   ```bash
+   cd ~/Project/CEO
+   make sync-standby H=user@host-b
+   ```
+   This copies `/opt/autobuild/.env` and `/work/autobuild_workspace/secrets/gitlab/` to B with the correct ownership and modes. Source code, `jobs.db`, and artifacts are intentionally NOT copied — they are reproducible.
+4. On B, edit `/opt/autobuild/.env` and set `AUTOBUILD_SSH_HOST` to B's own hostname so the UI "Copy SSH command" button points at B, not A.
+5. Install the systemd unit and start the service on B.
 
 Section 7: Troubleshooting
 --------------------------

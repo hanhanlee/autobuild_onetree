@@ -80,6 +80,21 @@ def get_git_host() -> str:
     return os.getenv("AUTOBUILD_GIT_HOST", "gitlab.example.com")
 
 
+def get_ssh_host() -> str:
+    """Hostname / IP shown to users in 'Copy SSH command' button.
+
+    Defaults to the current machine hostname so a freshly-cloned standby
+    host does not advertise the primary host's IP.
+    """
+    explicit = os.getenv("AUTOBUILD_SSH_HOST")
+    if explicit:
+        return explicit
+    import socket
+    try:
+        return socket.gethostname()
+    except Exception:
+        return "localhost"
+
 def get_job_dir(job_id: int) -> Path:
     """
     取得特定任務的根目錄

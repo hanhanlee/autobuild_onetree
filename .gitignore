@@ -1,9 +1,17 @@
 __pycache__/
 *.pyc
 venv/
+.venv/
 .DS_Store
 .idea/
 .vscode/
 .env
+.env.*
+!.env.example
+logs/
+*.log
+*.db
+*.sqlite
+*.sqlite3
 README_New.md
 diff.txt

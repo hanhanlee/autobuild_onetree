@@ -10,7 +10,7 @@ from markupsafe import Markup
 
 from . import auth
 from .app_settings import app_settings
-from .config import get_git_host
+from .config import get_git_host, get_ssh_host
 from .csrf import get_or_create_token
 from .version import __version__ as APP_VERSION
 
@@ -122,6 +122,7 @@ def render_page(
         "user": session_user,
         "current_page": current_page or "",
         "git_host": get_git_host(),
+        "ssh_host": get_ssh_host(),
         "token_ok": token_ok,
         "csrf_token": get_or_create_token(request),
         "app_base_path": APP_BASE_PATH,
